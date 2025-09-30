@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kasa Plug Scan Results</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        h2 { color: #333; }
+        ul { list-style-type: none; padding: 0; }
+        li { padding: 0.5em 0; }
+        .plug-alias { font-weight: bold; color: #2467a3; }
+        .plug-ip { font-family: monospace; color: #444; }
+        .error { color: red; margin-bottom: 1em; }
+        .back-link { display: inline-block; margin-top: 2em; }
+    </style>
+</head>
+<body>
+    <h2>Kasa Plugs Found:</h2>
+    {% if error %}
+        <div class="error">Error scanning: {{ error }}</div>
+    {% endif %}
+    {% if devices %}
+        <ul>
+        {% for ip, name in devices.items() %}
+            <li>
+                <span class="plug-alias">{{ name }}</span>
+                <span class="plug-ip">({{ ip }})</span>
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <div>No Kasa plugs found on your network.</div>
+    {% endif %}
+    <a href="/temp_config" class="back-link">&larr; Back to Temperature Control Config</a>
+</body>
+</html>

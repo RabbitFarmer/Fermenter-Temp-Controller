@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ system_settings.brewery_name }} - Fermentation Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    body {
+      background-color: #f4f4f4;
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
+    .config-links {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      padding: 10px 0;
+      font-size: 1em;
+    }
+
+    .config-links a {
+      text-decoration: none;
+      color: #333;
+      font-weight: bold;
+    }
+
+    .header {
+      text-align: center;
+      font-size: 2em;
+      margin-top: 10px;
+    }
+
+    .title {
+      text-align: center;
+      font-size: 1.5em;
+      margin-bottom: 20px;
+    }
+
+    .tiltcard-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 30px;
+      padding: 20px;
+    }
+
+
+    .tiltcard {
+      width: 33.333%;
+      min-width: 330px;
+      max-width: 360px;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      background-color: white;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .tiltcard-header {
+      padding: 10px;
+      color: white;
+      text-align: center;
+      font-weight: bold;
+      border-top-left-radius: 6px;
+      border-top-right-radius: 6px;
+    }
+
+    .tiltcard-body {
+      padding: 10px;
+      text-align: left;
+    }
+
+    .tiltcard-footer {
+      padding: 10px;
+      font-size: 0.9em;
+      text-align: right;
+    }
+
+    .tiltcard-bottom-bar {
+      background-color: #333;
+      color: white;
+      padding: 10px;
+      text-align: center;
+      border-bottom-left-radius: 6px;
+      border-bottom-right-radius: 6px;
+    }
+
+    .btn-chart {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .temp-control-ribbon {
+      width: 100%;
+      background-color: #f4f4f4;
+      padding: 20px 0;
+      border-top: 2px solid #ccc;
+      border-bottom: 2px solid #ccc;
+    }
+
+    .temp-header {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+
+    .temp-title {
+      font-size: 1.4em;
+      font-weight: bold;
+    }
+
+    .temp-subtitle {
+      font-size: 1em;
+      font-weight: normal;
+      color: #555;
+    }
+
+    .temp-row {
+      display: flex;
+      justify-content: flex-start;
+      gap: 30px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      margin-left: 2em;
+    }
+
+    .temp-box {
+      background-color: #fff;
+      border: 1px solid #aaa;
+      border-radius: 6px;
+      width: 220px;
+      height: 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    .temp-label {
+      font-size: 0.9em;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .temp-value {
+      font-size: 1.1em;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    .temp-range-box {
+      width: 50%;
+      margin: 0 auto 20px 
+      background-color: #fff;
+      border: 1px solid #aaa;
+      border-radius: 6px;
+      padding: 12px 0;
+      text-align: center;
+    }
+
+    .temp-range-labels,
+    .temp-range-values {
+      display: flex;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+
+    .temp-range-item {
+      flex: 1;
+      text-align: center;
+      font-weight: bold;
+      font-size: 1em;
+    }
+
+    .blink-blue {
+      color: blue;
+      font-weight: bold;
+      animation: blink 1s infinite;
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    .blink-red {
+      color: red;
+      font-weight: bold;
+      animation: blink 1s infinite;
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="config-links">
+    <a href="/system_config">System Settings</a>
+    <a href="/temp_config">Temperature Control</a>
+    <a href="/tilt_config">Batch Settings</a>
+  </div>
+
+  <div class="header">{{ system_settings.brewery_name }}</div>
+  <div class="title">Fermentation Dashboard</div>
+ 
+  <div class="tiltcard-container">
+    {% for color, tilt in tilts.items() %}
+    <div class="tiltcard">
+      <!-- TiltCard Header with Beer Name -->
+      <div class="tiltcard-header"
+           style="background-color: {{ tilt.color_code }};
+                  color: {% if color in ['Yellow', 'Pink', 'Green'] %}black{% else %}white{% endif %};">
+        {{ tilt.beer_name or 'Unnamed Beer' }}
+      </div>
+
+      <!-- Batch Name and Tilt Color -->
+      <div class="tiltcard-body">
+        <div style="font-weight: bold; font-size: 1.1em; margin-bottom: 4px;">
+          {{ tilt.batch_name or 'Unnamed Batch' }}
+        </div>
+        <div style="font-size: 0.9em; color: #555; margin-bottom: 10px;">
+          {{ color }} Tilt
+        </div>
+
+        <!-- Matrix Table -->
+        <table style="width: 100%;">
+          <tr><th></th><th>Recipe</th><th>Actual</th></tr>
+          <tr><td>Original Gravity</td><td>{{ tilt.recipe_og }}</td><td>{{ tilt.gravity }}</td></tr>
+          <tr><td>Final/Current Gravity</td><td>{{ tilt.recipe_fg }}</td><td>{{ tilt.gravity or '' }}</td></tr>
+          <tr><td>Temperature (°F)</td><td></td><td>{{ tilt.temp_f }}</td></tr>
+          <tr><td>A.B.V.</td><td>{{ tilt.recipe_abv }}</td><td>{{ tilt.actual_abv }}</td></tr>
+        </table>
+      </div>
+
+      <!-- Footer with Brew ID and Timestamp -->
+      <div class="tiltcard-footer">
+        Brew ID: {{ tilt.brewId }}<br>
+        Last Reading: {{ tilt.timestamp | localtime }}
+      </div>
+
+      <!-- Chart Button -->
+      <div class="tiltcard-bottom-bar">
+        <form action="/chart/{{ color }}" method="get">
+          <button type="submit" class="btn-chart">Chart</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="temp-control-ribbon">
+    <div class="temp-header">
+      <div class="temp-title">TEMPERATURE CONTROL</div>
+      <div class="temp-subtitle">Monitored by {{ temp_control.tilt_color }} Tilt</div>
+    </div>
+
+    <!-- Mode and Status Boxes -->
+    <div class="temp-row">
+      <div class="temp-box">
+        <div class="temp-label">Mode</div>
+        <div class="temp-value">
+          {% if temp_control.override_mode %}
+            Manual Override
+          {% elif temp_control.enable_heating and temp_control.enable_cooling %}
+            Heat & Cool
+          {% elif temp_control.enable_heating %}
+            Heating
+          {% elif temp_control.enable_cooling %}
+            Cooling
+          {% elif temp_control.tilt_color in live_tilts %}
+            Monitoring Only
+          {% else %}
+            OFF
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="temp-box">
+        <div class="temp-label">Status</div>
+        <div class="temp-value">
+          {% if temp_control.current_temp is not none and temp_control.low_limit is not none and temp_control.current_temp < temp_control.low_limit %}
+            Below Limit
+          {% elif temp_control.current_temp is not none and temp_control.high_limit is not none and temp_control.current_temp > temp_control.high_limit %}
+            Above Limit
+          {% elif temp_control.manual_cooling or temp_control.cooling_active %}
+            NOW COOLING
+          {% elif temp_control.manual_heating or temp_control.heating_active %}
+            NOW HEATING
+          {% else %}
+            IN RANGE
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Unified Temperature Range Box -->
+    <div class="temp-range-box">
+      <div class="temp-range-labels">
+        <div class="temp-range-item">Low Limit</div>
+        <div class="temp-range-item">Current Temp</div>
+        <div class="temp-range-item">High Limit</div>
+      </div>
+      <div class="temp-range-values">
+        <div class="temp-range-item">{{ temp_control.low_limit or '--' }}</div>
+        <div class="temp-range-item">{{ temp_control.current_temp or '--' }}</div>
+        <div class="temp-range-item">{{ temp_control.high_limit or '--' }}</div>
+      </div>
+    </div>
+
+    {% if temp_control.manual_cooling or temp_control.cooling_active %}
+      <div class="blink-blue"><strong>NOW COOLING</strong></div>
+    {% elif temp_control.manual_heating or temp_control.heating_active %}
+      <div class="blink-red"><strong>NOW HEATING</strong></div>
+    {% endif %}
+  </div>
+
+</body>
+</html>

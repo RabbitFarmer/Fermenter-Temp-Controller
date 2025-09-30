@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ color }} Tilt Chart</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    body {
+      background-color: #f4f4f4;
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    .header {
+      text-align: center;
+      font-size: 2em;
+      margin-top: 10px;
+    }
+    .title {
+      text-align: center;
+      font-size: 1.5em;
+      margin-bottom: 20px;
+    }
+    .ferm-info {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .chart-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 30px;
+    }
+    .btn-bar {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .btn-chart {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      margin: 0 10px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">{{ system_settings.brewery_name }}</div>
+  <div class="title">{{ color }} Tilt - Fermentation Chart</div>
+
+  <div class="ferm-info">
+    <p><strong>Fermentation Start Date:</strong> {{ ferm_start_date }}</p>
+    <p><strong>Days Fermenting:</strong> {{ ferm_days }}</p>
+    <p><strong>Stall Days:</strong> {{ stall_days }}</p>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="tiltChart" width="900" height="400"></canvas>
+  </div>
+
+  <div class="btn-bar">
+    <form action="/batch_summary/{{ color }}" method="get" style="display:inline;">
+      <button type="submit" class="btn-chart">Summary</button>
+    </form>
+    <form action="/export_log/{{ color }}" method="get" style="display:inline;">
+      <button type="submit" class="btn-chart">Export Log</button>
+    </form>
+    <form action="/export_csv/{{ color }}" method="get" style="display:inline;">
+      <button type="submit" class="btn-chart">Export CSV</button>
+    </form>
+    <form action="/" method="get" style="display:inline;">
+      <button type="submit" class="btn-chart">Return to Dashboard</button>
+    </form>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const ctx = document.getElementById('tiltChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: {{ timestamps|tojson }},
+        datasets: [
+          {
+            label: 'Gravity',
+            data: {{ gravities|tojson }},
+            borderColor: 'blue',
+            fill: false,
+            yAxisID: 'y1'
+          },
+          {
+            label: 'Temperature (°F)',
+            data: {{ temps|tojson }},
+            borderColor: 'red',
+            fill: false,
+            yAxisID: 'y2'
+          }
+        ]
+      },
+      options: {
+        scales: {
+          y1: {
+            type: 'linear',
+            position: 'left',
+            title: {
+              display: true,
+              text: 'Gravity'
+            }
+          },
+          y2: {
+            type: 'linear',
+            position: 'right',
+            title: {
+              display: true,
+              text: 'Temperature (°F)'
+            },
+            grid: {
+              drawOnChartArea: false
+            }
+          }
+        }
+      }
+    });
+  </script>
+
+</body>
+</html>

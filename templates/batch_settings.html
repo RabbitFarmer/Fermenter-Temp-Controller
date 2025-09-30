@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Batch and Recipe Settings</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    body {
+      background-color: #f4f4f4;
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    .header, .title {
+      text-align: center;
+      margin-top: 10px;
+    }
+    .title {
+      font-size: 1.5em;
+      margin-bottom: 20px;
+    }
+    .form-container {
+      width: 600px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+    .color-list, .all-colors-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .color-btn {
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      padding: 9px 22px;
+      cursor: pointer;
+      background-color: #ddd;
+      color: #222;
+      box-shadow: 0 0 3px rgba(0,0,0,0.08);
+      transition: background 0.15s;
+    }
+    .color-btn.active {
+      background-color: #4caf50;
+      color: white;
+    }
+    .color-btn.configured {
+      border: 2px solid #007bff;
+    }
+    .color-btn.unconfigured {
+      border: 2px dashed #999;
+    }
+    .btn-action {
+      margin: 8px 0;
+      padding: 8px 16px;
+      border-radius: 4px;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+      background: #007bff;
+      color: #fff;
+    }
+    .btn-action.cancel {
+      background: #bbb;
+      color: #333;
+      margin-left: 10px;
+    }
+    .open-colors-btn {
+      background: #ff9800;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      padding: 7px 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-bottom: 18px;
+    }
+    .prefix-title {
+      font-size: 1.2em;
+      font-weight: bold;
+      color: #333;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 5px;
+    }
+    input[type="text"], input[type="date"], select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">{{ system_settings.brewery_name }}</div>
+  <div class="title">Batch Settings</div>
+  <div class="form-container">
+
+    {% if not selected_tilt %}
+      <div class="prefix-title">Select an Active Tilt Color:</div>
+      <div class="color-list">
+        {% for color in active_colors %}
+          <form method="get" action="/batch_settings">
+            <input type="hidden" name="tilt_color" value="{{ color }}">
+            <button type="submit"
+              class="color-btn active {% if tilt_cfg[color].beer_name %}configured{% else %}unconfigured{% endif %}">
+              {{ color }}
+            </button>
+          </form>
+        {% endfor %}
+      </div>
+      <form method="get" action="/batch_settings">
+        <input type="hidden" name="show_all" value="1">
+        <button type="submit" class="open-colors-btn">Open Colors</button>
+      </form>
+    {% endif %}
+
+    {% if show_all and not selected_tilt %}
+      <div class="prefix-title">Select a Color (All Possible Colors):</div>
+      <div class="all-colors-list">
+        {% for color in all_colors %}
+          <form method="get" action="/batch_settings">
+            <input type="hidden" name="tilt_color" value="{{ color }}">
+            <input type="hidden" name="show_all" value="1">
+            <button type="submit"
+              class="color-btn {% if color in active_colors %}active{% endif %} {% if tilt_cfg[color].beer_name %}configured{% else %}unconfigured{% endif %}">
+              {{ color }}
+            </button>
+          </form>
+        {% endfor %}
+      </div>
+      <form method="get" action="/batch_settings">
+        <button type="submit" class="btn-action cancel">Cancel / Return</button>
+      </form>
+    {% endif %}
+
+    {% if selected_tilt %}
+      <div class="prefix-title">
+        {% if tilt_cfg[selected_tilt].beer_name %}
+          Edit Batch: {{ selected_tilt }}
+        {% else %}
+          NEW Batch: {{ selected_tilt }}
+        {% endif %}
+      </div>
+      <form method="POST" action="/api/batch_settings">
+        <input type="hidden" name="tilt_color" value="{{ selected_tilt }}">
+        <div class="form-group">
+          <label>Beer Name:</label>
+          <input type="text" name="beer_name" value="{{ selected_config.beer_name }}">
+        </div>
+        <div class="form-group">
+          <label>Batch Name:</label>
+          <input type="text" name="batch_name" value="{{ selected_config.batch_name }}">
+        </div>
+        <div class="form-group">
+          <label>Fermentation Start Date:</label>
+          <input type="date" name="ferm_start_date" value="{{ selected_config.ferm_start_date }}">
+        </div>
+        <div class="form-group">
+          <label>Original Gravity:</label>
+          <input type="text" name="actual_og" value="{{ selected_config.actual_og }}">
+        </div>
+        <div class="form-group">
+          <label>Recipe Original Gravity:</label>
+          <input type="text" name="recipe_og" value="{{ selected_config.recipe_og }}">
+        </div>
+        <div class="form-group">
+          <label>Recipe Final Gravity:</label>
+          <input type="text" name="recipe_fg" value="{{ selected_config.recipe_fg }}">
+        </div>
+        <div class="form-group">
+          <label>Recipe ABV:</label>
+          <input type="text" name="recipe_abv" value="{{ selected_config.recipe_abv }}">
+        </div>
+        <button type="submit" class="btn-action">
+          {% if tilt_cfg[selected_tilt].beer_name %}
+            Save (Edit)
+          {% else %}
+            Save (NEW)
+          {% endif %}
+        </button>
+      </form>
+      <form action="/batch_settings" method="get">
+        <button type="submit" class="btn-action cancel">Cancel / Return</button>
+      </form>
+    {% endif %}
+
+    <form action="/" method="get">
+      <button type="submit" class="btn-action cancel">Return to Dashboard</button>
+    </form>
+  </div>
+</body>
+</html>

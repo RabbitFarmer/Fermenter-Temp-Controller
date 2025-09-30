@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fermenter Temperature Control Setup</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="temp-config-setup-ribbon">
+    <div class="temp-header">
+      <div class="temp-title">TEMPERATURE CONTROL CONFIGURATION</div>
+      <div class="temp-subtitle">Edit parameters for {{ temp_control.tilt_color }} Tilt</div>
+    </div>
+
+    <form action="/api/update_temp_config" method="POST" class="temp-config-form">
+      <table class="config-table" style="width: 60%; margin: auto;">
+        <tr>
+          <td><label for="tilt_color"><b>Tilt Color</b></label></td>
+          <td>
+            <select name="tilt_color" id="tilt_color">
+              {% for color in tilt_cfg.keys() %}
+                <option value="{{ color }}" {% if temp_control.tilt_color == color %}selected{% endif %}>{{ color }}</option>
+              {% endfor %}
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td><label for="low_limit"><b>Low Temperature Limit (°F)</b></label></td>
+          <td><input type="number" name="low_limit" id="low_limit" value="{{ temp_control.low_limit or '' }}" step="0.1" min="0" required></td>
+        </tr>
+        <tr>
+          <td><label for="high_limit"><b>High Temperature Limit (°F)</b></label></td>
+          <td><input type="number" name="high_limit" id="high_limit" value="{{ temp_control.high_limit or '' }}" step="0.1" min="0" required></td>
+        </tr>
+        <tr>
+          <td><label for="heating_plug"><b>Heating Plug IP</b></label></td>
+          <td><input type="text" name="heating_plug" id="heating_plug" value="{{ temp_control.heating_plug or '' }}"></td>
+        </tr>
+        <tr>
+          <td><label for="cooling_plug"><b>Cooling Plug IP</b></label></td>
+          <td><input type="text" name="cooling_plug" id="cooling_plug" value="{{ temp_control.cooling_plug or '' }}"></td>
+        </tr>
+        <tr>
+          <td><b>Enable Heating?</b></td>
+          <td>
+            <input type="checkbox" name="enable_heating" id="enable_heating" {% if temp_control.enable_heating %}checked{% endif %}>
+          </td>
+        </tr>
+        <tr>
+          <td><b>Enable Cooling?</b></td>
+          <td>
+            <input type="checkbox" name="enable_cooling" id="enable_cooling" {% if temp_control.enable_cooling %}checked{% endif %}>
+          </td>
+        </tr>
+        <tr>
+          <td><b>Manual Heating?</b></td>
+          <td>
+            <input type="checkbox" name="manual_heating" id="manual_heating" {% if temp_control.manual_heating %}checked{% endif %}>
+          </td>
+        </tr>
+        <tr>
+          <td><b>Manual Cooling?</b></td>
+          <td>
+            <input type="checkbox" name="manual_cooling" id="manual_cooling" {% if temp_control.manual_cooling %}checked{% endif %}>
+          </td>
+        </tr>
+        <tr>
+          <td><b>Override Mode?</b></td>
+          <td>
+            <input type="checkbox" name="override_mode" id="override_mode" {% if temp_control.override_mode %}checked{% endif %}>
+          </td>
+        </tr>
+        <tr>
+          <td><label for="mode"><b>Mode</b></label></td>
+          <td>
+            <input type="text" name="mode" id="mode" value="{{ temp_control.mode or '' }}">
+          </td>
+        </tr>
+        <tr>
+          <td><label for="status"><b>Status</b></label></td>
+          <td>
+            <input type="text" name="status" id="status" value="{{ temp_control.status or '' }}">
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2" style="text-align: center; padding-top: 12px;">
+            <button type="submit" class="btn-primary">Save Configuration</button>
+            <a href="/" class="btn-secondary" style="margin-left: 16px;">Cancel</a>
+          </td>
+        </tr>
+      </table>
+      <input type="hidden" name="current_temp" value="{{ temp_control.current_temp or '' }}">
+    </form>
+
+    <div style="width: 60%; margin: 24px auto;">
+      <h3>Advanced Status</h3>
+      <table class="status-table" style="width:100%;">
+        <tr>
+          <td><b>Current Temp</b></td>
+          <td>{{ temp_control.current_temp or '--' }}</td>
+        </tr>
+        <tr>
+          <td><b>Heater On</b></td>
+          <td>{{ 'Yes' if temp_control.heater_on else 'No' }}</td>
+        </tr>
+        <tr>
+          <td><b>Cooler On</b></td>
+          <td>{{ 'Yes' if temp_control.cooler_on else 'No' }}</td>
+        </tr>
+        <tr>
+          <td><b>Heating Error</b></td>
+          <td>{{ temp_control.heating_error_msg or '--' }}</td>
+        </tr>
+        <tr>
+          <td><b>Cooling Error</b></td>
+          <td>{{ temp_control.cooling_error_msg or '--' }}</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

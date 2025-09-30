@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>System Settings</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="page-bg">
+
+  <div class="header">{{ system_settings.brewery_name }}</div>
+  <div class="title">System Settings</div>
+
+  <form action="/api/update_system_config" method="post">
+    <label>Brewery Name:</label>
+    <input type="text" name="brewery_name" value="{{ system_settings.brewery_name }}">
+
+    <label>Brewer Name:</label>
+    <input type="text" name="brewer_name" value="{{ system_settings.brewer_name }}">
+
+    <label>Street Address:</label>
+    <input type="text" name="street" value="{{ system_settings.street }}">
+
+    <label>City:</label>
+    <input type="text" name="city" value="{{ system_settings.city }}">
+
+    <label>State:</label>
+    <input type="text" name="state" value="{{ system_settings.state }}">
+
+    <label>Email:</label>
+    <input type="email" name="email" value="{{ system_settings.email }}">
+
+    <label>Mobile:</label>
+    <input type="text" name="mobile" value="{{ system_settings.mobile }}">
+
+    <div class="form-row">
+      <div class="form-label">Warnings and Notifications:</div>
+      <div class="form-input">
+        <select name="warning_mode">
+          <option value="none" {% if system_settings.warning_mode == "none" %}selected{% endif %}>None</option>
+          <option value="email" {% if system_settings.warning_mode == "email" %}selected{% endif %}>Email</option>
+          <option value="sms" {% if system_settings.warning_mode == "sms" %}selected{% endif %}>SMS</option>
+          <option value="both" {% if system_settings.warning_mode == "both" %}selected{% endif %}>Both</option>
+        </select>
+      </div>
+    </div>
+    <label>Time Zone:</label>
+    <input type="text" name="timezone" value="{{ system_settings.timezone }}">
+
+    <label>Timestamp Format:</label>
+    <input type="text" name="timestamp_format" value="{{ system_settings.timestamp_format }}">
+
+    <label>Update Interval (seconds between BLE scans):</label>
+    <input type="number" name="update_interval" value="{{ system_settings.update_interval }}">
+
+    <hr>
+
+    <h3>External Logging Integrations</h3>
+    <label>Refresh Rate (minutes):</label>
+    <input type="number" name="external_refresh_rate" value="{{ system_settings.external_refresh_rate or 15 }}">
+
+    {% for i in range(3) %}
+    <div class="external-log-entry">
+      <label>Name {{ i + 1 }}:</label>
+      <input type="text" name="external_name_{{ i }}" value="{{ system_settings.external_log_targets[i].name if system_settings.external_log_targets|length > i else '' }}">
+
+      <label>URL {{ i + 1 }}:</label>
+      <input type="text" name="external_url_{{ i }}" value="{{ system_settings.external_log_targets[i].url if system_settings.external_log_targets|length > i else '' }}">
+    </div>
+    {% endfor %}
+
+    <button type="submit" class="btn-chart">Save System Settings</button>
+  </form>
+
+  <form action="/" method="get">
+    <button type="submit" class="btn-chart">Return to Dashboard</button>
+  </form>
+
+</body>
+</html>
