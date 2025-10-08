@@ -8,13 +8,15 @@
   "mobile": "803-215-2339",
   "timezone": "America/New_York",
   "timestamp_format": "%Y-%m-%d %H:%M:%S",
-  "update_interval": "30",
-  "external_refresh_rate": "15",
-  "external_name_0": "BrewTrack",
-  "external_url_0": "https://brewtrack.example.com/api/log",
+  "update_interval": 5,
+  "external_refresh_rate": 15,
+  "external_name_0": "",
+  "external_url_0": "",
   "external_name_1": "",
   "external_url_1": "",
   "external_name_2": "",
   "external_url_2": "",
-  "warning_mode": "both"
+  "warning_mode": "both",
+  "tilt_reading_interval": 15,
+  "temp_logging_interval": 10
 }

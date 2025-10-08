@@ -7,7 +7,12 @@ def kasa_worker(queue, status_dict):
         try:
             command = queue.get()
             # command: {'mode': 'heating'/'cooling', 'url': url, 'action': 'on'/'off', 'enabled': True/False}
-            if not command['enabled'] or not command['url']:
+            # --- CHANGE: Always allow 'off' commands if URL is present ---
+            if command['action'] == 'off':
+                if not command['url']:
+                    print(f"{command['mode'].capitalize()} plug operation bypassed (URL blank).")
+                    continue
+            elif not command['enabled'] or not command['url']:
                 print(f"{command['mode'].capitalize()} plug operation bypassed (not enabled or URL blank).")
                 continue
             error = asyncio.run(kasa_control(command['url'], command['action'], command['mode']))
