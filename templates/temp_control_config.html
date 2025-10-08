@@ -12,13 +12,13 @@
       <div class="temp-subtitle">Edit parameters for {{ temp_control.tilt_color }} Tilt</div>
     </div>
 
-    <form action="/api/update_temp_config" method="POST" class="temp-config-form">
+    <form action="/update_temp_config" method="POST" class="temp-config-form">
       <table class="config-table" style="width: 60%; margin: auto;">
         <tr>
           <td><label for="tilt_color"><b>Tilt Color</b></label></td>
           <td>
             <select name="tilt_color" id="tilt_color">
-              {% for color in tilt_cfg.keys() %}
+              {% for color in batch_cfg.keys() %}
                 <option value="{{ color }}" {% if temp_control.tilt_color == color %}selected{% endif %}>{{ color }}</option>
               {% endfor %}
             </select>
@@ -53,39 +53,50 @@
           </td>
         </tr>
         <tr>
-          <td><b>Manual Heating?</b></td>
-          <td>
-            <input type="checkbox" name="manual_heating" id="manual_heating" {% if temp_control.manual_heating %}checked{% endif %}>
-          </td>
-        </tr>
-        <tr>
-          <td><b>Manual Cooling?</b></td>
-          <td>
-            <input type="checkbox" name="manual_cooling" id="manual_cooling" {% if temp_control.manual_cooling %}checked{% endif %}>
-          </td>
-        </tr>
-        <tr>
-          <td><b>Override Mode?</b></td>
-          <td>
-            <input type="checkbox" name="override_mode" id="override_mode" {% if temp_control.override_mode %}checked{% endif %}>
-          </td>
-        </tr>
-        <tr>
-          <td><label for="mode"><b>Mode</b></label></td>
-          <td>
-            <input type="text" name="mode" id="mode" value="{{ temp_control.mode or '' }}">
-          </td>
-        </tr>
-        <tr>
           <td><label for="status"><b>Status</b></label></td>
           <td>
             <input type="text" name="status" id="status" value="{{ temp_control.status or '' }}">
           </td>
         </tr>
         <tr>
+          <td colspan="2" style="padding-top: 22px; border-top: 2px solid #ccc;">
+            <b>Temperature Control Report</b>
+            <div style="margin-top:8px;">
+              <form method="post" action="/temp_report" style="display:inline;">
+                <label for="report_tilt_color">Tilt Color:</label>
+                <select name="tilt_color" id="report_tilt_color">
+                  {% for color in report_colors %}
+                    <option value="{{ color }}" {% if color == temp_control.tilt_color %}selected{% endif %}>{{ color }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn-action">View</button>
+              </form>
+              <form method="post" action="/export_temp_log" style="display:inline;">
+                <label for="log_tilt_color">Tilt Color:</label>
+                <select name="tilt_color" id="log_tilt_color">
+                  {% for color in report_colors %}
+                    <option value="{{ color }}" {% if color == temp_control.tilt_color %}selected{% endif %}>{{ color }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn-action" style="margin-left:10px;">Export Log</button>
+              </form>
+              <form method="post" action="/export_temp_csv" style="display:inline;">
+                <label for="csv_tilt_color">Tilt Color:</label>
+                <select name="tilt_color" id="csv_tilt_color">
+                  {% for color in report_colors %}
+                    <option value="{{ color }}" {% if color == temp_control.tilt_color %}selected{% endif %}>{{ color }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn-action" style="margin-left:10px;">Export CSV</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        <tr>
           <td colspan="2" style="text-align: center; padding-top: 12px;">
             <button type="submit" class="btn-primary">Save Configuration</button>
-            <a href="/" class="btn-secondary" style="margin-left: 16px;">Cancel</a>
+            <button type="button" class="btn-secondary" style="margin-left: 16px;" onclick="window.location.href='/temp_config'">Cancel</button>
+            <button type="button" class="btn-secondary" style="margin-left: 16px;" onclick="window.location.href='/'">Return to Display</button>
           </td>
         </tr>
       </table>

@@ -6,74 +6,109 @@
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body class="page-bg">
+  <div class="temp-config-setup-ribbon">
+    <div class="temp-header">
+      <div class="temp-title">SYSTEM SETTINGS CONFIGURATION</div>
+      <div class="temp-subtitle">Edit global system configuration</div>
+    </div>
 
-  <div class="header">{{ system_settings.brewery_name }}</div>
-  <div class="title">System Settings</div>
+    <form action="update_system_config" method="post" class="temp-config-form">
+      <table class="config-table" style="width: 60%; margin: auto;">
+        <tr>
+          <td><label for="brewery_name"><b>Brewery Name</b></label></td>
+          <td><input type="text" name="brewery_name" id="brewery_name" value="{{ system_settings.brewery_name }}"></td>
+        </tr>
+        <tr>
+          <td><label for="brewer_name"><b>Brewer Name</b></label></td>
+          <td><input type="text" name="brewer_name" id="brewer_name" value="{{ system_settings.brewer_name }}"></td>
+        </tr>
+        <tr>
+          <td><label for="street"><b>Street Address</b></label></td>
+          <td><input type="text" name="street" id="street" value="{{ system_settings.street }}"></td>
+        </tr>
+        <tr>
+          <td><label for="city"><b>City</b></label></td>
+          <td><input type="text" name="city" id="city" value="{{ system_settings.city }}"></td>
+        </tr>
+        <tr>
+          <td><label for="state"><b>State</b></label></td>
+          <td><input type="text" name="state" id="state" value="{{ system_settings.state }}"></td>
+        </tr>
+        <tr>
+          <td><label for="email"><b>Email</b></label></td>
+          <td><input type="email" name="email" id="email" value="{{ system_settings.email }}"></td>
+        </tr>
+        <tr>
+          <td><label for="mobile"><b>Mobile</b></label></td>
+          <td><input type="text" name="mobile" id="mobile" value="{{ system_settings.mobile }}"></td>
+        </tr>
+        <tr>
+          <td><label for="warning_mode"><b>Warnings & Notifications</b></label></td>
+          <td>
+            <select name="warning_mode" id="warning_mode">
+              <option value="none" {% if system_settings.warning_mode == "none" %}selected{% endif %}>None</option>
+              <option value="email" {% if system_settings.warning_mode == "email" %}selected{% endif %}>Email</option>
+              <option value="sms" {% if system_settings.warning_mode == "sms" %}selected{% endif %}>SMS</option>
+              <option value="both" {% if system_settings.warning_mode == "both" %}selected{% endif %}>Both</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td><label for="timezone"><b>Time Zone</b></label></td>
+          <td><input type="text" name="timezone" id="timezone" value="{{ system_settings.timezone }}"></td>
+        </tr>
+        <tr>
+          <td><label for="timestamp_format"><b>Timestamp Format</b></label></td>
+          <td><input type="text" name="timestamp_format" id="timestamp_format" value="{{ system_settings.timestamp_format }}"></td>
+        </tr>
+        <tr>
+          <td><label for="update_interval"><b>Update Interval (minutes between BLE scans)</b></label></td>
+          <td><input type="number" name="update_interval" id="update_interval" value="{{ system_settings.update_interval }}"></td>
+        </tr>
+        <tr>
+          <td><label for="tilt_reading_interval"><b>Tilt Reading Logging Interval (minutes)</b></label></td>
+          <td><input type="number" name="tilt_reading_interval" id="tilt_reading_interval" value="{{ system_settings.tilt_reading_interval }}"></td>
+        </tr>
+        <tr>
+          <td><label for="temp_logging_interval"><b>Temperature Control Logging Interval (minutes)</b></label></td>
+          <td><input type="number" name="temp_logging_interval" id="temp_logging_interval" value="{{ system_settings.temp_logging_interval }}"></td>
+        </tr>
+      </table>
 
-  <form action="/api/update_system_config" method="post">
-    <label>Brewery Name:</label>
-    <input type="text" name="brewery_name" value="{{ system_settings.brewery_name }}">
+      <hr style="width:60%;margin:auto;">
 
-    <label>Brewer Name:</label>
-    <input type="text" name="brewer_name" value="{{ system_settings.brewer_name }}">
+      <h3 style="text-align:center;">External Logging Integrations</h3>
+      <table class="config-table" style="width: 60%; margin: auto;">
+        <tr>
+          <td><label for="external_refresh_rate"><b>External Post Interval (minutes)</b></label></td>
+          <td><input type="number" name="external_refresh_rate" id="external_refresh_rate" value="{{ system_settings.external_refresh_rate }}"></td>
+        </tr>
+        {% for i in range(2) %}
+        <tr>
+          <td>
+            <label for="external_name_{{ i }}"><b>Name {{ i + 1 }}</b></label><br>
+            <label for="external_url_{{ i }}"><b>URL {{ i + 1 }}</b></label>
+          </td>
+          <td>
+            <input type="text" name="external_name_{{ i }}" id="external_name_{{ i }}" value="{{ system_settings['external_name_' ~ i] }}"><br>
+            <input type="text" name="external_url_{{ i }}" id="external_url_{{ i }}" value="{{ system_settings['external_url_' ~ i] }}">
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
 
-    <label>Street Address:</label>
-    <input type="text" name="street" value="{{ system_settings.street }}">
-
-    <label>City:</label>
-    <input type="text" name="city" value="{{ system_settings.city }}">
-
-    <label>State:</label>
-    <input type="text" name="state" value="{{ system_settings.state }}">
-
-    <label>Email:</label>
-    <input type="email" name="email" value="{{ system_settings.email }}">
-
-    <label>Mobile:</label>
-    <input type="text" name="mobile" value="{{ system_settings.mobile }}">
-
-    <div class="form-row">
-      <div class="form-label">Warnings and Notifications:</div>
-      <div class="form-input">
-        <select name="warning_mode">
-          <option value="none" {% if system_settings.warning_mode == "none" %}selected{% endif %}>None</option>
-          <option value="email" {% if system_settings.warning_mode == "email" %}selected{% endif %}>Email</option>
-          <option value="sms" {% if system_settings.warning_mode == "sms" %}selected{% endif %}>SMS</option>
-          <option value="both" {% if system_settings.warning_mode == "both" %}selected{% endif %}>Both</option>
-        </select>
+      <div style="text-align:center; margin-top:20px;">
+        <button type="submit" class="btn-primary">Save System Settings</button>
+        <button type="cancel" class="btn-secondary" style="margin-left:16px;">Cancel Changes</button>
       </div>
+    </form>
+
+    <div style="text-align:center; margin-top:12px;">
+      <form action="/" method="get" style="display:inline;">
+        <button type="submit" class="btn-action cancel">Return to Dashboard</button>
+      </form>
     </div>
-    <label>Time Zone:</label>
-    <input type="text" name="timezone" value="{{ system_settings.timezone }}">
-
-    <label>Timestamp Format:</label>
-    <input type="text" name="timestamp_format" value="{{ system_settings.timestamp_format }}">
-
-    <label>Update Interval (seconds between BLE scans):</label>
-    <input type="number" name="update_interval" value="{{ system_settings.update_interval }}">
-
-    <hr>
-
-    <h3>External Logging Integrations</h3>
-    <label>Refresh Rate (minutes):</label>
-    <input type="number" name="external_refresh_rate" value="{{ system_settings.external_refresh_rate or 15 }}">
-
-    {% for i in range(3) %}
-    <div class="external-log-entry">
-      <label>Name {{ i + 1 }}:</label>
-      <input type="text" name="external_name_{{ i }}" value="{{ system_settings.external_log_targets[i].name if system_settings.external_log_targets|length > i else '' }}">
-
-      <label>URL {{ i + 1 }}:</label>
-      <input type="text" name="external_url_{{ i }}" value="{{ system_settings.external_log_targets[i].url if system_settings.external_log_targets|length > i else '' }}">
-    </div>
-    {% endfor %}
-
-    <button type="submit" class="btn-chart">Save System Settings</button>
-  </form>
-
-  <form action="/" method="get">
-    <button type="submit" class="btn-chart">Return to Dashboard</button>
-  </form>
-
+    
+  </div>
 </body>
 </html>
