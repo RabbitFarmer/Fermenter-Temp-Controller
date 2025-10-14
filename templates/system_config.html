@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>System Configuration</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+    .center-container {
+      display: flex;
+      justify-content: center;
+      margin-top: 36px;
+    }
+    .form-wrapper {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 36px;
+      background: #fff;
+      padding: 32px 40px;
+      border-radius: 10px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.04);
+      min-width: 720px;
+    }
+    .questions-col {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+    .answers-col {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+    .form-group {
+      margin-bottom: 22px;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      min-height: 38px;
+    }
+    .form-label {
+      font-weight: bold;
+      margin-bottom: 0;
+      margin-right: 0;
+    }
+    .form-input {
+      width: 320px;
+      padding: 4px;
+      margin-bottom: 6px;
+      margin-left: 0;
+    }
+    .form-section {
+      margin-bottom: 0;
+    }
+    .form-button-row {
+      grid-column: span 2;
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    select.form-input {
+      width: 320px;
+    }
+  </style>
+</head>
+<body>
+  <h2 style="text-align:center;">System Configuration</h2>
+  <div class="center-container">
+    <form method="post" action="/update_system_config">
+      <div class="form-wrapper">
+        <div class="questions-col">
+          <div class="form-group"><label class="form-label" for="brewery_name">Brewery Name:</label></div>
+          <div class="form-group"><label class="form-label" for="brewer_name">Brewer Name:</label></div>
+          <div class="form-group"><label class="form-label" for="street">Street:</label></div>
+          <div class="form-group"><label class="form-label" for="city">City:</label></div>
+          <div class="form-group"><label class="form-label" for="state">State:</label></div>
+          <div class="form-group"><label class="form-label" for="email">Email:</label></div>
+          <div class="form-group"><label class="form-label" for="mobile">Mobile:</label></div>
+          <div class="form-group"><label class="form-label" for="timezone">Timezone:</label></div>
+          <div class="form-group"><label class="form-label" for="timestamp_format">Timestamp Format:</label></div>
+          <div class="form-group"><label class="form-label" for="update_interval">Update Interval (minutes):</label></div>
+          <div class="form-group"><label class="form-label" for="external_refresh_rate">Offsite Tracking Software Refresh Rate (minutes):</label></div>
+          <div class="form-group"><label class="form-label" for="offsite_name_1">Offsite Tracking Software #1 Name:</label></div>
+          <div class="form-group"><label class="form-label" for="offsite_url_1">Offsite Tracking Software #1 URL:</label></div>
+          <div class="form-group"><label class="form-label" for="offsite_name_2">Offsite Tracking Software #2 Name:</label></div>
+          <div class="form-group"><label class="form-label" for="offsite_url_2">Offsite Tracking Software #2 URL:</label></div>
+          <div class="form-group"><label class="form-label" for="warning_mode">Warning Mode:</label></div>
+          <div class="form-group"><label class="form-label" for="stall_variance_threshold">Stall Variance Threshold (gravity units):</label></div>
+          <div class="form-group"><label class="form-label" for="stall_notification_days">Number of Days Stalled Before Notification:</label></div>
+        </div>
+        <div class="answers-col">
+          <div class="form-group">
+            <input class="form-input" type="text" name="brewery_name" id="brewery_name" value="{{ system_settings.brewery_name or '' }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="text" name="brewer_name" id="brewer_name" value="{{ system_settings.brewer_name or '' }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="text" name="street" id="street" value="{{ system_settings.street or '' }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="text" name="city" id="city" value="{{ system_settings.city or '' }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="text" name="state" id="state" value="{{ system_settings.state or '' }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="email" name="email" id="email" value="{{ system_settings.email or '' }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="text" name="mobile" id="mobile" value="{{ system_settings.mobile or '' }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="text" name="timezone" id="timezone" value="{{ system_settings.timezone or '' }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="text" name="timestamp_format" id="timestamp_format" value="{{ system_settings.timestamp_format or '' }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="number" min="1" name="update_interval" id="update_interval" value="{{ (system_settings.update_interval|float / 60) if system_settings.update_interval else 1 }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="number" min="1" name="external_refresh_rate" id="external_refresh_rate" value="{{ (system_settings.external_refresh_rate|float / 60) if system_settings.external_refresh_rate else 1 }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="text" name="offsite_name_1" id="offsite_name_1" value="{{ system_settings.offsite_name_1 or '' }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="text" name="offsite_url_1" id="offsite_url_1" value="{{ system_settings.offsite_url_1 or '' }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="text" name="offsite_name_2" id="offsite_name_2" value="{{ system_settings.offsite_name_2 or '' }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="text" name="offsite_url_2" id="offsite_url_2" value="{{ system_settings.offsite_url_2 or '' }}">
+          </div>
+          <div class="form-group">
+            <select class="form-input" name="warning_mode" id="warning_mode">
+              <option value="none" {% if system_settings.warning_mode == "none" %}selected{% endif %}>None</option>
+              <option value="email" {% if system_settings.warning_mode == "email" %}selected{% endif %}>Email</option>
+              <option value="sms" {% if system_settings.warning_mode == "sms" %}selected{% endif %}>SMS</option>
+              <option value="both" {% if system_settings.warning_mode == "both" %}selected{% endif %}>Both</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="number" step="0.0001" name="stall_variance_threshold" id="stall_variance_threshold"
+                   value="{{ system_settings.stall_variance_threshold or 0.001 }}">
+          </div>
+          <div class="form-group">
+            <input class="form-input" type="number" min="1" name="stall_notification_days" id="stall_notification_days"
+                   value="{{ system_settings.stall_notification_days or 3 }}">
+          </div>
+        </div>
+        <div class="form-button-row">
+          <button type="submit" style="margin-top:0;">Save Configuration</button>
+          <button type="button" onclick="window.location.href='/'" style="margin-top:0;">Return to Dashboard</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

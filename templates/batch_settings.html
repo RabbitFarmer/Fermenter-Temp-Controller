@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Batch and Recipe Settings</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    /* Center all forms with .center-form */
+    .center-form {
+      text-align: center;
+      margin-top: 20px;
+      margin-bottom: 20px;
+    }
+    /* Make color buttons a little bigger and more uniform */
+    .color-btn {
+      min-width: 100px;
+      min-height: 36px;
+      font-size: 1.15em;
+      border-radius: 6px;
+      border: 2px solid #222;
+      margin: 8px;
+      cursor: pointer;
+      transition: box-shadow 0.2s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .color-btn.active {
+      /* background-color and color will be set inline for each tilt */
+      border: 2px solid #222;
+      font-weight: bold;
+      font-size: 1.35em;
+      margin-bottom: 18px;
+      margin-top: 10px;
+    }
+    .color-list, .all-colors-list {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">{{ system_settings.brewery_name }}</div>
+  <div class="title">Batch Settings</div>
+  <div class="form-container">
+
+    {% if not selected_tilt %}
+      <div class="prefix-title">Select an Active Tilt Color:</div>
+      <div class="color-list">
+        {% for color in active_colors %}
+          <form method="get" action="/batch_settings" style="display:inline;">
+            <input type="hidden" name="tilt_color" value="{{ color }}">
+            <button type="submit"
+              class="color-btn {% if selected_tilt == color %}active{% endif %} {% if batch_cfg[color].beer_name %}configured{% else %}unconfigured{% endif %}"
+              style="{% if selected_tilt == color %}
+                        background-color: {{ COLOR_MAP[color] }};
+                        color: {% if COLOR_MAP[color] in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %};
+                     {% endif %}">
+              {{ color }}
+            </button>
+          </form>
+        {% endfor %}
+      </div>
+      <div class="center-form">
+        <form method="get" action="/batch_settings">
+          <input type="hidden" name="show_all" value="1">
+          <button type="submit" class="open-colors-btn">Open Colors</button>
+        </form>
+      </div>
+    {% endif %}
+
+    {% if show_all and not selected_tilt %}
+      <div class="prefix-title">Select a Color (All Possible Colors):</div>
+      <div class="all-colors-list">
+        {% for color in all_colors %}
+          <form method="get" action="/batch_settings" style="display:inline;">
+            <input type="hidden" name="tilt_color" value="{{ color }}">
+            <button type="submit"
+              class="color-btn {% if selected_tilt == color %}active{% endif %} {% if batch_cfg[color].beer_name %}configured{% else %}unconfigured{% endif %}"
+              style="{% if selected_tilt == color %}
+                        background-color: {{ COLOR_MAP[color] }};
+                        color: {% if COLOR_MAP[color] in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %};
+                     {% endif %}">
+              {{ color }}
+            </button>
+          </form>
+        {% endfor %}
+      </div>
+      <div class="center-form">
+        <form method="get" action="/batch_settings">
+          <button type="submit" class="btn-action cancel">Cancel / Return</button>
+        </form>
+      </div>
+    {% endif %}
+
+    {% if selected_tilt %}
+      <div class="prefix-title">
+        {% if batch_cfg[selected_tilt].beer_name %}
+          Edit Batch: {{ selected_tilt }}
+        {% else %}
+          NEW Batch: {{ selected_tilt }}
+        {% endif %}
+      </div>
+      <form method="POST" action="/batch_settings">
+        <input type="hidden" name="tilt_color" value="{{ selected_tilt }}">
+        <div class="form-group">
+          <label>Beer Name:</label>
+          <input type="text" name="beer_name" value="{{ selected_config.beer_name }}">
+        </div>
+        <div class="form-group">
+          <label>Batch Name:</label>
+          <input type="text" name="batch_name" value="{{ selected_config.batch_name }}">
+        </div>
+        <div class="form-group">
+          <label>Fermentation Start Date:</label>
+          <input type="date" name="ferm_start_date" value="{{ selected_config.ferm_start_date }}">
+        </div>
+        <div class="form-group">
+          <label>Original Gravity:</label>
+          <input type="text" name="actual_og" value="{{ selected_config.actual_og }}">
+        </div>
+        <div class="form-group">
+          <label>Recipe Original Gravity:</label>
+          <input type="text" name="recipe_og" value="{{ selected_config.recipe_og }}">
+        </div>
+        <div class="form-group">
+          <label>Recipe Final Gravity:</label>
+          <input type="text" name="recipe_fg" value="{{ selected_config.recipe_fg }}">
+        </div>
+        <div class="form-group">
+          <label>Recipe ABV:</label>
+          <input type="text" name="recipe_abv" value="{{ selected_config.recipe_abv }}">
+        </div>
+        <div class="form-group">
+          <label>Brew ID:</label>
+          <input type="text" name="brewid" value="{{ selected_config.brewid }}" readonly>
+        </div>
+        <div class="form-group">
+          <button type="submit" class="btn-action save">Save Batch Settings</button>
+        </div>
+      </form>
+      <div class="center-form">
+        <form method="get" action="/">
+          <button type="submit" class="btn-action cancel">Return to Dashboard</button>
+        </form>
+      </div>
+    {% endif %}
+
+    {% if not selected_tilt %}
+      <div class="center-form">
+        <form action="/" method="get">
+          <button type="submit" class="btn-action cancel">Return to Dashboard</button>
+        </form>
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>

@@ -1,0 +1,82 @@
+{
+  "Red": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": ""
+  },
+  "Green": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": ""
+  },
+  "Black": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": ""
+  },
+  "Purple": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": ""
+  },
+  "Orange": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": ""
+  },
+  "Blue": {
+    "beer_name": "MY BEST BEER",
+    "batch_name": "BLUE BATCH ONE",
+    "ferm_start_date": "2025-09-09",
+    "recipe_og": "1.080",
+    "recipe_fg": "1.004",
+    "recipe_abv": "10.5",
+    "actual_og": "1.080",
+    "brewid": "5c3dde3b"
+  },
+  "Yellow": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": ""
+  },
+  "Pink": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": ""
+  }
+}

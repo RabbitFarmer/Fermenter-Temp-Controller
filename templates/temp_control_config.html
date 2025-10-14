@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fermenter Temperature Control Setup</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="temp-config-setup-ribbon">
+    <div class="temp-header">
+      <div class="temp-title">TEMPERATURE CONTROL CONFIGURATION</div>
+      <div class="temp-subtitle">Edit parameters for {{ temp_control.tilt_color }} Tilt</div>
+    </div>
+
+    <form action="/update_temp_config" method="POST" class="temp-config-form">
+      <table class="config-table" style="width: 60%; margin: auto;">
+        <tr>
+          <td><label for="tilt_color"><b>Tilt Color</b></label></td>
+          <td>
+            <select name="tilt_color" id="tilt_color">
+              {% for color in batch_cfg.keys() %}
+                <option value="{{ color }}" {% if temp_control.tilt_color == color %}selected{% endif %}>{{ color }}</option>
+              {% endfor %}
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td><label for="low_limit"><b>Low Temperature Limit (°F)</b></label></td>
+          <td><input type="number" name="low_limit" id="low_limit" value="{{ temp_control.low_limit or '' }}" step="0.1" min="0" required></td>
+        </tr>
+        <tr>
+          <td><label for="high_limit"><b>High Temperature Limit (°F)</b></label></td>
+          <td><input type="number" name="high_limit" id="high_limit" value="{{ temp_control.high_limit or '' }}" step="0.1" min="0" required></td>
+        </tr>
+        <tr>
+          <td><label for="heating_plug"><b>Heating Plug IP</b></label></td>
+          <td><input type="text" name="heating_plug" id="heating_plug" value="{{ temp_control.heating_plug or '' }}"></td>
+        </tr>
+        <tr>
+          <td><label for="cooling_plug"><b>Cooling Plug IP</b></label></td>
+          <td><input type="text" name="cooling_plug" id="cooling_plug" value="{{ temp_control.cooling_plug or '' }}"></td>
+        </tr>
+        <tr>
+          <td><b>Enable Heating?</b></td>
+          <td>
+            <input type="checkbox" name="enable_heating" id="enable_heating" {% if temp_control.enable_heating %}checked{% endif %}>
+          </td>
+        </tr>
+        <tr>
+          <td><b>Enable Cooling?</b></td>
+          <td>
+            <input type="checkbox" name="enable_cooling" id="enable_cooling" {% if temp_control.enable_cooling %}checked{% endif %}>
+          </td>
+        </tr>
+        <tr>
+          <td><label for="status"><b>Status</b></label></td>
+          <td>
+            <input type="text" name="status" id="status" value="{{ temp_control.status or '' }}">
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2" style="text-align: center; padding-top: 12px;">
+            <button type="submit" class="btn-primary">Save Configuration</button>
+            <button type="button" class="btn-secondary" style="margin-left: 16px;" onclick="window.location.href='/temp_config'">Cancel</button>
+            <button type="button" class="btn-secondary" style="margin-left: 16px;" onclick="window.location.href='/'">Return to Display</button>
+          </td>
+        </tr>
+      </table>
+      <input type="hidden" name="current_temp" value="{{ temp_control.current_temp or '' }}">
+    </form>
+
+    <div style="width: 60%; margin: 24px auto;">
+      <h3>Advanced Status</h3>
+      <table class="status-table" style="width:100%;">
+        <tr>
+          <td><b>Current Temp</b></td>
+          <td>{{ temp_control.current_temp or '--' }}</td>
+        </tr>
+        <tr>
+          <td><b>Heater On</b></td>
+          <td>{{ 'Yes' if temp_control.heater_on else 'No' }}</td>
+        </tr>
+        <tr>
+          <td><b>Cooler On</b></td>
+          <td>{{ 'Yes' if temp_control.cooler_on else 'No' }}</td>
+        </tr>
+        <tr>
+          <td><b>Heating Error</b></td>
+          <td>{{ temp_control.heating_error_msg or '--' }}</td>
+        </tr>
+        <tr>
+          <td><b>Cooling Error</b></td>
+          <td>{{ temp_control.cooling_error_msg or '--' }}</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Temperature Control Report Section moved below Advanced Status -->
+    <div style="width: 60%; margin: 24px auto;">
+      <h3 style="margin-bottom: 12px;">Temperature Control Report</h3>
+      <form method="get" action="/view_temp_log" style="display:inline-block; margin-right:16px;">
+        <label for="report_tilt_color_view">Tilt Color:</label>
+        <select name="tilt_color" id="report_tilt_color_view">
+          {% for color in batch_cfg.keys() %}
+            <option value="{{ color }}" {% if temp_control.tilt_color == color %}selected{% endif %}>{{ color }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn-action">VIEW</button>
+      </form>
+      <form method="get" action="/export_temp_log" style="display:inline-block; margin-right:16px;">
+        <input type="hidden" name="tilt_color" id="report_tilt_color_export_log"
+          value="{{ temp_control.tilt_color }}">
+        <button type="submit" class="btn-action">EXPORT LOG</button>
+      </form>
+      <form method="get" action="/export_temp_csv" style="display:inline-block;">
+        <input type="hidden" name="tilt_color" id="report_tilt_color_export_csv"
+          value="{{ temp_control.tilt_color }}">
+        <button type="submit" class="btn-action">EXPORT CSV</button>
+      </form>
+    </div>
+  </div>
+  <script>
+    // Synchronize tilt color selection for all forms
+    document.getElementById('report_tilt_color_view').addEventListener('change', function() {
+      var selected = this.value;
+      document.getElementById('report_tilt_color_export_log').value = selected;
+      document.getElementById('report_tilt_color_export_csv').value = selected;
+    });
+  </script>
+</body>
+</html>

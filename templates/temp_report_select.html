@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Select Tilt Color for Temp Report</title>
+</head>
+<body>
+  <h2>Select Tilt Color for Temp Report</h2>
+  <form method="post">
+    <label for="tilt_color">Tilt Color:</label>
+    <select name="tilt_color" id="tilt_color">
+      {% for color in colors %}
+        <option value="{{ color }}" {% if color == default_color %}selected{% endif %}>{{ color }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">Show Report</button>
+    <button type="button" onclick="window.location.href='/temp_config'">Cancel</button>
+  </form>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Temp Report for {{ color }}</title>
+  <script>
+    document.addEventListener('keydown', function(event) {
+      if (event.code === "Space") {
+        event.preventDefault();
+        {% if not at_end %}
+        window.location.href = "{{ url_for('temp_report_display', color=color) }}?page={{ page + 1 }}";
+        {% endif %}
+      } else if (event.code === "Escape") {
+        window.location.href = "/temp_config";
+      }
+    });
+  </script>
+</head>
+<body>
+  <h2>Temp Report for {{ color }}</h2>
+  <pre style="font-size: 0.9em; background: #f7f7f7; border: 1px solid #ccc; padding:10px;">
+{% for line in page_data %}{{ line | safe }}{% endfor %}
+  </pre>
+  <div style="text-align:center; margin-top:12px;">
+    {% if not at_end %}
+      <span>[Space Bar] to continue</span>
+    {% endif %}
+    <span>[Esc] to return</span>
+  </div>
+</body>
+</html>
