@@ -1,501 +1,378 @@
-import hashlib
-from flask import Flask, render_template, request, redirect, render_template_string
-from datetime import datetime, timedelta
-from tilt_static import TILT_UUIDS, COLOR_MAP
-import json, time, threading, os
-from bleak import BleakScanner
-from multiprocessing import Process, Queue, Manager
-from kasa_worker import kasa_worker
-from logger import log_error
-import asyncio
-import smtplib
-from email.mime.text import MIMEText
+#!/usr/bin/env python3
+"""
+app.py - FermenterApp main Flask application.
 
-manager = Manager()
-status_dict = manager.dict()
-kasa_queue = Queue()
-kasa_proc = Process(target=kasa_worker, args=(kasa_queue, status_dict))
-kasa_proc.daemon = True
-kasa_proc.start()
+This variant:
+- Uses BLE to read Tilt devices (BleakScanner if available).
+- Keeps temp_control_log.jsonl for control-related events only.
+- Creates per-batch JSONL files under /batches/ named:
+    batch_{COLOR}_{BREWID}_{MMDDYYYY}.jsonl
+  where MMDDYYYY is the ferm_start_date normalized (or today's date).
+- Batch files start with event: "batch_metadata" header lines (contains beer & batch metadata).
+  Subsequent lines are event: "sample" and contain readings (timestamp, temp_f, gravity, rssi, brewid, etc).
+- log_tilt_reading appends readings to the appropriate per-batch file (no repeated beer_name/batch_name in each sample).
+- chart_data_for prefers the per-batch file for chart points and returns epoch-ms timestamps (numbers).
+"""
+
+import asyncio
+import hashlib
+import json
+import os
+import smtplib
+import threading
+import time
+from collections import deque, defaultdict
+from datetime import datetime
+from math import ceil
+from multiprocessing import Process, Queue
+import subprocess
+import signal
+
+from email.mime.text import MIMEText
+from flask import (Flask, abort, jsonify, redirect, render_template, request,
+                   url_for)
+
+# Optional imports that may or may not be present in the runtime environment
+try:
+    from bleak import BleakScanner
+except Exception:
+    BleakScanner = None
+
+try:
+    from tilt_static import TILT_UUIDS, COLOR_MAP
+except Exception:
+    TILT_UUIDS = {}
+    COLOR_MAP = {}
+
+try:
+    from kasa_worker import kasa_worker
+except Exception:
+    kasa_worker = None
+
+try:
+    import requests
+except Exception:
+    requests = None
+
+# Optional psutil for process management
+try:
+    import psutil
+except Exception:
+    psutil = None
 
 app = Flask(__name__)
 
-@app.template_filter('localtime')
-def localtime_filter(iso_str):
+# --- Files and global constants ---------------------------------------------
+LOG_PATH = 'temp_control_log.jsonl'        # control events only
+BATCHES_DIR = 'batches'                    # per-batch jsonl files live here
+PER_PAGE = 30
+
+# Config files
+TILT_CONFIG_FILE = 'tilt_config.json'
+TEMP_CFG_FILE = 'temp_control_config.json'
+SYSTEM_CFG_FILE = 'system_config.json'
+
+# Chart caps
+DEFAULT_CHART_LIMIT = 250
+MAX_CHART_LIMIT = 2000
+MAX_ALL_LIMIT = 10000
+
+# --- Stop other app.py processes on startup --------------------------------
+def stop_other_app_py():
+    current_pid = os.getpid()
+    stopped = []
+    errors = []
+    if psutil:
+        try:
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    pid = proc.info['pid']
+                    if pid == current_pid:
+                        continue
+                    cmdline = proc.info.get('cmdline') or []
+                    name = proc.info.get('name') or ''
+                    if any('app.py' in str(p) for p in cmdline) or 'app.py' in name:
+                        try:
+                            proc.terminate()
+                            proc.wait(timeout=5)
+                            stopped.append(pid)
+                        except Exception:
+                            try:
+                                proc.kill()
+                                stopped.append(pid)
+                            except Exception as e:
+                                errors.append((pid, str(e)))
+                except Exception:
+                    continue
+            return {"stopped": stopped, "errors": errors}
+        except Exception as e:
+            errors.append(("psutil_iter", str(e)))
+
     try:
-        dt = datetime.fromisoformat(iso_str)
-        return dt.strftime('%Y-%m-%d %H:%M:%S')
-    except Exception:
-        return iso_str
+        pgrep = subprocess.run(['pgrep', '-f', 'app.py'], capture_output=True, text=True)
+        if pgrep.returncode == 0:
+            for line in pgrep.stdout.splitlines():
+                try:
+                    pid = int(line.strip())
+                except Exception:
+                    continue
+                if pid == current_pid:
+                    continue
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                    stopped.append(pid)
+                except Exception as e:
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                        stopped.append(pid)
+                    except Exception as e2:
+                        errors.append((pid, f"{e} / {e2}"))
+    except Exception as e:
+        errors.append(("pgrep", str(e)))
 
-batch_cfg = {}
-temp_cfg = {}
-system_cfg = {}
-live_tilts = {}
-tilt_status = {}
+    return {"stopped": stopped, "errors": errors}
 
+try:
+    stopped_info = stop_other_app_py()
+    print(f"[STARTUP] stop_other_app_py result: {stopped_info}")
+except Exception as e:
+    print(f"[STARTUP] startup housekeeping failed: {e}")
+
+# --- Utilities --------------------------------------------------------------
 def load_json(path, fallback):
     try:
         with open(path, 'r') as f:
-            print(f"[LOG] Loaded JSON from {path}")
             return json.load(f)
-    except Exception as e:
-        print(f"[LOG] Failed to load JSON from {path}: {e}")
+    except Exception:
         return fallback
 
 def save_json(path, data):
     try:
         with open(path, 'w') as f:
             json.dump(data, f, indent=2)
-        print(f"[LOG] Saved JSON to {path}: {data}")
     except Exception as e:
         print(f"[LOG] Error saving JSON to {path}: {e}")
 
+# --- Restricted control-log writer -----------------------------------------
+ALLOWED_EVENTS = {
+    "tilt_reading": "SAMPLE",
+    "heating_on": "HEATING-PLUG TURNED ON",
+    "heating_off": "HEATING-PLUG TURNED OFF",
+    "cooling_on": "COOLING-PLUG TURNED ON",
+    "cooling_off": "COOLING-PLUG TURNED OFF",
+    "temp_below_low_limit": "TEMP BELOW LOW LIMIT",
+    "temp_above_high_limit": "TEMP ABOVE HIGH LIMIT",
+    "temp_control_mode": "MODE_SELECTED",
+    "temp_control_mode_changed": "MODE_CHANGED",
+}
+
+def _format_control_log_entry(event_type, payload):
+    ts = datetime.utcnow()
+    iso_ts = ts.replace(microsecond=0).isoformat() + "Z"
+    date = ts.strftime("%Y-%m-%d")
+    time_str = ts.strftime("%H:%M:%S")
+
+    tilt_color = ""
+    try:
+        if isinstance(payload, dict):
+            tilt_color = payload.get("tilt_color") or payload.get("tilt") or payload.get("color") or ""
+    except Exception:
+        tilt_color = ""
+
+    def _to_float(val):
+        try:
+            if val is None or val == "":
+                return None
+            return float(val)
+        except Exception:
+            return None
+
+    low = _to_float(payload.get("low_limit") if isinstance(payload, dict) else None)
+    high = _to_float(payload.get("high_limit") if isinstance(payload, dict) else None)
+
+    cur = None
+    grav = None
+    if isinstance(payload, dict):
+        cur = payload.get("current_temp")
+        if cur is None:
+            cur = payload.get("temp_f") if payload.get("temp_f") is not None else payload.get("temp")
+        grav = payload.get("gravity") or payload.get("grav") or payload.get("sg")
+
+    cur = _to_float(cur)
+    grav = _to_float(grav)
+
+    event_label = ALLOWED_EVENTS.get(event_type, event_type)
+
+    entry = {
+        "timestamp": iso_ts,
+        "date": date,
+        "time": time_str,
+        "tilt_color": tilt_color,
+        "low_limit": low,
+        "current_temp": cur,
+        "temp_f": cur,
+        "gravity": grav,
+        "high_limit": high,
+        "event": event_label
+    }
+    return entry
+
+def append_control_log(event_type, payload):
+    if event_type not in ALLOWED_EVENTS:
+        return
+    enable_heat = bool(temp_cfg.get("enable_heating")) if 'temp_cfg' in globals() else False
+    enable_cool = bool(temp_cfg.get("enable_cooling")) if 'temp_cfg' in globals() else False
+    if not (enable_heat or enable_cool):
+        return
+    try:
+        d = os.path.dirname(LOG_PATH)
+        if d and not os.path.exists(d):
+            os.makedirs(d, exist_ok=True)
+        entry = _format_control_log_entry(event_type, payload or {})
+        with open(LOG_PATH, 'a') as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception as e:
+        print(f"[LOG] Failed to append to control log: {e}")
+
+@app.template_filter('localtime')
+def localtime_filter(iso_str):
+    from datetime import datetime, timezone
+    try:
+        if not iso_str:
+            return ''
+        if isinstance(iso_str, datetime):
+            dt = iso_str
+        else:
+            s = str(iso_str)
+            if s.endswith('Z'):
+                try:
+                    dt = datetime.fromisoformat(s.rstrip('Z')).replace(tzinfo=timezone.utc)
+                except Exception:
+                    return s
+            else:
+                try:
+                    dt = datetime.fromisoformat(s)
+                except Exception:
+                    try:
+                        dt = datetime.strptime(s, "%Y-%m-%dT%H:%M:%S")
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    except Exception:
+                        return s
+
+        if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        local_tz = datetime.now().astimezone().tzinfo
+        local_dt = dt.astimezone(local_tz)
+        return local_dt.strftime('%Y-%m-%d %I:%M:%S %p')
+    except Exception:
+        return iso_str
+
+# --- Load configs ----------------------------------------------------------
+tilt_cfg = load_json(TILT_CONFIG_FILE, {})
+temp_cfg = load_json(TEMP_CFG_FILE, {})
+system_cfg = load_json(SYSTEM_CFG_FILE, {})
+
+def ensure_temp_defaults():
+    temp_cfg.setdefault("current_temp", None)
+    temp_cfg.setdefault("low_limit", 0.0)
+    temp_cfg.setdefault("high_limit", 0.0)
+    temp_cfg.setdefault("enable_heating", False)
+    temp_cfg.setdefault("enable_cooling", False)
+    temp_cfg.setdefault("heating_plug", "")
+    temp_cfg.setdefault("cooling_plug", "")
+    temp_cfg.setdefault("heater_on", False)
+    temp_cfg.setdefault("cooler_on", False)
+    temp_cfg.setdefault("heater_pending", False)
+    temp_cfg.setdefault("cooler_pending", False)
+    temp_cfg.setdefault("heating_error", False)
+    temp_cfg.setdefault("cooling_error", False)
+    temp_cfg.setdefault("warnings_mode", system_cfg.get("warning_mode", "NONE"))
+    temp_cfg.setdefault("notifications_trigger", False)
+    temp_cfg.setdefault("notification_last_sent", None)
+    temp_cfg.setdefault("notification_comm_failure", False)
+    temp_cfg.setdefault("control_initialized", False)
+    temp_cfg.setdefault("last_logged_low_limit", temp_cfg.get("low_limit"))
+    temp_cfg.setdefault("last_logged_high_limit", temp_cfg.get("high_limit"))
+    temp_cfg.setdefault("last_logged_enable_heating", temp_cfg.get("enable_heating"))
+    temp_cfg.setdefault("last_logged_enable_cooling", temp_cfg.get("enable_cooling"))
+    temp_cfg.setdefault("below_limit_logged", False)
+    temp_cfg.setdefault("above_limit_logged", False)
+
+ensure_temp_defaults()
+
 def ensure_all_tilts():
-    for color in TILT_UUIDS.values():
-        if color not in batch_cfg:
-            batch_cfg[color] = {
-                "beer_name": "",
-                "batch_name": "",
-                "ferm_start_date": "",
-                "recipe_og": "",
-                "recipe_fg": "",
-                "recipe_abv": "",
-                "actual_og": None,
-                "brewid": "",
-                "stall_days": 0
-            }
+    try:
+        for color in TILT_UUIDS.values():
+            if color not in tilt_cfg:
+                tilt_cfg[color] = {
+                    "beer_name": "",
+                    "batch_name": "",
+                    "ferm_start_date": "",
+                    "recipe_og": "",
+                    "recipe_fg": "",
+                    "recipe_abv": "",
+                    "actual_og": None,
+                    "brewid": "",
+                    "og_confirmed": False
+                }
+    except Exception:
+        pass
 
-batch_cfg = load_json('batch_settings.json', {})
-temp_cfg = load_json('temp_control_config.json', {})
-system_cfg = load_json('system_config.json', {})
-
-if "stall_variance_threshold" not in system_cfg:
-    system_cfg["stall_variance_threshold"] = 0.001
-if "stall_notification_days" not in system_cfg:
-    system_cfg["stall_notification_days"] = 3
 ensure_all_tilts()
 
-def safe_float(val, default=0.0):
+_TZ_ABBREV_MAP = {
+    'EST': 'America/New_York',
+    'EDT': 'America/New_York',
+    'CST': 'America/Chicago',
+    'CDT': 'America/Chicago',
+    'MST': 'America/Denver',
+    'MDT': 'America/Denver',
+    'PST': 'America/Los_Angeles',
+    'PDT': 'America/Los_Angeles',
+    'UTC': 'UTC'
+}
+tz = (system_cfg.get('timezone') if isinstance(system_cfg, dict) else None) or os.environ.get('TZ') or 'UTC'
+tz = _TZ_ABBREV_MAP.get(tz, tz)
+os.environ['TZ'] = tz
+try:
+    time.tzset()
+except Exception:
+    pass
+
+# --- Inter-process queues and kasa worker startup --------------------------
+kasa_queue = Queue()
+kasa_result_queue = Queue()
+kasa_proc = None
+
+if kasa_worker:
     try:
-        return float(val)
-    except (TypeError, ValueError):
-        return default
+        kasa_proc = Process(target=kasa_worker, args=(kasa_queue, kasa_result_queue))
+        kasa_proc.daemon = True
+        kasa_proc.start()
+        print("[LOG] Started kasa_worker process")
+    except Exception as e:
+        print("[LOG] Could not start kasa_worker:", e)
+else:
+    print("[LOG] kasa_worker not available — plug control disabled")
 
-def safe_int(val, default=0):
-    try:
-        return int(val)
-    except (TypeError, ValueError):
-        return default
+# --- Live runtime data -----------------------------------------------------
+live_tilts = {}
+tilt_status = {}
 
-required_keys = [
-    "temp", "high_limit", "low_limit",
-    "heater_on", "cooler_on",
-    "enable_heating", "enable_cooling",
-    "tilt_color", "cooling_active",
-    "heating_active", "current_temp", 
-    "original_gravity", "gravity",
-    "mode", "status"
-] 
-
-for key in required_keys:
-    if "temp" in key or "limit" in key:
-        temp_cfg.setdefault(key, 0.0)
-    else:
-        temp_cfg.setdefault(key, False)
+last_tilt_log_ts = {}
 
 def generate_brewid(beer_name, batch_name, date_str):
     id_str = f"{beer_name}-{batch_name}-{date_str}"
     return hashlib.sha256(id_str.encode('utf-8')).hexdigest()[:8]
 
-def get_batch_history(color):
-    try:
-        with open(f'batch_history_{color}.jsonl', 'r') as f:
-            return [json.loads(line) for line in f if line.strip()]
-    except Exception as e:
-        print(f"[LOG] Could not load batch history for {color}: {e}")
-        return []
-
-def append_batch_history(color, batch_entry):
-    try:
-        with open(f'batch_history_{color}.jsonl', 'a') as f:
-            f.write(json.dumps(batch_entry) + '\n')
-        print(f"[LOG] Appended batch history for {color}: {batch_entry}")
-    except Exception as e:
-        print(f"[LOG] Could not append batch history for {color}: {e}")
-
-def count_stall_days(batch_records, gravity_threshold=0.001):
-    stall_days = 0
-    prev_gravity = None
-    prev_date = None
-    for r in batch_records:
-        gravity = r.get("gravity")
-        timestamp = r.get("timestamp")
-        if gravity is not None and timestamp is not None:
-            try:
-                date = datetime.fromisoformat(timestamp).date()
-            except Exception:
-                continue
-            if prev_gravity is not None and prev_date is not None:
-                if date != prev_date and abs(float(gravity) - float(prev_gravity)) < gravity_threshold:
-                    stall_days += 1
-            prev_gravity = gravity
-            prev_date = date
-    return stall_days
-
-def send_stall_notification(brewname, gravity):
-    subject = f"{brewname} fermentation stalled"
-    body = f"{brewname} has stalled at a gravity reading of {gravity}"
-    send_warning(subject, body)
-
-def daily_stall_check():
-    last_checked_date = None
-    while True:
-        now = datetime.utcnow().date()
-        if last_checked_date != now:
-            last_checked_date = now
-            gravity_threshold = safe_float(system_cfg.get("stall_variance_threshold", 0.001), 0.001)
-            stall_notification_days = safe_int(system_cfg.get("stall_notification_days", 3), 3)
-            for color in TILT_UUIDS.values():
-                history_file = f'batch_history_{color}.jsonl'
-                if not os.path.exists(history_file):
-                    continue
-                batch_records = get_batch_history(color)
-                today_records = []
-                prevday_records = []
-                for r in batch_records:
-                    ts = r.get("timestamp")
-                    if not ts:
-                        continue
-                    try:
-                        rec_date = datetime.fromisoformat(ts).date()
-                    except Exception:
-                        continue
-                    if rec_date == now:
-                        today_records.append(r)
-                    elif rec_date == (now - timedelta(days=1)):
-                        prevday_records.append(r)
-                if today_records and prevday_records:
-                    today_gravity = float(today_records[-1].get("gravity", 0))
-                    prev_gravity = float(prevday_records[-1].get("gravity", 0))
-                    if abs(today_gravity - prev_gravity) < gravity_threshold:
-                        stall_days = batch_cfg.get(color, {}).get("stall_days", 0) + 1
-                        if color in batch_cfg:
-                            batch_cfg[color]["stall_days"] = stall_days
-                        else:
-                            batch_cfg[color] = {"stall_days": stall_days}
-                        save_json('batch_settings.json', batch_cfg)
-                        stall_entry = {
-                            "date": str(now),
-                            "stall_days": stall_days,
-                            "brewname": batch_cfg.get(color, {}).get("beer_name", "Unknown"),
-                            "gravity": today_gravity
-                        }
-                        with open(f'batch_settings_{color}.jsonl', 'a') as f:
-                            f.write(json.dumps(stall_entry) + '\n')
-                        if stall_days >= stall_notification_days:
-                            brewname = stall_entry["brewname"]
-                            gravity = stall_entry["gravity"]
-                            send_stall_notification(brewname, gravity)
-        time.sleep(60 * 60)
-
-threading.Thread(target=daily_stall_check, daemon=True).start()
-
-@app.route('/')
-def dashboard():
-    return render_template('maindisplay.html',
-        system_settings=system_cfg,
-        tilts=live_tilts,
-        tilt_status=tilt_status,
-        temp_control=temp_cfg,
-        live_tilts=live_tilts
-    )
-
-@app.route('/system_config')
-def system_config():
-    return render_template('system_config.html', system_settings=system_cfg)
-
-@app.route('/batch_settings', methods=['GET', 'POST'])
-def batch_settings():
-    if request.method == 'POST':
-        data = request.form
-        color = data.get('tilt_color')
-        if not color:
-            print("[LOG] No Tilt color selected in batch_settings")
-            return "No Tilt color selected", 400
-
-        beer_name = data.get('beer_name', '').strip()
-        batch_name = data.get('batch_name', '').strip()
-        start_date = data.get('ferm_start_date', '').strip()
-
-        existing = batch_cfg.get(color, {})
-        brew_id = existing.get('brewid')
-        if not brew_id:
-            brew_id = generate_brewid(beer_name, batch_name, start_date)
-
-        batch_entry = {
-            "beer_name": beer_name,
-            "batch_name": batch_name,
-            "ferm_start_date": start_date,
-            "recipe_og": data.get('recipe_og', ''),
-            "recipe_fg": data.get('recipe_fg', ''),
-            "recipe_abv": data.get('recipe_abv', ''),
-            "actual_og": data.get('actual_og', ''),
-            "brewid": brew_id,
-            "stall_days": existing.get("stall_days", 0)
-        }
-        append_batch_history(color, batch_entry)
-        batch_cfg[color] = batch_entry
-        save_json('batch_settings.json', batch_cfg)
-        return redirect(f"/batch_settings?tilt_color={color}")
-
-    selected = request.args.get('tilt_color')
-    if not selected and live_tilts:
-        selected = next(iter(live_tilts.keys()))
-    action = request.args.get('action')
-    config = batch_cfg.get(selected, {}) if selected else {}
-    batch_history = get_batch_history(selected) if selected else []
-    return render_template('batch_settings.html',
-        batch_cfg=batch_cfg,
-        tilt_colors=list(TILT_UUIDS.values()),
-        selected_tilt=selected,
-        selected_config=config,
-        system_settings=system_cfg,
-        action=action,
-        batch_history=batch_history
-    )
-
-@app.route('/chart')
-def chart():
-    color = request.args.get('color', 'Blue')
-    beer_name = request.args.get('beer_name', 'OctoberFest')
-    batch_name = request.args.get('batch_name', 'MainBatch')
-    start_date = request.args.get('start_date', '2025-10-01')
-    brew_id = request.args.get('brew_id', 'your_brew_id_here')
-
-    batch_records = get_batch_history(color)
-    timestamps = [r.get("timestamp") for r in batch_records if "timestamp" in r]
-    gravities = [r.get("gravity") for r in batch_records if "gravity" in r]
-    temps = [r.get("temp_f") for r in batch_records if "temp_f" in r]
-
-    ferm_start_date = batch_records[0].get("ferm_start_date") if batch_records else start_date
-    try:
-        ferm_days = (datetime.utcnow() - datetime.strptime(ferm_start_date, "%Y-%m-%d")).days
-    except Exception:
-        ferm_days = 0
-
-    gravity_threshold = safe_float(system_cfg.get("stall_variance_threshold", 0.001), 0.001)
-    stall_days = batch_cfg.get(color, {}).get("stall_days", count_stall_days(batch_records, gravity_threshold))
-    system_settings = system_cfg
-
-    return render_template(
-        "chart.html",
-        color=color,
-        system_settings=system_settings,
-        ferm_start_date=ferm_start_date,
-        ferm_days=ferm_days,
-        stall_days=stall_days,
-        timestamps=timestamps,
-        gravities=gravities,
-        temps=temps
-    )
-
-@app.route('/chart/<color>')
-def chart_color(color):
-    beer_name = request.args.get('beer_name', 'OctoberFest')
-    batch_name = request.args.get('batch_name', 'MainBatch')
-    start_date = request.args.get('start_date', '2025-10-01')
-    brew_id = request.args.get('brew_id', 'your_brew_id_here')
-
-    batch_records = get_batch_history(color)
-    timestamps = [r.get("timestamp") for r in batch_records if "timestamp" in r]
-    gravities = [r.get("gravity") for r in batch_records if "gravity" in r]
-    temps = [r.get("temp_f") for r in batch_records if "temp_f" in r]
-
-    ferm_start_date = batch_records[0].get("ferm_start_date") if batch_records else start_date
-    try:
-        ferm_days = (datetime.utcnow() - datetime.strptime(ferm_start_date, "%Y-%m-%d")).days
-    except Exception:
-        ferm_days = 0
-
-    gravity_threshold = safe_float(system_cfg.get("stall_variance_threshold", 0.001), 0.001)
-    stall_days = batch_cfg.get(color, {}).get("stall_days", count_stall_days(batch_records, gravity_threshold))
-    system_settings = system_cfg
-
-    return render_template(
-        "chart.html",
-        color=color,
-        system_settings=system_settings,
-        ferm_start_date=ferm_start_date,
-        ferm_days=ferm_days,
-        stall_days=stall_days,
-        timestamps=timestamps,
-        gravities=gravities,
-        temps=temps
-    )
-
-@app.route('/temp_config')
-def temp_config():
-    return render_template('temp_control_config.html',
-        temp_control=temp_cfg,
-        batch_cfg=batch_cfg,
-        system_settings=system_cfg
-    )
-
-@app.route('/update_temp_config', methods=['POST'])
-def update_temp_config():
-    data = request.form
-    print("[DEBUG] /update_temp_config POST route triggered")
-    print("[LOG] Received form data in update_temp_config:", dict(data))
-    temp_cfg.update({
-        "tilt_color": data.get('tilt_color', ''),
-        "low_limit": float(data.get('low_limit', 0)),
-        "high_limit": float(data.get('high_limit', 100)),
-        "enable_heating": 'enable_heating' in data,
-        "enable_cooling": 'enable_cooling' in data,
-        "heating_plug": data.get("heating_plug", ""),
-        "cooling_plug": data.get("cooling_plug", ""),
-        "current_temp": float(data.get('current_temp', 0.0)) if data.get('current_temp') else None,
-        "mode": data.get("mode", "Cooling Selected"),
-        "status": data.get("status", "Idle"),
-    })
-    print("[LOG] Updated temp_cfg in update_temp_config:", temp_cfg)
-    try:
-        save_json('temp_control_config.json', temp_cfg)
-        print("[LOG] Saved config to disk from update_temp_config.")
-    except Exception as e:
-        print("[LOG] Error saving config in update_temp_config:", e)
-    temperature_control_logic()
-    print("[LOG] Ran temperature_control_logic after POST update.")
-    return redirect('/temp_config')
-
-@app.route('/view_temp_log')
-def view_temp_log():
-    tilt_color = request.args.get('tilt_color')
-    page = int(request.args.get('page', 1))
-    log_file = f"temp_log_{tilt_color}.txt"
-    try:
-        with open(log_file) as f:
-            lines = f.readlines()
-    except Exception as e:
-        return f"Could not load log for {tilt_color}: {e}"
-
-    lines_per_page = 25
-    start = (page - 1) * lines_per_page
-    end = start + lines_per_page
-    page_lines = lines[start:end]
-    total_pages = (len(lines) + lines_per_page - 1) // lines_per_page
-
-    html = """
-    <h2>Temperature Log for {{ tilt_color }}</h2>
-    <pre>{{ page_lines|join('') }}</pre>
-    <div>
-      <p>Page {{ page }} of {{ total_pages }}</p>
-      <form method="get" style="display:inline;">
-        <input type="hidden" name="tilt_color" value="{{ tilt_color }}">
-        <input type="hidden" name="page" value="{{ page - 1 }}">
-        <button type="submit" {% if page <= 1 %}disabled{% endif %}>Previous</button>
-      </form>
-      <form method="get" style="display:inline;">
-        <input type="hidden" name="tilt_color" value="{{ tilt_color }}">
-        <input type="hidden" name="page" value="{{ page + 1 }}">
-        <button type="submit" {% if page >= total_pages %}disabled{% endif %}>Next</button>
-      </form>
-      <button onclick="window.location.href='/temp_config'">Return</button>
-    </div>
-    <p>Use Next/Previous buttons to navigate, Return to go back.</p>
-    """
-    return render_template_string(html, tilt_color=tilt_color, page_lines=page_lines, page=page, total_pages=total_pages)
-
-@app.route('/export_temp_log')
-def export_temp_log():
-    tilt_color = request.args.get('tilt_color')
-    log_file = f"temp_log_{tilt_color}.txt"
-    try:
-        with open(log_file) as f:
-            log_data = f.read()
-    except Exception as e:
-        return f"Could not load log for {tilt_color}: {e}"
-    return app.response_class(log_data, mimetype='text/plain', headers={'Content-Disposition': f'attachment;filename={log_file}'})
-
-@app.route('/export_temp_csv')
-def export_temp_csv():
-    tilt_color = request.args.get('tilt_color')
-    csv_file = f"temp_log_{tilt_color}.csv"
-    try:
-        with open(csv_file) as f:
-            csv_data = f.read()
-    except Exception as e:
-        return f"Could not load CSV for {tilt_color}: {e}"
-    return app.response_class(csv_data, mimetype='text/csv', headers={'Content-Disposition': f'attachment;filename={csv_file}'})
-
-@app.route('/exit_system')
-def exit_system():
-    # Force all plugs OFF for safety
-    for color in TILT_UUIDS.values():
-        # Turn heating plug OFF
-        temp_cfg['tilt_color'] = color
-        temp_cfg['enable_heating'] = True
-        temp_cfg['enable_cooling'] = True
-        control_heating("off")
-        control_cooling("off")
-    return render_template_string("""
-        <h2>System Exit Requested</h2>
-        <p>All plugs have been forced OFF. You may now close this browser tab or shut down the server.</p>
-        <button onclick="window.location.href='/'">Return to Dashboard</button>
-    """)
-
-
-@app.route('/update_system_config', methods=['POST'])
-def update_system_config():
-    data = request.form
-    # Convert minute-based timers back to seconds
-    update_interval_sec = safe_float(data.get("update_interval", 1)) * 60
-    external_refresh_rate_sec = safe_float(data.get("external_refresh_rate", 1)) * 60
-    system_cfg.update({
-        "brewery_name": data.get("brewery_name", ""),
-        "brewer_name": data.get("brewer_name", ""),
-        "street": data.get("street", ""),
-        "city": data.get("city", ""),
-        "state": data.get("state", ""),
-        "email": data.get("email", ""),
-        "mobile": data.get("mobile", ""),
-        "timezone": data.get("timezone", ""),
-        "timestamp_format": data.get("timestamp_format", ""),
-        "update_interval": update_interval_sec,
-        "external_refresh_rate": external_refresh_rate_sec,
-        "offsite_name_1": data.get("offsite_name_1", ""),
-        "offsite_url_1": data.get("offsite_url_1", ""),
-        "offsite_name_2": data.get("offsite_name_2", ""),
-        "offsite_url_2": data.get("offsite_url_2", ""),
-        "warning_mode": data.get("warning_mode", "none"),
-        "stall_variance_threshold": safe_float(data.get("stall_variance_threshold", 0.001), 0.001),
-        "stall_notification_days": safe_int(data.get("stall_notification_days", 3), 3)
-    })
-    save_json('system_config.json', system_cfg)
-    print("[LOG] Updated and saved system_cfg in update_system_config:", system_cfg)
-    return redirect('/system_config')
-
-@app.route('/scan_kasa_plugs')
-def scan_kasa_plugs():
-    from kasa import Discover
-    devices = {}
-    try:
-        found_devices = asyncio.run(Discover.discover())
-        for addr, dev in found_devices.items():
-            devices[str(addr)] = dev.alias
-    except Exception as e:
-        print(f"[LOG] Error scanning Kasa plugs: {e}")
-        return render_template("kasa_scan_results.html", error=str(e), devices={})
-    return render_template("kasa_scan_results.html", devices=devices, error=None)
-
 def update_live_tilt(color, gravity, temp_f, rssi):
-    cfg = batch_cfg.get(color, {})
+    cfg = tilt_cfg.get(color, {})
     live_tilts[color] = {
-        "gravity": round(gravity, 3),
+        "gravity": round(gravity, 3) if gravity is not None else None,
         "temp_f": temp_f,
         "rssi": rssi,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
         "color_code": COLOR_MAP.get(color, "#333"),
         "beer_name": cfg.get("beer_name", ""),
         "batch_name": cfg.get("batch_name", ""),
@@ -504,30 +381,17 @@ def update_live_tilt(color, gravity, temp_f, rssi):
         "recipe_fg": cfg.get("recipe_fg", ""),
         "recipe_abv": cfg.get("recipe_abv", ""),
         "actual_og": cfg.get("actual_og", ""),
+        "og_confirmed": cfg.get("og_confirmed", False),
         "original_gravity": cfg.get("actual_og", 0),
-        "stall_days": cfg.get("stall_days", 0)
     }
-
-def log_tilt_reading(color, gravity, temp_f, rssi):
-    cfg = batch_cfg.get(color, {})
-    batch = {
-        "beer_name": cfg.get("beer_name", "Unknown"),
-        "batch_name": cfg.get("batch_name", "Unknown"),
-        "brewid": cfg.get("brewid", generate_brewid(cfg.get("beer_name", ""), cfg.get("batch_name", ""), cfg.get("ferm_start_date", ""))),
-        "ferm_start_date": cfg.get("ferm_start_date", "Unknown"),
-        "original_gravity": cfg.get("actual_og", gravity),
-        "gravity": gravity,
-        "temp_f": temp_f,
-        "rssi": rssi,
-        "timestamp": datetime.utcnow().isoformat(),
-        "stall_days": cfg.get("stall_days", 0)
-    }
-    # Optional: append to log file or database
 
 def get_current_temp_for_control_tilt():
     color = temp_cfg.get("tilt_color")
     if color and color in live_tilts:
         return live_tilts[color].get("temp_f")
+    for info in live_tilts.values():
+        if info.get("temp_f") is not None:
+            return info.get("temp_f")
     return None
 
 def detection_callback(device, advertisement_data):
@@ -535,143 +399,645 @@ def detection_callback(device, advertisement_data):
         mfg_data = advertisement_data.manufacturer_data
         if not mfg_data:
             return
-
         raw = list(mfg_data.values())[0]
-        if len(raw) != 23:
+        if len(raw) < 22:
             return
-
         uuid = raw[2:18].hex()
-        color = TILT_UUIDS.get(uuid)
-    
+        color = TILT_UUIDS.get(uuid) or TILT_UUIDS.get(uuid.lower()) or TILT_UUIDS.get(uuid.upper())
         if not color:
             return
-
-        temp_f = int.from_bytes(raw[18:20], byteorder='big')
-        gravity = int.from_bytes(raw[20:22], byteorder='big') / 1000.0
+        try:
+            temp_f = int.from_bytes(raw[18:20], byteorder='big')
+            gravity = int.from_bytes(raw[20:22], byteorder='big') / 1000.0
+        except Exception:
+            return
         rssi = advertisement_data.rssi
-
         update_live_tilt(color, gravity, temp_f, rssi)
         log_tilt_reading(color, gravity, temp_f, rssi)
-
     except Exception as e:
-        print(f"[LOG] Error in detection_callback: {e}")
+        print("[BLE] detection_callback exception:", e)
 
-def send_email(subject, body):
-    cfg = system_cfg
-    if not cfg.get("email"):
+# --- Batch rotation / archival (legacy, kept for compatibility) ------------
+def rotate_and_archive_old_history(color, old_brewid, old_cfg):
+    """
+    Legacy archival: will move SAMPLE entries from LOG_PATH into BATCHES_DIR archive file
+    when changing brewid. We keep it for compatibility but main flow now writes per-batch
+    files at batch creation.
+    """
+    try:
+        if not old_brewid and not color:
+            return False
+        os.makedirs(BATCHES_DIR, exist_ok=True)
+        archive_name = f"{color}_{old_cfg.get('beer_name','unknown')}_{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}.jsonl"
+        safe_archive = os.path.join(BATCHES_DIR, archive_name.replace(' ', '_'))
+        moved = 0
+        remaining_lines = []
+        if os.path.exists(LOG_PATH):
+            with open(LOG_PATH, 'r') as f:
+                for line in f:
+                    try:
+                        obj = json.loads(line)
+                    except Exception:
+                        remaining_lines.append(line)
+                        continue
+                    if obj.get('event') != 'SAMPLE':
+                        remaining_lines.append(line)
+                        continue
+                    payload = obj or {}
+                    if isinstance(payload, dict) and payload.get('tilt_color') and old_cfg.get('brewid') == old_brewid:
+                        with open(safe_archive, 'a') as af:
+                            af.write(json.dumps(obj) + "\n")
+                        moved += 1
+                    else:
+                        remaining_lines.append(line)
+        try:
+            with open(LOG_PATH, 'w') as f:
+                f.writelines(remaining_lines)
+        except Exception as e:
+            print(f"[LOG] Error rewriting main log after archive: {e}")
+
+        append_control_log("temp_control_mode_changed", {"tilt_color": color, "low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit")})
+        return True
+    except Exception as e:
+        print(f"[LOG] rotate_and_archive_old_history error: {e}")
+        return False
+
+# --- batches: per-batch jsonl helpers --------------------------------------
+def ensure_batches_dir():
+    try:
+        os.makedirs(BATCHES_DIR, exist_ok=True)
+    except Exception as e:
+        print(f"[LOG] Could not create batches dir {BATCHES_DIR}: {e}")
+
+def normalize_to_mmddyyyy(date_str):
+    """
+    Normalize a user-supplied date into MMDDYYYY token.
+    Accepts formats like "mm-dd-yyyy", "mm/dd/yyyy", "yyyy-mm-dd", "yyyy/mm/dd".
+    Falls back to today's date if parsing fails.
+    """
+    if not date_str:
+        return datetime.utcnow().strftime("%m%d%Y")
+    for fmt in ("%m-%d-%Y", "%m/%d/%Y", "%Y-%m-%d", "%Y/%m/%d", "%m%d%Y"):
+        try:
+            dt = datetime.strptime(date_str, fmt)
+            return dt.strftime("%m%d%Y")
+        except Exception:
+            continue
+    # fallback
+    try:
+        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        return dt.strftime("%m%d%Y")
+    except Exception:
+        return datetime.utcnow().strftime("%m%d%Y")
+
+def batch_jsonl_filename(color, brewid, created_date_mmddyyyy=None):
+    """
+    Return a path under BATCHES_DIR using the naming convention:
+      batch_{COLOR}_{BREWID}_{MMDDYYYY}.jsonl
+    If created_date_mmddyyyy is None, uses today's date in MMDDYYYY.
+    """
+    ensure_batches_dir()
+    col = (color or "UNKNOWN").upper()
+    bid = (brewid or "unknown")
+    token = created_date_mmddyyyy or datetime.utcnow().strftime("%m%d%Y")
+    fname = f"batch_{col}_{bid}_{token}.jsonl"
+    return os.path.join(BATCHES_DIR, fname)
+
+def ensure_batch_jsonl_exists(color, brewid, meta=None, created_date_mmddyyyy=None):
+    """
+    Ensure the per-brew JSONL exists. If newly created, write a header metadata line with:
+      {"event":"batch_metadata", "payload": {"tilt_color":..., "brewid":..., "created_date":..., "meta":{...}}}
+    Returns the path.
+    """
+    path = batch_jsonl_filename(color, brewid, created_date_mmddyyyy=created_date_mmddyyyy)
+    if not os.path.exists(path):
+        try:
+            header = {
+                "event": "batch_metadata",
+                "payload": {
+                    "tilt_color": color,
+                    "brewid": brewid,
+                    "created_date": (created_date_mmddyyyy or datetime.utcnow().strftime("%m%d%Y")),
+                    "meta": meta or {}
+                }
+            }
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(header) + "\n")
+        except Exception as e:
+            print(f"[LOG] Could not create batch jsonl {path}: {e}")
+    return path
+
+def append_sample_to_batch_jsonl(color, brewid, sample_payload, created_date_mmddyyyy=None):
+    """
+    Append a sample entry to the per-brew JSONL as:
+      {"event":"sample", "payload": { ... }}
+    The sample_payload should NOT include beer_name or batch_name (those are in metadata header).
+    """
+    path = batch_jsonl_filename(color, brewid, created_date_mmddyyyy=created_date_mmddyyyy)
+    try:
+        if not os.path.exists(path):
+            # If missing, create header with minimal meta
+            ensure_batch_jsonl_exists(color, brewid, meta={"beer_name": "", "batch_name": ""}, created_date_mmddyyyy=created_date_mmddyyyy)
+        entry = {"event": "sample", "payload": sample_payload}
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+        return True
+    except Exception as e:
+        print(f"[LOG] append_sample_to_batch_jsonl failed for {color}/{brewid}: {e}")
+        return False
+
+# --- Helpers to write normalized tilt_reading (legacy) and forward to third-party ---
+def write_normalized_tilt_reading(payload, event_name="tilt_reading"):
+    """
+    Append a JSONL line to legacy LOG_PATH structured as:
+      {"event": "<event_name>", "payload": { ... }}
+    This file is reserved primarily for control-related events; per-batch data is written to BATCHES_DIR files.
+    """
+    try:
+        entry = {"event": event_name, "payload": payload}
+        dirname = os.path.dirname(LOG_PATH)
+        if dirname and not os.path.exists(dirname):
+            os.makedirs(dirname, exist_ok=True)
+        with open(LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+        return True
+    except Exception as e:
+        print(f"[LOG] write_normalized_tilt_reading failed: {e}")
+        return False
+
+def forward_to_third_party_if_configured(payload):
+    """
+    If tilt_cfg for this tilt contains 'external_url' (and optional 'external_method'/'external_json'),
+    forward the JSON payload there. Returns dict with result info.
+    """
+    color = (payload.get("tilt_color") or "").upper()
+    if not color:
+        return {"forwarded": False, "reason": "no color"}
+    tc = tilt_cfg.get(color) or {}
+    url = tc.get("external_url") or None
+    if not url:
+        return {"forwarded": False, "reason": "no external_url configured"}
+    method = (tc.get("external_method") or "POST").upper()
+    send_json = bool(tc.get("external_json")) if ("external_json" in tc) else True
+
+    if requests is None:
+        return {"forwarded": False, "reason": "requests library not available"}
+
+    headers = {}
+    try:
+        timeout = int(system_cfg.get("external_timeout_seconds", 8) or 8)
+        if send_json:
+            headers["Content-Type"] = "application/json"
+            resp = requests.request(method, url, json=payload, headers=headers, timeout=timeout)
+        else:
+            headers["Content-Type"] = "application/x-www-form-urlencoded"
+            formdata = {k: ("" if v is None else v) for k, v in payload.items() if isinstance(v, (str, int, float)) or v is None}
+            resp = requests.request(method, url, data=formdata, headers=headers, timeout=timeout)
+        return {"forwarded": True, "status_code": getattr(resp, "status_code", None), "text": getattr(resp, "text", "")}
+    except Exception as e:
+        print(f"[FORWARD] Error forwarding tilt {color} to {url}: {e}")
+        return {"forwarded": False, "error": str(e)}
+
+# --- Updated log_tilt_reading (integrates per-batch append and optional forward) ---
+def log_tilt_reading(color, gravity, temp_f, rssi):
+    # Only log if heating and/or cooling is selected
+    if not (bool(temp_cfg.get("enable_heating")) or bool(temp_cfg.get("enable_cooling"))):
         return
+
+    cfg = tilt_cfg.get(color, {})
+    try:
+        interval_minutes = int(system_cfg.get("tilt_logging_interval_minutes",
+                                              system_cfg.get("tilt_logging_interval", 15) or 15))
+    except Exception:
+        interval_minutes = 15
+    interval_seconds = max(1, interval_minutes * 60)
+
+    now_ts = int(time.time())
+    last_ts = last_tilt_log_ts.get(color)
+
+    if last_ts and (now_ts - int(last_ts)) < interval_seconds:
+        return
+
+    brewid = cfg.get("brewid") or generate_brewid(cfg.get("beer_name",""), cfg.get("batch_name",""), cfg.get("ferm_start_date",""))
+    # Build a batch-level 'batch' dict used for restricted control log entry only
+    batch = {
+        "tilt_color": color,
+        "beer_name": cfg.get("beer_name", "Unknown"),
+        "batch_name": cfg.get("batch_name", "Unknown"),
+        "brewid": brewid,
+        "ferm_start_date": cfg.get("ferm_start_date", "Unknown"),
+        "original_gravity": cfg.get("actual_og", gravity),
+        "gravity": gravity,
+        "temp_f": temp_f,
+        "rssi": rssi,
+        # Use explicit UTC ISO timestamp for control log
+        "timestamp": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+        "low_limit": temp_cfg.get("low_limit"),
+        "high_limit": temp_cfg.get("high_limit"),
+        "current_temp": temp_cfg.get("current_temp")
+    }
+
+    # Append restricted control-log entry (keeps control log separate)
+    append_control_log("tilt_reading", batch)
+    last_tilt_log_ts[color] = now_ts
+
+    # Build normalized payload for per-batch append and possible forwarding
+    try:
+        # ISO timestamp with trailing Z
+        iso_ts = batch["timestamp"]
+        if not iso_ts.endswith("Z"):
+            iso_ts = iso_ts + "Z"
+        normalized_payload = {
+            "timestamp": iso_ts,
+            "timepoint": batch.get("timepoint"),
+            "tilt_color": batch["tilt_color"],
+            "temp_f": batch["temp_f"],
+            "current_temp": batch["current_temp"],
+            "gravity": batch["gravity"],
+            "brewid": batch["brewid"],
+            "rssi": batch.get("rssi")
+        }
+
+        # Append to per-batch file (do not include beer_name/batch_name in each sample)
+        # Determine created_date token: prefer tilt_cfg[color]['batch_file_token'] (set when batch created)
+        created_token = None
+        try:
+            created_token = tilt_cfg.get(color, {}).get('batch_file_token')
+        except Exception:
+            created_token = None
+        if not created_token:
+            created_token = normalize_to_mmddyyyy(tilt_cfg.get(color, {}).get('ferm_start_date') or cfg.get('ferm_start_date') or None)
+
+        appended = append_sample_to_batch_jsonl(color, normalized_payload.get("brewid"), normalized_payload, created_date_mmddyyyy=created_token)
+        if not appended:
+            # fallback: write to legacy LOG_PATH normalized line (if you still want legacy records)
+            write_normalized_tilt_reading(normalized_payload, event_name="tilt_reading")
+    except Exception as e:
+        print(f"[LOG] failed normalizing/writing tilt_reading: {e}")
+
+    # Forward to third-party if configured
+    try:
+        fwd = forward_to_third_party_if_configured(normalized_payload)
+        if fwd.get("forwarded") is True:
+            print(f"[FORWARD] tilt {color} forwarded to external: {fwd.get('status_code')}")
+        else:
+            if fwd.get("reason") not in ("no external_url configured",):
+                print(f"[FORWARD] tilt {color} forward result: {fwd}")
+    except Exception as e:
+        print(f"[FORWARD] exception while forwarding tilt {color}: {e}")
+
+# --- Notifications helpers -------------------------------------------------
+def _smtp_send(recipient, subject, body):
+    cfg = system_cfg
+    if not (isinstance(cfg, dict) and cfg.get("email")):
+        print("[LOG] SMTP not configured: no sender email in system_cfg")
+        return False
     try:
         msg = MIMEText(body)
         msg["Subject"] = subject
         msg["From"] = cfg["email"]
-        msg["To"] = cfg["email"]
-        server = smtplib.SMTP("localhost")
-        server.sendmail(cfg["email"], [cfg["email"]], msg.as_string())
+        msg["To"] = recipient
+        server = smtplib.SMTP(cfg.get("smtp_host", "localhost"), int(cfg.get("smtp_port", 25)), timeout=10)
+        if cfg.get("smtp_starttls"):
+            server.starttls()
+        if cfg.get("smtp_user") and cfg.get("smtp_password"):
+            server.login(cfg["smtp_user"], cfg["smtp_password"])
+        server.sendmail(cfg["email"], [recipient], msg.as_string())
         server.quit()
+        return True
     except Exception as e:
-        print(f"[LOG] Email send failed: {e}")
+        print(f"[LOG] SMTP send failed: {e}")
+        return False
+
+def send_email(subject, body):
+    recipient = system_cfg.get("email")
+    if not recipient:
+        print("[LOG] No recipient email configured")
+        return False
+    return _smtp_send(recipient, subject, body)
 
 def send_sms(body):
-    print(f"[LOG] SMS: {body}")  # Implement Twilio or other service as needed
+    mobile = system_cfg.get("mobile")
+    gateway = system_cfg.get("sms_gateway_domain")
+    if not mobile or not gateway:
+        print("[LOG] SMS gateway not configured (mobile or sms_gateway_domain missing)")
+        return False
+    recipient = f"{mobile}@{gateway}"
+    return _smtp_send(recipient, "Fermenter Notification", body)
+
+def attempt_send_notifications(subject, body):
+    mode = (temp_cfg.get('warnings_mode') or 'NONE').upper()
+    success_any = False
+    temp_cfg['notifications_trigger'] = True
+    try:
+        if mode == 'EMAIL':
+            success_any = send_email(subject, body)
+        elif mode == 'SMS':
+            success_any = send_sms(body)
+        elif mode == 'BOTH':
+            e = send_email(subject, body)
+            s = send_sms(body)
+            success_any = e or s
+        else:
+            success_any = False
+    except Exception:
+        success_any = False
+
+    temp_cfg['notifications_trigger'] = False
+    if success_any:
+        temp_cfg['notification_last_sent'] = datetime.utcnow().isoformat()
+        temp_cfg['notification_comm_failure'] = False
+        return True
+    else:
+        temp_cfg['notification_comm_failure'] = True
+        temp_cfg['warnings_mode'] = 'NONE'
+        try:
+            system_cfg['warning_mode'] = 'NONE'
+            save_json(SYSTEM_CFG_FILE, system_cfg)
+        except Exception:
+            pass
+        return False
 
 def send_warning(subject, body):
-    mode = system_cfg.get("warning_mode", "none").lower()
-    if mode == "email":
-        send_email(subject, body)
-    elif mode == "sms":
-        send_sms(body)
-    elif mode == "both":
-        send_email(subject, body)
-        send_sms(body)
+    mode = (temp_cfg.get('warnings_mode') or 'NONE').upper()
+    if mode == 'NONE':
+        return False
+    try:
+        rate_limit = int(system_cfg.get('notification_rate_limit_seconds', 3600))
+    except Exception:
+        rate_limit = 3600
 
+    last = temp_cfg.get('notification_last_sent')
+    if last:
+        try:
+            last_dt = datetime.fromisoformat(last)
+            elapsed = (datetime.utcnow() - last_dt).total_seconds()
+            if elapsed < rate_limit:
+                return False
+        except Exception:
+            pass
+
+    temp_cfg['notifications_trigger'] = True
+    ok = attempt_send_notifications(subject, body)
+    return ok
+
+# --- Kasa command dedupe & rate limit -------------------------------------
+_last_kasa_command = {}
+_KASA_RATE_LIMIT_SECONDS = int(system_cfg.get("kasa_rate_limit_seconds", 10) or 10)
+
+def _should_send_kasa_command(url, action):
+    if not url:
+        return False
+    if not kasa_worker:
+        return False
+    if url == temp_cfg.get("heating_plug") and temp_cfg.get("heater_pending"):
+        return False
+    if url == temp_cfg.get("cooling_plug") and temp_cfg.get("cooler_pending"):
+        return False
+    if url == temp_cfg.get("heating_plug"):
+        if temp_cfg.get("heater_on") and action == "on":
+            return False
+        if (not temp_cfg.get("heater_on")) and action == "off":
+            return False
+    if url == temp_cfg.get("cooling_plug"):
+        if temp_cfg.get("cooler_on") and action == "on":
+            return False
+        if (not temp_cfg.get("cooler_on")) and action == "off":
+            return False
+    last = _last_kasa_command.get(url)
+    if last and last.get("action") == action:
+        if (time.time() - last.get("ts", 0.0)) < _KASA_RATE_LIMIT_SECONDS:
+            return False
+    return True
+
+def _record_kasa_command(url, action):
+    _last_kasa_command[url] = {"action": action, "ts": time.time()}
+
+# --- Control functions -----------------------------------------------------
 def control_heating(state):
     enabled = temp_cfg.get("enable_heating")
     url = temp_cfg.get("heating_plug", "")
     if not enabled or not url:
-        print("[LOG] Heating control bypassed (not enabled or no URL)")
+        temp_cfg["heater_pending"] = False
+        temp_cfg["heater_on"] = False
         return
-    kasa_queue.put({'mode': 'heating', 'url': url, 'action': state, 'enabled': enabled})
-    print(f"[LOG] control_heating called with state={state}, enabled={enabled}, url={url}")
+    if not _should_send_kasa_command(url, state):
+        return
+    kasa_queue.put({'mode': 'heating', 'url': url, 'action': state})
+    _record_kasa_command(url, state)
+    temp_cfg["heater_pending"] = True
 
 def control_cooling(state):
     enabled = temp_cfg.get("enable_cooling")
     url = temp_cfg.get("cooling_plug", "")
     if not enabled or not url:
-        print("[LOG] Cooling control bypassed (not enabled or no URL)")
+        temp_cfg["cooler_pending"] = False
+        temp_cfg["cooler_on"] = False
         return
-    kasa_queue.put({'mode': 'cooling', 'url': url, 'action': state, 'enabled': enabled})
-    print(f"[LOG] control_cooling called with state={state}, enabled={enabled}, url={url}")
+    if not _should_send_kasa_command(url, state):
+        return
+    kasa_queue.put({'mode': 'cooling', 'url': url, 'action': state})
+    _record_kasa_command(url, state)
+    temp_cfg["cooler_pending"] = True
 
+# --- Temperature control logic (normalized + limited logging) -------------
 def temperature_control_logic():
+    enable_heat = bool(temp_cfg.get("enable_heating"))
+    enable_cool = bool(temp_cfg.get("enable_cooling"))
+    if enable_heat and enable_cool:
+        temp_cfg['mode'] = "Heating and Cooling Selected"
+    elif enable_heat:
+        temp_cfg['mode'] = "Heating Selected"
+    elif enable_cool:
+        temp_cfg['mode'] = "Cooling Selected"
+    else:
+        temp_cfg['mode'] = "Off"
+
     temp = temp_cfg.get("current_temp")
+    if temp is None:
+        temp_from_tilt = get_current_temp_for_control_tilt()
+        if temp_from_tilt is not None:
+            try:
+                temp = float(temp_from_tilt)
+                temp_cfg['current_temp'] = round(temp, 1)
+            except Exception:
+                temp = None
+
     low = temp_cfg.get("low_limit")
     high = temp_cfg.get("high_limit")
-    enable_heat = temp_cfg.get("enable_heating")
-    enable_cool = temp_cfg.get("enable_cooling")
-    mid = (high + low) / 2 if (high is not None and low is not None) else None
 
-    temp_cfg['heater_on'] = False
-    temp_cfg['cooler_on'] = False
+    if not temp_cfg.get("control_initialized"):
+        if enable_heat or enable_cool:
+            append_control_log("temp_control_mode", {
+                "low_limit": low,
+                "current_temp": temp,
+                "high_limit": high,
+                "tilt_color": temp_cfg.get("tilt_color", "")
+            })
+        temp_cfg["control_initialized"] = True
+        temp_cfg["last_logged_low_limit"] = low
+        temp_cfg["last_logged_high_limit"] = high
+        temp_cfg["last_logged_enable_heating"] = enable_heat
+        temp_cfg["last_logged_enable_cooling"] = enable_cool
 
-    if temp is None or mid is None:
+    if (temp_cfg.get("last_logged_low_limit") != low or
+        temp_cfg.get("last_logged_high_limit") != high or
+        temp_cfg.get("last_logged_enable_heating") != enable_heat or
+        temp_cfg.get("last_logged_enable_cooling") != enable_cool):
+        if enable_heat or enable_cool:
+            append_control_log("temp_control_mode_changed", {
+                "low_limit": low,
+                "current_temp": temp,
+                "high_limit": high,
+                "tilt_color": temp_cfg.get("tilt_color", "")
+            })
+        temp_cfg["last_logged_low_limit"] = low
+        temp_cfg["last_logged_high_limit"] = high
+        temp_cfg["last_logged_enable_heating"] = enable_heat
+        temp_cfg["last_logged_enable_cooling"] = enable_cool
+
+    if temp is None:
         control_heating("off")
         control_cooling("off")
         temp_cfg["status"] = "Device Offline"
         return
 
-    # 1. Heating logic
-    if enable_heat:
-        if temp < low:
-            control_heating("on")
-            temp_cfg["heater_on"] = True
-            control_cooling("off")
-            temp_cfg["cooler_on"] = False
-            temp_cfg["status"] = "Heating"
-            return
-        elif temp_cfg.get("heater_on", False) and temp >= mid:
-            control_heating("off")
-            temp_cfg["heater_on"] = False
+    current_action = None
+
+    if enable_heat and temp < low:
+        control_heating("on")
+        current_action = "Heating"
+        if not temp_cfg.get("below_limit_logged"):
+            append_control_log("temp_below_low_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
+            temp_cfg["below_limit_logged"] = True
+    else:
+        control_heating("off")
+
+    if enable_cool and temp > high:
+        control_cooling("on")
+        current_action = "Cooling"
+        if not temp_cfg.get("above_limit_logged"):
+            append_control_log("temp_above_high_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
+            temp_cfg["above_limit_logged"] = True
+    else:
+        control_cooling("off")
+
+    try:
+        if isinstance(low, (int, float)) and isinstance(high, (int, float)) and (low <= temp <= high):
+            temp_cfg["below_limit_logged"] = False
+            temp_cfg["above_limit_logged"] = False
             temp_cfg["status"] = "In Range"
             return
+    except Exception:
+        pass
 
-    # 2. Cooling logic
-    if enable_cool:
-        if temp > high:
-            control_cooling("on")
-            temp_cfg["cooler_on"] = True
-            control_heating("off")
-            temp_cfg["heater_on"] = False
-            temp_cfg["status"] = "Cooling"
-            return
-        elif temp_cfg.get("cooler_on", False) and temp <= mid:
-            control_cooling("off")
-            temp_cfg["cooler_on"] = False
-            temp_cfg["status"] = "In Range"
-            return
+    if current_action == "Heating":
+        temp_cfg["status"] = "Heating"
+    elif current_action == "Cooling":
+        temp_cfg["status"] = "Cooling"
+    else:
+        temp_cfg["status"] = "Idle"
 
-    # 3. If neither heating nor cooling active, both off
-    control_heating("off")
-    temp_cfg["heater_on"] = False
-    control_cooling("off")
-    temp_cfg["cooler_on"] = False
-    temp_cfg["status"] = "In Range"
+# --- kasa result listener (log confirmed ON/OFF events) --------------------
+def kasa_result_listener():
+    while True:
+        try:
+            result = kasa_result_queue.get(timeout=5)
+            mode = result.get('mode')
+            action = result.get('action')
+            success = result.get('success', False)
+            url = result.get('url', '')
+            if mode == 'heating':
+                temp_cfg["heater_pending"] = False
+                if success:
+                    temp_cfg["heater_on"] = (action == 'on')
+                    temp_cfg["heating_error"] = False
+                    temp_cfg["heating_error_msg"] = ""
+                    event = "heating_on" if action == 'on' else "heating_off"
+                    append_control_log(event, {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
+                else:
+                    temp_cfg["heating_error"] = True
+                    temp_cfg["heating_error_msg"] = result.get('error', '') or ''
+            elif mode == 'cooling':
+                temp_cfg["cooler_pending"] = False
+                if success:
+                    temp_cfg["cooler_on"] = (action == 'on')
+                    temp_cfg["cooling_error"] = False
+                    temp_cfg["cooling_error_msg"] = ""
+                    event = "cooling_on" if action == 'on' else "cooling_off"
+                    append_control_log(event, {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
+                else:
+                    temp_cfg["cooling_error"] = True
+                    temp_cfg["cooling_error_msg"] = result.get('error', '') or ''
+        except Exception:
+            continue
 
+threading.Thread(target=kasa_result_listener, daemon=True).start()
+
+# --- Offsite push helpers (DISABLED) -------------------------------------
+def build_offsite_payload(field_map=None):
+    default_map = {
+        'timestamp': 'timestamp',
+        'tilt_color': 'tilt_color',
+        'gravity': 'gravity',
+        'temp_f': 'temp',
+        'brew_id': 'brewid',
+        'device': 'device'
+    }
+    if not field_map:
+        field_map = default_map
+    payload = {
+        'timestamp': datetime.utcnow().isoformat(),
+        'temp_control': {
+            'current_temp': temp_cfg.get('current_temp'),
+            'low_limit': temp_cfg.get('low_limit'),
+            'high_limit': temp_cfg.get('high_limit'),
+            'status': temp_cfg.get('status'),
+        },
+        'tilts': []
+    }
+    for color, info in live_tilts.items():
+        entry = {
+            field_map.get('tilt_color', 'tilt_color'): color,
+            field_map.get('gravity', 'gravity'): info.get('gravity'),
+            field_map.get('temp_f', 'temp'): info.get('temp_f'),
+            field_map.get('brew_id', 'brewid'): info.get('brewid'),
+            field_map.get('device', 'device'): color
+        }
+        payload['tilts'].append(entry)
+    return payload
+
+def push_offsite_snapshot():
+    return
+
+# --- Periodic temp control thread -----------------------------------------
 def periodic_temp_control():
     while True:
         try:
-            temp_cfg.update(load_json('temp_control_config.json', {}))
-            print("[LOG] Reloaded temp_cfg in periodic_temp_control:", temp_cfg)
+            file_cfg = load_json(TEMP_CFG_FILE, {})
+            if 'current_temp' in file_cfg and file_cfg['current_temp'] is None and temp_cfg.get('current_temp') is not None:
+                file_cfg.pop('current_temp')
+            temp_cfg.update(file_cfg)
             temperature_control_logic()
-            print("[LOG] Ran temperature_control_logic in periodic_temp_control.")
         except Exception as e:
-            send_warning("Temperature Control Error", str(e))
+            append_control_log("temp_control_mode_changed", {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
             print("[LOG] Exception in periodic_temp_control:", e)
-        time.sleep(int(system_cfg.get("update_interval", 300)))
+
+        try:
+            interval_minutes = int(system_cfg.get("update_interval", 1))
+        except Exception:
+            interval_minutes = 1
+        interval_seconds = max(1, interval_minutes * 60)
+        time.sleep(interval_seconds)
 
 threading.Thread(target=periodic_temp_control, daemon=True).start()
 
+# --- BLE scanner thread ---------------------------------------------------
 def ble_loop():
     async def run_scanner():
+        if BleakScanner is None:
+            print("[LOG] BleakScanner not available; BLE scanning disabled")
+            return
         scanner = BleakScanner(detection_callback)
         await scanner.start()
         while True:
@@ -682,10 +1048,562 @@ def ble_loop():
                     temp_cfg['current_temp'] = round(float(temp), 1)
             except Exception as e:
                 print(f"[LOG] Error in ble_loop run_scanner: {e}")
-
-    asyncio.run(run_scanner())
+    try:
+        asyncio.run(run_scanner())
+    except Exception as e:
+        print(f"[LOG] BLE loop failed to start: {e}")
 
 threading.Thread(target=ble_loop, daemon=True).start()
 
+# --- Flask routes ---------------------------------------------------------
+@app.route('/')
+def dashboard():
+    return render_template('maindisplay.html',
+        system_settings=system_cfg,
+        tilt_cfg=tilt_cfg,
+        COLOR_MAP=COLOR_MAP,
+        tilts=live_tilts,
+        tilt_status=tilt_status,
+        temp_control=temp_cfg,
+        live_tilts=live_tilts
+    )
+
+@app.route('/system_config')
+def system_config():
+    return render_template('system_config.html', system_settings=system_cfg)
+
+@app.route('/update_system_config', methods=['POST'])
+def update_system_config():
+    data = request.form
+    old_warn = system_cfg.get('warning_mode', 'NONE')
+    system_cfg.update({
+        "brewery_name": data.get("brewery_name", ""),
+        "brewer_name": data.get("brewer_name", ""),
+        "street": data.get("street", ""),
+        "city": data.get("city", ""),
+        "state": data.get("state", ""),
+        "email": data.get("email", ""),
+        "mobile": data.get("mobile", ""),
+        "timezone": data.get("timezone", ""),
+        "timestamp_format": data.get("timestamp_format", ""),
+        "update_interval": data.get("update_interval", "1"),
+        "external_refresh_rate": data.get("external_refresh_rate", "0"),
+        "external_name_0": data.get("external_name_0", system_cfg.get('external_name_0','')),
+        "external_url_0": data.get("external_url_0", system_cfg.get('external_url_0','')),
+        "external_name_1": data.get("external_name_1", system_cfg.get('external_name_1','')),
+        "external_url_1": data.get("external_url_1", system_cfg.get('external_url_1','')),
+        "external_name_2": data.get("external_name_2", system_cfg.get('external_name_2','')),
+        "external_url_2": data.get("external_url_2", system_cfg.get('external_url_2','')),
+        "warning_mode": data.get("warning_mode", "NONE"),
+        "sms_gateway_domain": data.get("sms_gateway_domain", system_cfg.get('sms_gateway_domain','')),
+        "external_method": data.get("external_method", system_cfg.get('external_method','POST')),
+        "external_content_type": data.get("external_content_type", system_cfg.get('external_content_type','form')),
+        "external_timeout_seconds": data.get("external_timeout_seconds", system_cfg.get('external_timeout_seconds',8)),
+        "external_field_map": data.get("external_field_map", system_cfg.get('external_field_map','')),
+        "kasa_rate_limit_seconds": data.get("kasa_rate_limit_seconds", system_cfg.get('kasa_rate_limit_seconds', 10)),
+        "tilt_logging_interval_minutes": int(data.get("tilt_logging_interval_minutes", system_cfg.get("tilt_logging_interval_minutes", 15)))
+    })
+    save_json(SYSTEM_CFG_FILE, system_cfg)
+
+    new_warn = system_cfg.get('warning_mode','NONE')
+    if old_warn.upper() == 'NONE' and new_warn.upper() in ('EMAIL','SMS','BOTH'):
+        temp_cfg['warnings_mode'] = new_warn
+        temp_cfg['notifications_trigger'] = False
+        temp_cfg['notification_comm_failure'] = False
+    elif new_warn.upper() == 'NONE':
+        temp_cfg['warnings_mode'] = 'NONE'
+        temp_cfg['notifications_trigger'] = False
+        temp_cfg['notification_comm_failure'] = False
+    else:
+        temp_cfg['warnings_mode'] = new_warn
+
+    return redirect('/system_config')
+
+@app.route('/tilt_config', methods=['GET', 'POST'])
+def tilt_config():
+    selected = request.args.get('tilt_color') or request.form.get('tilt_color')
+    batch_history = []
+    if selected:
+        try:
+            with open(f'batch_history_{selected}.json', 'r') as f:
+                batch_history = json.load(f)
+        except Exception:
+            batch_history = []
+    if request.method == 'POST':
+        color = request.form.get('tilt_color')
+        action = request.form.get('action')
+        if color and action:
+            if action == "cancel":
+                return redirect("/")
+            return redirect(f"/batch_settings?tilt_color={color}&action={action}")
+    config = tilt_cfg.get(selected, {}) if selected else {}
+    return render_template('tilt_config.html',
+        tilt_cfg=tilt_cfg,
+        tilt_colors=list(TILT_UUIDS.values()),
+        selected_tilt=selected,
+        selected_config=config,
+        system_settings=system_cfg,
+        batch_history=batch_history
+    )
+
+@app.route('/batch_settings', methods=['GET', 'POST'])
+def batch_settings():
+    if request.method == 'POST':
+        data = request.form
+        color = data.get('tilt_color')
+        if not color:
+            return "No Tilt color selected", 400
+        beer_name = data.get('beer_name', '').strip()
+        batch_name = data.get('batch_name', '').strip()
+        start_date = data.get('ferm_start_date', '').strip()
+        existing = tilt_cfg.get(color, {})
+        old_brew_id = existing.get('brewid')
+        brew_id = existing.get('brewid')
+        if not brew_id:
+            brew_id = generate_brewid(beer_name, batch_name, start_date)
+        if old_brew_id and old_brew_id != brew_id:
+            # legacy archival if desired
+            rotate_and_archive_old_history(color, old_brew_id, existing)
+
+        og_confirmed = ('og_confirmed' in data) and (data.get('og_confirmed') not in (None, '', '0', 'false', 'False'))
+
+        batch_entry = {
+            "beer_name": beer_name,
+            "batch_name": batch_name,
+            "ferm_start_date": start_date,
+            "recipe_og": data.get('recipe_og', '') or '',
+            "recipe_fg": data.get('recipe_fg', '') or '',
+            "recipe_abv": data.get('recipe_abv', '') or '',
+            "actual_og": (data.get('actual_og', '') or None),
+            "og_confirmed": bool(og_confirmed),
+            "brewid": brew_id
+        }
+
+        try:
+            with open(f'batch_history_{color}.json', 'r') as f:
+                batches = json.load(f)
+        except Exception:
+            batches = []
+        batches.append(batch_entry)
+        try:
+            with open(f'batch_history_{color}.json', 'w') as f:
+                json.dump(batches, f, indent=2)
+        except Exception as e:
+            print(f"[LOG] Could not append batch history for {color}: {e}")
+
+        tilt_cfg[color] = batch_entry
+        save_json(TILT_CONFIG_FILE, tilt_cfg)
+
+        # seed per-batch jsonl file and store token in tilt_cfg so future readings append to exact file
+        try:
+            created_token = normalize_to_mmddyyyy(batch_entry.get("ferm_start_date") or "")
+            ensure_batch_jsonl_exists(color, brew_id, meta=batch_entry, created_date_mmddyyyy=created_token)
+            # Save token to tilt_cfg
+            tilt_cfg.setdefault(color, {}).update({"batch_file_token": created_token})
+            save_json(TILT_CONFIG_FILE, tilt_cfg)
+        except Exception as e:
+            print(f"[LOG] Could not ensure batch jsonl for {color}/{brew_id}: {e}")
+
+        return redirect(f"/batch_settings?tilt_color={color}")
+
+    selected = request.args.get('tilt_color')
+    action = request.args.get('action')
+    config = tilt_cfg.get(selected, {}) if selected else {}
+    batch_history = []
+    if selected:
+        try:
+            with open(f'batch_history_{selected}.json', 'r') as f:
+                batch_history = json.load(f)
+        except Exception:
+            batch_history = []
+    all_colors = list(TILT_UUIDS.values())
+    active_colors = list(live_tilts.keys())
+    return render_template('batch_settings.html',
+        tilt_cfg=tilt_cfg,
+        tilt_colors=all_colors,
+        active_colors=active_colors,
+        live_tilts=live_tilts,
+        selected_tilt=selected,
+        selected_config=config,
+        system_settings=system_cfg,
+        action=action,
+        batch_history=batch_history
+    )
+
+@app.route('/temp_config')
+def temp_config():
+    report_colors = list(tilt_cfg.keys())
+    return render_template('temp_control_config.html',
+        temp_control=temp_cfg,
+        tilt_cfg=tilt_cfg,
+        system_settings=system_cfg,
+        batch_cfg=tilt_cfg,
+        report_colors=report_colors
+    )
+
+@app.route('/update_temp_config', methods=['POST'])
+def update_temp_config():
+    data = request.form
+    old_warnings = temp_cfg.get('warnings_mode', 'NONE')
+    try:
+        temp_cfg.update({
+            "tilt_color": data.get('tilt_color', ''),
+            "low_limit": float(data.get('low_limit', 0)),
+            "high_limit": float(data.get('high_limit', 100)),
+            "enable_heating": 'enable_heating' in data,
+            "enable_cooling": 'enable_cooling' in data,
+            "heating_plug": data.get("heating_plug", ""),
+            "cooling_plug": data.get("cooling_plug", ""),
+            "current_temp": float(data.get('current_temp', 0.0)) if data.get('current_temp') else None,
+            "mode": data.get("mode", temp_cfg.get('mode','')),
+            "status": data.get("status", temp_cfg.get('status','')),
+            "warnings_mode": data.get("warnings_mode", temp_cfg.get('warnings_mode','NONE'))
+        })
+    except Exception as e:
+        print(f"[LOG] Error parsing temp config form: {e}")
+    try:
+        save_json(TEMP_CFG_FILE, temp_cfg)
+    except Exception as e:
+        print(f"[LOG] Error saving config in update_temp_config: {e}")
+
+    try:
+        tilt_interval_min = data.get('tilt_logging_interval_minutes')
+        if tilt_interval_min:
+            system_cfg['tilt_logging_interval_minutes'] = int(tilt_interval_min)
+            save_json(SYSTEM_CFG_FILE, system_cfg)
+    except Exception:
+        pass
+
+    new_warnings = temp_cfg.get('warnings_mode', 'NONE')
+    if old_warnings.upper() == 'NONE' and new_warnings.upper() in ('EMAIL','SMS','BOTH'):
+        temp_cfg['notifications_trigger'] = False
+        temp_cfg['notification_comm_failure'] = False
+    if new_warnings.upper() == 'NONE':
+        temp_cfg['notifications_trigger'] = False
+        temp_cfg['notification_comm_failure'] = False
+
+    temperature_control_logic()
+
+    try:
+        cur = temp_cfg.get("current_temp")
+        if temp_cfg.get("enable_heating") and cur is not None and cur < temp_cfg.get("low_limit", 0):
+            control_heating("on")
+        if temp_cfg.get("enable_cooling") and cur is not None and cur > temp_cfg.get("high_limit", 999):
+            control_cooling("on")
+    except Exception:
+        pass
+
+    return redirect('/temp_config')
+
+@app.route('/temp_report', methods=['GET', 'POST'])
+def temp_report():
+    if request.method == 'POST':
+        color = request.form.get('tilt_color')
+        if not color:
+            return redirect('/temp_report')
+        return redirect(f"/temp_report?tilt_color={color}&page=1")
+
+    tilt_color = request.args.get('tilt_color')
+    try:
+        page = int(request.args.get('page', '1'))
+    except Exception:
+        page = 1
+
+    if not tilt_color:
+        colors = list(tilt_cfg.keys())
+        default_color = colors[0] if colors else None
+        return render_template('temp_report_select.html', colors=colors, default_color=default_color)
+
+    entries = []
+    try:
+        if os.path.exists(LOG_PATH):
+            with open(LOG_PATH, 'r') as f:
+                for line in f:
+                    try:
+                        obj = json.loads(line)
+                    except Exception:
+                        continue
+                    if obj.get('event') != 'tilt_reading' and obj.get('event') != 'SAMPLE':
+                        continue
+                    payload = obj.get('payload') or obj if isinstance(obj, dict) else {}
+                    entries.append(payload)
+    except Exception as e:
+        print(f"[LOG] Could not read log for temp_report: {e}")
+
+    filtered = []
+    brewid = tilt_cfg.get(tilt_color, {}).get('brewid')
+    tc = tilt_cfg.get(tilt_color, {}) or {}
+    for p in entries:
+        if brewid:
+            if p.get('brewid') == brewid:
+                filtered.append(p)
+        else:
+            if p.get('batch_name') == tc.get('batch_name') or p.get('beer_name') == tc.get('beer_name'):
+                filtered.append(p)
+
+    lines = []
+    filtered = list(reversed(filtered))
+    for p in filtered:
+        ts = p.get('timestamp', '')
+        bn = p.get('beer_name') or ''
+        batch = p.get('batch_name') or ''
+        tempf = p.get('temp_f', '')
+        grav = p.get('gravity', '')
+        bid = p.get('brewid') or '--'
+        lines.append(f"{ts} — {bn or batch} — Temp: {tempf}°F — Gravity: {grav} — Brew ID: {bid}")
+
+    total_pages = max(1, ceil(len(lines) / PER_PAGE))
+    page = max(1, min(page, total_pages))
+    start = (page - 1) * PER_PAGE
+    end = start + PER_PAGE
+    page_data = lines[start:end]
+    at_end = page >= total_pages
+
+    return render_template('temp_report_display.html',
+                           color=tilt_color,
+                           page=page,
+                           total_pages=total_pages,
+                           page_data=page_data,
+                           at_end=at_end)
+
+# --- Removed webhook handler: local BLE is the source of truth -------------
+
+@app.route('/export_temp_log', methods=['GET', 'POST'])
+def export_temp_log():
+    return redirect('/temp_config')
+
+@app.route('/export_temp_csv', methods=['GET', 'POST'])
+def export_temp_csv():
+    return redirect('/temp_config')
+
+@app.route('/scan_kasa_plugs')
+def scan_kasa_plugs():
+    try:
+        from kasa import Discover
+        found_devices = asyncio.run(Discover.discover())
+        devices = {str(addr): dev.alias for addr, dev in found_devices.items()}
+    except Exception as e:
+        devices = {}
+        print(f"[LOG] Kasa scan failed: {e}")
+    return render_template("kasa_scan_results.html", devices=devices, error=None)
+
+@app.route('/live_snapshot')
+def live_snapshot():
+    snapshot = {
+        "live_tilts": {},
+        "temp_control": {
+            "current_temp": temp_cfg.get("current_temp"),
+            "low_limit": temp_cfg.get("low_limit"),
+            "high_limit": temp_cfg.get("high_limit"),
+            "heater_on": temp_cfg.get("heater_on"),
+            "cooler_on": temp_cfg.get("cooler_on"),
+            "heater_pending": temp_cfg.get("heater_pending"),
+            "cooler_pending": temp_cfg.get("cooler_pending"),
+            "enable_heating": temp_cfg.get("enable_heating"),
+            "enable_cooling": temp_cfg.get("enable_cooling"),
+            "status": temp_cfg.get("status"),
+            "mode": temp_cfg.get("mode", 'Off'),
+            "warnings_mode": temp_cfg.get('warnings_mode'),
+            "notifications_trigger": temp_cfg.get('notifications_trigger'),
+            "notification_comm_failure": temp_cfg.get('notification_comm_failure')
+        }
+    }
+    for color, info in live_tilts.items():
+        snapshot["live_tilts"][color] = {
+            "gravity": info.get("gravity"),
+            "temp_f": info.get("temp_f"),
+            "timestamp": info.get("timestamp"),
+            "beer_name": info.get("beer_name"),
+            "batch_name": info.get("batch_name"),
+            "brewid": info.get("brewid"),
+            "recipe_og": info.get("recipe_og"),
+            "recipe_fg": info.get("recipe_fg"),
+            "recipe_abv": info.get("recipe_abv"),
+            "actual_og": info.get("actual_og"),
+            "og_confirmed": info.get("og_confirmed", False),
+            "original_gravity": info.get("original_gravity"),
+            "color_code": info.get("color_code")
+        }
+    return jsonify(snapshot)
+
+# --- Chart routes and data endpoint ---------------------------------------
+@app.route('/chart')
+def chart_index():
+    colors = list(tilt_cfg.keys())
+    if colors:
+        return redirect(f'/chart/{colors[0]}')
+    return render_template('chart.html', tilt_color=None, system_settings=system_cfg)
+
+@app.route('/chart/<tilt_color>')
+def chart_for(tilt_color):
+    if tilt_color and tilt_color not in tilt_cfg:
+        abort(404)
+    return render_template('chart.html', tilt_color=tilt_color, system_settings=system_cfg)
+
+@app.route('/chart_data/<tilt_color>')
+def chart_data_for(tilt_color):
+    all_flag = str(request.args.get('all', '')).lower() in ('1', 'true', 'yes', 'on')
+    limit_param = request.args.get('limit', None)
+    limit = None
+    if limit_param:
+        try:
+            limit = int(limit_param)
+        except Exception:
+            limit = None
+    if not all_flag and (limit is None or limit <= 0):
+        limit = DEFAULT_CHART_LIMIT
+    if not all_flag and limit is not None:
+        limit = max(10, min(limit, MAX_CHART_LIMIT))
+
+    if tilt_color and tilt_color not in tilt_cfg:
+        return jsonify({"tilt_color": tilt_color, "points": [], "truncated": False, "matched": 0})
+
+    # Prefer per-batch file
+    brewid = tilt_cfg.get(tilt_color, {}).get('brewid')
+    created_token = tilt_cfg.get(tilt_color, {}).get('batch_file_token')
+    per_batch_path = None
+    if brewid:
+        if created_token:
+            candidate = batch_jsonl_filename(tilt_color, brewid, created_date_mmddyyyy=created_token)
+            if os.path.exists(candidate):
+                per_batch_path = candidate
+        if per_batch_path is None and os.path.exists(BATCHES_DIR):
+            prefix = f"batch_{tilt_color.upper()}_{brewid}_"
+            matches = [os.path.join(BATCHES_DIR, f) for f in os.listdir(BATCHES_DIR) if f.startswith(prefix) and f.endswith('.jsonl')]
+            if matches:
+                matches.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                per_batch_path = matches[0]
+
+    # Set file_to_read to per_batch_path if exists else legacy LOG_PATH
+    file_to_read = per_batch_path if per_batch_path and os.path.exists(per_batch_path) else LOG_PATH if os.path.exists(LOG_PATH) else None
+
+    # points collection (server-side capped when not requesting all)
+    points = deque(maxlen=limit) if (not all_flag and limit is not None) else []
+    matched = 0
+
+    def parse_timestamp_to_ms(ts):
+        if ts is None:
+            return None
+        try:
+            if isinstance(ts, (int, float)):
+                if ts < 1e11:
+                    return int(float(ts) * 1000)
+                return int(ts)
+        except Exception:
+            pass
+        try:
+            s = str(ts).strip()
+            try:
+                dt = datetime.fromisoformat(s.replace('Z', '+00:00'))
+                if dt.tzinfo is None:
+                    epoch_ms = int((dt - datetime(1970, 1, 1)).total_seconds() * 1000)
+                else:
+                    epoch_ms = int(dt.timestamp() * 1000)
+                return epoch_ms
+            except Exception:
+                pass
+            try:
+                dt = datetime.strptime(s, "%Y-%m-%dT%H:%M:%S")
+                epoch_ms = int((dt - datetime(1970, 1, 1)).total_seconds() * 1000)
+                return epoch_ms
+            except Exception:
+                pass
+            try:
+                f = float(s)
+                if f < 1e11:
+                    return int(f * 1000)
+                return int(f)
+            except Exception:
+                return None
+        except Exception:
+            return None
+
+    if file_to_read:
+        try:
+            with open(file_to_read, 'r') as f:
+                for line in f:
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                    except Exception:
+                        continue
+                    # include only sample or tilt_reading events as chart points
+                    if obj.get('event') not in ('sample', 'tilt_reading'):
+                        continue
+                    payload = obj.get('payload') or obj or {}
+                    # If brewid is set ensure matching
+                    if brewid and payload.get('brewid') and payload.get('brewid') != brewid:
+                        continue
+                    matched += 1
+                    ts_raw = payload.get('timestamp') or payload.get('timepoint') or None
+                    ts_ms = parse_timestamp_to_ms(ts_raw)
+                    if ts_ms is None:
+                        continue
+                    # temp and gravity normalization
+                    tf = None
+                    try:
+                        tf_val = payload.get('temp_f') if payload.get('temp_f') is not None else payload.get('current_temp') if payload.get('current_temp') is not None else payload.get('temp')
+                        tf = float(tf_val) if (tf_val is not None and str(tf_val) != '') else None
+                    except Exception:
+                        tf = None
+                    grav = None
+                    try:
+                        g_val = payload.get('gravity') or payload.get('sg') or payload.get('grav')
+                        grav = float(g_val) if (g_val is not None and str(g_val) != '') else None
+                    except Exception:
+                        grav = None
+                    if tf is None and grav is None:
+                        continue
+                    entry = {"timestamp": ts_ms, "temp_f": tf, "gravity": grav}
+                    if isinstance(points, deque):
+                        points.append(entry)
+                    else:
+                        points.append(entry)
+                        if len(points) > MAX_ALL_LIMIT:
+                            points.pop(0)
+        except Exception as e:
+            print(f"[LOG] Error reading file {file_to_read} for chart_data: {e}")
+
+    if isinstance(points, deque):
+        pts = list(points)
+        truncated = (matched > len(pts))
+    else:
+        pts = list(points)
+        truncated = (matched > len(pts))
+    return jsonify({"tilt_color": tilt_color, "points": pts, "truncated": truncated, "matched": matched})
+
+# --- Reset logs endpoint ---------------------------------------------------
+@app.route('/reset_logs', methods=['POST'])
+def reset_logs():
+    try:
+        if os.path.exists(LOG_PATH):
+            backup_name = f"{LOG_PATH}.{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}.bak"
+            try:
+                os.rename(LOG_PATH, backup_name)
+                append_control_log("temp_control_mode_changed", {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
+            except Exception as e:
+                print(f"[LOG] Could not backup log: {e}")
+        open(LOG_PATH, 'w').close()
+        return redirect('/temp_config')
+    except Exception as e:
+        print(f"[LOG] reset_logs error: {e}")
+        return "Error resetting logs", 500
+
+# --- Misc UI routes -------------------------------------------------------
+@app.route('/export_temp_csv')
+def export_temp_csv_get():
+    return redirect('/temp_config')
+
+@app.route('/exit_system')
+def exit_system():
+    return redirect('/')
+
+# --- Program entry ---------------------------------------------------------
 if __name__ == '__main__':
+    try:
+        os.makedirs(BATCHES_DIR, exist_ok=True)
+    except Exception:
+        pass
+
     app.run(host='0.0.0.0', port=5000, debug=True)

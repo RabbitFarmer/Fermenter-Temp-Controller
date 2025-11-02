@@ -1,153 +1,140 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
   <title>Tilt Configuration</title>
   <link rel="stylesheet" href="/static/styles.css">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    .tilt-color-list { margin: 32px auto; width: 300px; }
-    .tilt-color-item { padding: 12px; margin-bottom: 8px; background: #f3f3f3; border-radius: 7px; text-align: center; cursor: pointer; font-weight: bold; }
-    .tilt-color-item:hover { background: #e2e6f9; }
-    .action-btns { margin-top: 24px; text-align: center; }
-    .action-btns button, .action-btns a { margin: 0 8px; }
-    .batch-edit-form { width: 480px; margin: 24px auto; background: #f9f9f9; padding: 20px; border-radius: 8px; }
-    .brewid-label { font-size: 0.92em; color: #555; font-style: italic; }
-    .readonly { background: #ececec; color: #999; border: none; padding: 6px 10px; border-radius: 5px; }
-    .history-group { margin: 18px 0 0 0; padding: 8px 0; border-top: 1px solid #ccc; }
-    .history-entry { margin-left: 16px; }
+    .page { max-width: 980px; margin:20px auto; padding:18px; background:#fff; border-radius:8px; box-shadow:0 2px 12px rgba(0,0,0,0.06); }
+    .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+    .color-grid { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+    .color-btn { padding:10px 14px; border-radius:8px; font-weight:800; text-decoration:none; color:#fff; border:2px solid #222; }
+    .form-group { margin-bottom:12px; }
+    label { display:block; font-weight:700; margin-bottom:6px; }
+    input[type="text"], input[type="date"], input[type="number"] { width:100%; padding:8px; border:1px solid #ddd; border-radius:6px; }
+    .actions { display:flex; gap:8px; margin-top:10px; }
+    .note { color:#666; font-size:0.95em; }
   </style>
 </head>
 <body>
-  <div class="config-header">
-    <h2>Tilt Device Batch Settings</h2>
-    <p>Select a Tilt color to configure or view batch history.</p>
-  </div>
+  <div class="page-container">
+    <header class="site-header">
+      <nav class="config-ribbon">
+        <a href="/">Dashboard</a>
+        <a href="/system_config">System Settings</a>
+        <a href="/temp_config">Temperature Control</a>
+      </nav>
+      <h1 class="dashboard-title">Tilt Configuration</h1>
+    </header>
 
-  {% if not selected_tilt %}
-    <!-- Step 1: List active colors and 'Open Colors' -->
-    <div class="tilt-color-list">
-      {% for color in active_colors %}
-        <form method="get" style="margin:0;">
-          <input type="hidden" name="tilt_color" value="{{ color }}">
-          <button type="submit" class="tilt-color-item" style="background: {{ COLOR_MAP[color] }}; color: {% if COLOR_MAP[color] in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %};">
-            {{ color }} (Active)
-          </button>
-        </form>
-      {% endfor %}
-      <form method="get" style="margin:0;">
-        <input type="hidden" name="show_all" value="1">
-        <button type="submit" class="tilt-color-item" style="background: #dcdcdc; color:#333;">
-          Open Colors
-        </button>
-      </form>
-    </div>
-
-  {% elif show_all %}
-    <!-- Step 2: List all colors -->
-    <div class="tilt-color-list">
-      {% for color in all_colors %}
-        <form method="get" style="margin:0;">
-          <input type="hidden" name="tilt_color" value="{{ color }}">
-          <button type="submit" class="tilt-color-item" style="background: {{ COLOR_MAP[color] }}; color: {% if COLOR_MAP[color] in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %};">
-            {{ color }}
-          </button>
-        </form>
-      {% endfor %}
-    </div>
-
-  {% elif selected_tilt %}
-    <!-- Show batch history using .jsonl format with [NEW] and [EDIT] grouped by brewID -->
-    <div class="batch-edit-form">
-      <h3>{{ selected_tilt }} Tilt Batch Management</h3>
-      <!-- NEW always first -->
-      <form method="post" action="/api/new_batch">
-        <input type="hidden" name="tilt_color" value="{{ selected_tilt }}">
-        <button type="submit" class="btn-primary">[NEW] Create New Batch (brewID auto-generated)</button>
-      </form>
-      <hr>
-      <!-- Grouped history display -->
-      {% for brewid, entries in batch_history_grouped.items() %}
-        <div class="history-group">
-          {% for entry in entries %}
-            {% if entry.action == "new" %}
-              <div class="history-entry">
-                <form method="post" action="/api/edit_batch">
-                  <input type="hidden" name="tilt_color" value="{{ selected_tilt }}">
-                  <input type="hidden" name="brewid" value="{{ entry.brewid }}">
-                  <button type="submit" class="btn-secondary">[NEW] {{ entry.beer_name }} - {{ entry.batch_name }} ({{ entry.ferm_start_date }}) [brewID: {{ entry.brewid }}] Saved: {{ entry.saved_at }}</button>
-                </form>
-              </div>
-            {% endif %}
-          {% endfor %}
-          {% for entry in entries %}
-            {% if entry.action == "edit" %}
-              <div class="history-entry">
-                <form method="post" action="/api/edit_batch">
-                  <input type="hidden" name="tilt_color" value="{{ selected_tilt }}">
-                  <input type="hidden" name="brewid" value="{{ entry.brewid }}">
-                  <input type="hidden" name="saved_at" value="{{ entry.saved_at }}">
-                  <button type="submit" class="btn-secondary">[EDIT] {{ entry.beer_name }} - {{ entry.batch_name }} ({{ entry.ferm_start_date }}) [brewID: {{ entry.brewid }}] Saved: {{ entry.saved_at }}</button>
-                </form>
-              </div>
-            {% endif %}
-          {% endfor %}
+    <main class="page" role="main">
+      <div class="header">
+        <div>
+          <div style="font-weight:900;">Select a Tilt Color to Edit</div>
+          <div class="note">Active tilts are shown below; choose one to configure or create a new batch.</div>
         </div>
-      {% endfor %}
-    </div>
-
-    {% if action == "edit_batch" %}
-      <!-- Step 5: Batch edit form with data populated; brewid displayed, never editable -->
-      <div class="batch-edit-form">
-        <h3>Edit Batch: {{ edit_batch.beer_name }} - {{ edit_batch.batch_name }}</h3>
-        <label class="brewid-label">brewID: 
-          <input type="text" class="readonly" readonly value="{{ edit_batch.brewid }}">
-        </label>
-        <label class="brewid-label">Last Saved: 
-          <input type="text" class="readonly" readonly value="{{ edit_batch.saved_at }}">
-        </label>
-        <form method="post" action="/api/save_batch">
-          <input type="hidden" name="tilt_color" value="{{ selected_tilt }}">
-          <input type="hidden" name="brewid" value="{{ edit_batch.brewid }}">
-          <input type="hidden" name="action" value="edit">
-          <label>Beer Name: <input type="text" name="beer_name" value="{{ edit_batch.beer_name }}"></label><br>
-          <label>Batch Name: <input type="text" name="batch_name" value="{{ edit_batch.batch_name }}"></label><br>
-          <label>Start Date: <input type="date" name="ferm_start_date" value="{{ edit_batch.ferm_start_date }}"></label><br>
-          <label>Recipe OG: <input type="text" name="recipe_og" value="{{ edit_batch.recipe_og }}"></label><br>
-          <label>Recipe FG: <input type="text" name="recipe_fg" value="{{ edit_batch.recipe_fg }}"></label><br>
-          <label>Recipe ABV: <input type="text" name="recipe_abv" value="{{ edit_batch.recipe_abv }}"></label><br>
-          <label>Actual OG: <input type="text" name="actual_og" value="{{ edit_batch.actual_og }}"></label><br>
-          <div class="action-btns">
-            <button type="submit" class="btn-primary">Save</button>
-            <a href="/tilt_config?tilt_color={{ selected_tilt }}" class="btn-cancel">Cancel</a>
-            <a href="/" class="btn-secondary">Return</a>
-          </div>
-        </form>
+        <div>
+          <a href="/batch_settings" style="text-decoration:none; padding:8px 12px; background:#0b8a2e; color:#fff; border-radius:6px;">Batch Settings</a>
+        </div>
       </div>
-    {% endif %}
 
-    {% if action == "new_batch" %}
-      <!-- New batch setup form; brewid is not shown, generated after save -->
-      <div class="batch-edit-form">
-        <h3>New Batch Setup for {{ selected_tilt }} Tilt</h3>
-        <form method="post" action="/api/save_batch">
-          <input type="hidden" name="tilt_color" value="{{ selected_tilt }}">
-          <input type="hidden" name="action" value="new">
-          <label>Beer Name: <input type="text" name="beer_name" required></label><br>
-          <label>Batch Name: <input type="text" name="batch_name" required></label><br>
-          <label>Start Date: <input type="date" name="ferm_start_date"></label><br>
-          <label>Recipe OG: <input type="text" name="recipe_og"></label><br>
-          <label>Recipe FG: <input type="text" name="recipe_fg"></label><br>
-          <label>Recipe ABV: <input type="text" name="recipe_abv"></label><br>
-          <label>Actual OG: <input type="text" name="actual_og"></label><br>
-          <div class="action-btns">
-            <button type="submit" class="btn-primary">Save</button>
-            <a href="/tilt_config?tilt_color={{ selected_tilt }}" class="btn-cancel">Cancel</a>
-            <a href="/" class="btn-secondary">Return</a>
-          </div>
-        </form>
-        <p class="brewid-label">brewID will be generated from beer name, batch name, and start date after save. It is never editable.</p>
+      <div class="color-grid" aria-label="Tilt Colors">
+        {% for color in tilt_colors %}
+          <form method="get" action="/tilt_config" style="display:inline;">
+            <input type="hidden" name="tilt_color" value="{{ color }}">
+            <button type="submit"
+              class="color-btn"
+              style="background-color: {{ COLOR_MAP.get(color, '#333') }}; color: {% if COLOR_MAP.get(color,'#333') in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %};">
+              {{ color }}
+            </button>
+          </form>
+        {% endfor %}
       </div>
-    {% endif %}
-  {% endif %}
+
+      {% if selected_tilt %}
+        <section aria-label="Editing tilt">
+          <h2 style="margin-top:0;">Editing: {{ selected_tilt }}</h2>
+
+          <div style="margin-bottom:12px;">
+            <strong>Current configured batch:</strong>
+            {% if selected_config and selected_config.beer_name %}
+              <div>{{ selected_config.beer_name }} — {{ selected_config.batch_name }} ({{ selected_config.ferm_start_date }})</div>
+            {% else %}
+              <div class="note">No batch configured for this tilt.</div>
+            {% endif %}
+          </div>
+
+          <!-- Quick-edit small form to update Actual OG and confirmation -->
+          <div style="padding:12px; background:#f6f9f6; border-radius:8px; margin-bottom:12px;">
+            <form method="post" action="/batch_settings">
+              <input type="hidden" name="tilt_color" value="{{ selected_tilt }}">
+              <div class="form-group">
+                <label>Measured Original Gravity (Actual OG)</label>
+                <input type="text" name="actual_og" value="{{ selected_config.actual_og if selected_config.actual_og is not none else '' }}" placeholder="e.g. 1.055">
+              </div>
+              <div class="form-group">
+                <label><input type="checkbox" name="og_confirmed" value="1" {% if selected_config.og_confirmed %}checked{% endif %}> I confirm this OG measurement is correct</label>
+              </div>
+
+              <!-- Keep minimal recipe fields available here too -->
+              <div class="form-group">
+                <label>Recipe Original Gravity (optional)</label>
+                <input type="text" name="recipe_og" value="{{ selected_config.recipe_og or '' }}" placeholder="e.g. 1.055">
+              </div>
+
+              <div class="actions">
+                <button type="submit" class="btn-primary">Save OG / Quick Save</button>
+                <a href="/batch_settings?tilt_color={{ selected_tilt }}" style="display:inline-flex; align-items:center; padding:8px 10px; border-radius:6px; background:#007bff; color:#fff; text-decoration:none;">Full Batch Edit</a>
+                <a href="/" style="align-self:center; margin-left:8px; text-decoration:none;">Return</a>
+              </div>
+            </form>
+          </div>
+
+          <!-- Provide a full batch-edit entry pathway (redirect to batch_settings) -->
+          <div style="padding:12px; background:#fff8f8; border-radius:8px;">
+            <div style="font-weight:800; margin-bottom:8px;">Start a new batch or edit full batch details</div>
+            <form method="post" action="/tilt_config">
+              <input type="hidden" name="tilt_color" value="{{ selected_tilt }}">
+              <input type="hidden" name="action" value="new_batch">
+              <div class="form-group">
+                <label>New Beer Name</label>
+                <input type="text" name="beer_name" value="">
+              </div>
+              <div class="form-group">
+                <label>New Batch Name</label>
+                <input type="text" name="batch_name" value="">
+              </div>
+              <div class="form-group">
+                <label>Fermentation Start Date</label>
+                <input type="date" name="ferm_start_date" value="">
+              </div>
+              <div class="actions">
+                <button type="submit" class="btn-primary">Create New Batch (go to Batch Settings)</button>
+                <a href="/tilt_config" style="align-self:center; margin-left:8px; text-decoration:none;">Cancel</a>
+              </div>
+            </form>
+          </div>
+
+          {% if batch_history %}
+            <div style="margin-top:16px;">
+              <h3>Batch History</h3>
+              <ul>
+                {% for b in batch_history %}
+                  <li>
+                    {{ b.ferm_start_date or '--' }} — {{ b.beer_name or '--' }} / {{ b.batch_name or '--' }}
+                    {% if b.recipe_og %}(Recipe OG: {{ b.recipe_og }}){% elif b.actual_og %}(Measured OG: {{ b.actual_og }}){% endif %}
+                    {% if b.og_confirmed %} — (OG Confirmed){% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+        </section>
+      {% else %}
+        <div class="note">Pick a color above to configure that Tilt (or use Batch Settings to edit batches).</div>
+      {% endif %}
+    </main>
+  </div>
 </body>
 </html>

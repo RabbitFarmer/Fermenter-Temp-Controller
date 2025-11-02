@@ -4,216 +4,397 @@
   <meta charset="UTF-8">
   <title>{{ system_settings.brewery_name }} - Fermentation Dashboard</title>
   <link rel="stylesheet" href="/static/styles.css">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    .tilt-batch-name {
+    /* Status text colors */
+    .status-below { color: #0b5ed7; }    /* blue */
+    .status-above { color: #dc3545; }    /* red */
+    .status-inrange { color: #198754; }  /* green */
+
+    /* Heater / Cooler badges */
+    .badge-control {
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-weight: 900;
       font-size: 0.95em;
-      font-style: italic;
-      font-weight: bold;
-      margin-bottom: 2px;
+      min-width: 120px;
       text-align: center;
+      line-height: 1;
     }
-    .tilt-color-label {
-      font-size: 0.85em;
-      text-align: left;
-      margin-left: 12px;
-      margin-bottom: 2px;
+    .heater-on {
+      background: rgba(220,53,69,0.95); /* opaque red */
+      color: #fff;
     }
-    .tilt-footer-colored {
-      padding: 8px;
+    .heater-off {
+      background: transparent;
       color: inherit;
-      font-size: 0.9em;
+      box-shadow: none;
     }
-    .status-label {
-      display:inline-block;
-      padding:4px 12px;
-      border-radius:6px;
-      font-weight:bold;
+    .cooler-on {
+      background: rgba(13,110,253,0.95); /* opaque blue */
+      color: #fff;
     }
-    .status-heating { background:#ff4444; color:white; }
-    .status-cooling { background:#178aff; color:white; }
-    .status-inrange { background:#40c040; color:white; }
-    .status-below { background:#178aff; color:white; }
-    .status-above { background:#ff4444; color:white; }
+    .cooler-off {
+      background: transparent;
+      color: inherit;
+      box-shadow: none;
+    }
+
+    /* Ensure status-text visually stands out */
+    .temp-block-value.status-text {
+      min-height: 1.6em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+    }
+
+    /* small responsive tweaks */
+    @media (max-width: 700px) {
+      .badge-control { min-width: 86px; padding: 6px 8px; font-size: 0.85em; }
+    }
   </style>
-  {% if refresh %}
-    <script>
-      // Only reload once, strip ?refresh=1 after reload
-      if (window.location.search.includes('refresh=1')) {
-        window.location.replace(window.location.pathname);
-      }
-    </script>
-  {% endif %}
 </head>
 <body>
+  <div class="page-container">
 
-  <div class="config-ribbon">
-    <a href="/system_config">System Settings</a>
-    <a href="/temp_config">Temperature Control</a>
-    <a href="/batch_settings">Batch Settings</a>
-    <a href="/exit_system" style="color: #c00; font-weight: bold;">Exit System</a>
-  </div>
+    <!-- Header -->
+    <header class="site-header">
+      <nav class="config-ribbon" role="navigation" aria-label="top navigation">
+        <a href="/system_config">System Settings</a>
+        <a href="/temp_config">Temperature Control</a>
+        <a href="/batch_settings">Batch Settings</a>
+        <a href="/exit_system" class="exit-link">Exit System</a>
+      </nav>
 
-  <div class="dashboard-title">{{ system_settings.brewery_name }}</div>
+      {% if temp_control.notification_comm_failure %}
+      <div class="notification-failure">NOTIFICATION COMMUNICATIONS FAILURE</div>
+      {% endif %}
 
-  <div class="tiltcard-container">
-    {% for color, tilt in tilts.items() %}
-      <div class="tilt-card">
-        <!-- Banner/Header: Beer Name and Batch Name -->
-        <div class="tilt-banner"
-             style="background-color: {{ tilt.color_code }};
-                    text-align: center;
-                    color: {% if tilt.color_code == '#ffff00' or tilt.color_code == '#ffc0cb' or tilt.color_code == '#00ff00' %}black{% else %}white{% endif %};">
-          <div style="font-size: 1.3em; font-weight: bold;">
-            {{ tilt.beer_name or 'Unnamed Beer' }}
-          </div>
-          <div class="tilt-batch-name">
-            Batch: {{ tilt.batch_name or 'Unnamed Batch' }}
-          </div>
-        </div>
-        <!-- Tilt color label below banner -->
-        <div class="tilt-color-label" style="font-size: 0.85em; text-align: left; margin-left: 12px; margin-bottom: 6px;">
-          {{ color }} Tilt
-        </div>
+      <h1 class="dashboard-title">{{ system_settings.brewery_name }}</h1>
+    </header>
 
-        <!-- Matrix Table -->
-        <table class="tilt-metrics">
-          <tr>
-            <th style="width:43%"></th>
-            <th class="right-header" style="width:30%">Recipe</th>
-            <th class="right-header" style="width:30%">Actual</th>
-          </tr>
-          <tr>
-            <td class="label">Original Gravity</td>
-            <td class="value">{{ "%.3f"|format(tilt.recipe_og|default(0)|float) }}</td>
-            <td class="value"><b>{{ "%.3f"|format(tilt.original_gravity|default(0)|float) }}</b></td>
-          </tr>
-          <tr>
-            <td class="label">Final / Current Gravity</td>
-            <td class="value">{{ "%.3f"|format(tilt.recipe_fg|default(0)|float) }}</td>
-            <td class="value"><b>{{ "%.3f"|format(tilt.gravity|default(0)|float) }}</b></td>
-          </tr>
-          <tr>
-            <td class="label">Temperature</td>
-            <td class="value"></td>
-            <td class="value"><b>{{ "%.1f"|format(tilt.temp_f|default(0)|float) }}°F</b></td>
-          </tr>
-          <tr>
-            <td class="label">A.B.V.</td>
-            <td class="value">
-              {% if tilt.recipe_abv %}
-                {{ "%.1f"|format(tilt.recipe_abv|float) }}%
-              {% else %}
-                --
-              {% endif %}
-            </td>
-            <td class="value"><b>
-              {% if tilt.actual_og and tilt.gravity %}
-                {{ ((tilt.actual_og|float - tilt.gravity|float) * 131.25)|round(1) }}%
-              {% else %}
-                --
-              {% endif %}
-            </b></td>
-          </tr>
-        </table>
-        <!-- Footer Info: Brew ID, Last Reading, Chart Button. All on colored background -->
-        <div class="tilt-footer-colored"
-             style="background: {{ tilt.color_code }};
-                    color: {% if tilt.color_code == '#ffff00' or tilt.color_code == '#ffc0cb' or tilt.color_code == '#00ff00' %}black{% else %}white{% endif %};">
-          <div class="footer-row">
-            <div class="footer-item">Brew ID: {{ tilt.brewid or '--' }}</div>
-          </div>
-          <div class="footer-row">
-            <div class="footer-item" style="display:inline-block;">Last Reading: {{ tilt.timestamp | localtime }}</div>
-            <div class="footer-chart" style="float:right;">
-              <form action="/chart/{{ color }}" method="get" style="display:inline;">
-                <button type="submit" class="btn-chart-footer">Chart</button>
-              </form>
+    <!-- ACTIVE TILTCARDS -->
+    <section class="tiltcards-wrapper" aria-label="Active Tilts">
+      <div class="tiltcard-container">
+        {% for color, tilt in live_tilts.items() %}
+          {% set safe_color = color.replace(' ', '_') %}
+          <article class="tilt-card" data-tilt="{{ color }}">
+            <div class="tilt-banner"
+                 style="background-color: {{ tilt.color_code }}; color: {% if tilt.color_code in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %};">
+              <div class="beer-name">{{ tilt.beer_name or 'Unnamed Beer' }}</div>
+              <div class="tilt-batch-name">Batch: {{ tilt.batch_name or 'Unnamed Batch' }}</div>
             </div>
+
+            <div class="tilt-body">
+              <table class="tilt-metrics restore">
+                <tr>
+                  <th></th>
+                  <th class="right-header">Recipe</th>
+                  <th class="right-header">Actual</th>
+                </tr>
+
+                <tr>
+                  <td class="label">Original Gravity</td>
+                  <td class="value"><span class="metric-number" id="recipe_og-{{ safe_color }}">{{ "%.3f"|format((tilt.recipe_og|default(0)|float)) }}</span></td>
+                  <td class="value"><b id="og-{{ safe_color }}"><span class="metric-number">{{ "%.3f"|format((tilt.original_gravity|default(0)|float)) }}</span></b></td>
+                </tr>
+
+                <tr>
+                  <td class="label">Final / Current Gravity</td>
+                  <td class="value"><span class="metric-number" id="recipe_fg-{{ safe_color }}">{{ "%.3f"|format((tilt.recipe_fg|default(0)|float)) }}</span></td>
+                  <td class="value"><b id="gravity-{{ safe_color }}"><span class="metric-number">{{ "%.3f"|format((tilt.gravity|default(0)|float)) }}</span></b></td>
+                </tr>
+
+                <tr>
+                  <td class="label">Temperature</td>
+                  <td class="value"><!-- recipe temperature not used --></td>
+                  <td class="value"><b id="temp-{{ safe_color }}"><span class="metric-number">{{ "%.1f"|format((tilt.temp_f|default(0)|float)) }}°F</span></b></td>
+                </tr>
+
+                <tr>
+                  <td class="label">A.B.V.</td>
+                  <td class="value">
+                    {% if tilt.recipe_abv %}
+                      <span class="metric-number" id="recipe_abv-{{ safe_color }}">{{ "%.1f"|format(tilt.recipe_abv|float) }}%</span>
+                    {% else %}
+                      <span class="metric-number" id="recipe_abv-{{ safe_color }}">--</span>
+                    {% endif %}
+                  </td>
+                  <td class="value">
+                    <b><span class="metric-number" id="abv-{{ safe_color }}">
+                      {% if tilt.actual_og and tilt.gravity %}
+                        {{ ((tilt.actual_og|float - tilt.gravity|float) * 131.25)|round(1) }}%
+                      {% else %}
+                        --
+                      {% endif %}
+                    </span></b>
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            <footer class="tilt-footer-colored" style="background: {{ tilt.color_code }}; color: {% if tilt.color_code in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %};">
+              <div class="footer-left">Brew ID: {{ tilt.brewid or '--' }}</div>
+              <div class="footer-right">
+                <a class="chart-link" href="/chart/{{ color }}" style="background:#fff; color: {{ tilt.color_code }}; padding:6px 8px; border-radius:6px; display:inline-block; text-decoration:none; font-weight:800;">Chart</a>
+              </div>
+              <div style="clear:both; margin-top:8px;">Last Reading: <span id="timestamp-{{ safe_color }}">{{ tilt.timestamp | localtime }}</span></div>
+            </footer>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- TEMPERATURE CONTROL: boxed with slightly darker background -->
+    <section class="temp-control-box" aria-label="Temperature Control Box">
+      <div class="temp-control-panel">
+        <div class="temp-header">
+          <div class="temp-title">FERMENTER TEMPERATURE CONTROL</div>
+          <div class="temp-subtitle">Monitored by {{ temp_control.tilt_color or '—' }} Tilt</div>
+        </div>
+
+        <div class="temp-grid" role="group" aria-label="Temperature control grid">
+          <!-- Row 1 -->
+          <div class="cell mode-cell">
+            <div class="temp-block-label"><b>Mode</b></div>
+            <div class="temp-block-value medium">
+              {% if temp_control.enable_heating and temp_control.enable_cooling %}
+                Heating &amp; Cooling
+              {% elif temp_control.enable_heating %}
+                Heating Selected
+              {% elif temp_control.enable_cooling %}
+                Cooling Selected
+              {% else %}
+                OFF
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Row1 Col2: Heater badge ONLY (Row 1, Column 2) -->
+          <div class="cell heating-badge-cell" id="heating_badge_cell" aria-live="polite">
+            <div class="temp-block-value" style="display:flex; align-items:center; justify-content:center;">
+              <span id="temp_control_heater" class="badge-control heater-off" aria-hidden="false"></span>
+            </div>
+          </div>
+
+          <div class="cell status-cell">
+            <div class="temp-block-label"><b>Status</b></div>
+            <div class="temp-block-value status-text" id="temp_control_status_top"></div>
+          </div>
+
+          <!-- Row 2 -->
+          <div class="cell low-cell">
+            <div class="temp-block-label"><b>Low Limit</b></div>
+            <div class="temp-block-value medium"><span class="temp-number" id="low_limit_val">{{ temp_control.low_limit or '--' }}</span></div>
+          </div>
+
+          <div class="cell current-cell">
+            <div class="temp-block-label"><b>Current Temp</b></div>
+            <div class="temp-block-value current-big"><span class="temp-number" id="temp_control_current">{{ temp_control.current_temp if temp_control.current_temp is not none else '--' }}</span></div>
+
+            <!-- Row2 Col2: Cooler badge (placed under Current Temp) -->
+            <div id="cooling_badge_cell" style="margin-top:12px; display:flex; align-items:center; justify-content:center;">
+              <span id="temp_control_cooler" class="badge-control cooler-off" aria-hidden="false"></span>
+            </div>
+          </div>
+
+          <div class="cell high-cell">
+            <div class="temp-block-label"><b>High Limit</b></div>
+            <div class="temp-block-value medium"><span class="temp-number" id="high_limit_val">{{ temp_control.high_limit or '--' }}</span></div>
           </div>
         </div>
       </div>
-    {% endfor %}
+    </section>
+
   </div>
 
-  <!-- FULL TEMPERATURE CONTROL SECTION -->
-  <div class="temp-control-ribbon">
-    <div class="temp-header">
-      <div class="temp-title">FERMENTER TEMPERATURE CONTROL</div>
-      <div class="temp-subtitle">Monitored by {{ temp_control.tilt_color }} Tilt</div>
-    </div>
+  <script>
+    const refreshInterval = 3000;
 
-    <!-- Temperature Control Table -->
-    <table class="temp-matrix" style="table-layout: fixed; width: 75%;">
-      <tr>
-        <td style="vertical-align: bottom; text-align: center;"><b>Mode</b></td>
-        <td style="text-align: center;">
-          {% if temp_control.heater_on %}
-            <span class="status-label status-heating">HEATING ON</span>
-          {% endif %}
-          {% if temp_control.cooler_on %}
-            <span class="status-label status-cooling">COOLING ON</span>
-          {% endif %}
-        </td>
-        <td style="vertical-align: bottom; text-align: center;"><b>Status</b></td>
-      </tr>
-      <tr>
-        <td style="text-align: center;">
-          {% if temp_control.override_mode %}
-            <span class="status-override">Manual Override</span>
-          {% elif temp_control.enable_heating and temp_control.enable_cooling %}
-            <span class="status-both">Heating &amp; Cooling</span>
-          {% elif temp_control.enable_heating %}
-            <span class="status-heating" style="background:none; color:inherit">Heating Selected</span>
-          {% elif temp_control.enable_cooling %}
-            <span class="status-cooling" style="background:none; color:inherit">Cooling Selected</span>
-          {% elif temp_control.tilt_color in live_tilts %}
-            Monitoring Only
-          {% else %}
-            <span class="status-off">OFF</span>
-          {% endif %}
-        </td>
-        <td></td>
-        <td style="text-align: center;">
-          {% if temp_control.enable_heating or temp_control.enable_cooling %}
-            {% if temp_control.current_temp is not none and temp_control.low_limit is not none and temp_control.current_temp < temp_control.low_limit %}
-              <span class="status-label status-below">Temp Below Limit</span>
-            {% elif temp_control.current_temp is not none and temp_control.high_limit is not none and temp_control.current_temp > temp_control.high_limit %}
-              <span class="status-label status-above">Temp Above Limit</span>
-            {% elif temp_control.current_temp is not none and temp_control.low_limit is not none and temp_control.high_limit is not none and temp_control.current_temp >= temp_control.low_limit and temp_control.current_temp <= temp_control.high_limit %}
-              <span class="status-label status-inrange">Temp In Range</span>
-            {% else %}
-              <!-- blank -->
-            {% endif %}
-          {% else %}
-            <!-- blank -->
-          {% endif %}
-        </td>
-      </tr>
-      <tr>
-        <td style="vertical-align: bottom; text-align: center;"><b>Low Limit</b></td>
-        <td style="vertical-align: bottom; text-align: center;"><b>Current Temp</b></td>
-        <td style="vertical-align: bottom; text-align: center;"><b>High Limit</b></td>
-      </tr>
-      <tr>
-        <td style="text-align: center;">
-          {% if temp_control.enable_heating or temp_control.enable_cooling %}
-            {{ temp_control.low_limit or '--' }}
-          {% else %}
-            --
-          {% endif %}
-        </td>
-        <td style="text-align: center;">
-          {{ temp_control.current_temp or '--' }}
-        </td>
-        <td style="text-align: center;">
-          {% if temp_control.enable_heating or temp_control.enable_cooling %}
-            {{ temp_control.high_limit or '--' }}
-          {% else %}
-            --
-          {% endif %}
-        </td>
-      </tr>
-    </table>
-  </div>
+    function safeIdColor(color){ return color.replace(/\s+/g,'_'); }
+
+    function updateTiltValues(live) {
+      Object.keys(live).forEach(function(color){
+        const safe = safeIdColor(color);
+        const gEl = document.getElementById('gravity-'+safe);
+        const ogEl = document.getElementById('og-'+safe);
+        const tempEl = document.getElementById('temp-'+safe);
+        const abvEl = document.getElementById('abv-'+safe);
+        const recipeOgEl = document.getElementById('recipe_og-'+safe);
+        const recipeFgEl = document.getElementById('recipe_fg-'+safe);
+        const recipeAbvEl = document.getElementById('recipe_abv-'+safe);
+        const ts = document.getElementById('timestamp-'+safe);
+        const entry = live[color];
+
+        if(recipeOgEl && entry.recipe_og!=null) recipeOgEl.textContent = Number(entry.recipe_og).toFixed(3);
+        if(recipeFgEl && entry.recipe_fg!=null) recipeFgEl.textContent = Number(entry.recipe_fg).toFixed(3);
+        if(recipeAbvEl) recipeAbvEl.textContent = (entry.recipe_abv!=null && entry.recipe_abv!=='') ? Number(entry.recipe_abv).toFixed(1)+'%' : '--';
+
+        let og = null, g = null;
+        if(ogEl && entry.original_gravity!=null){
+          og = Number(entry.original_gravity);
+          const span = ogEl.querySelector('.metric-number');
+          if(span) span.textContent = og.toFixed(3);
+        }
+        if(gEl && entry.gravity!=null){
+          g = Number(entry.gravity);
+          const span = gEl.querySelector('.metric-number');
+          if(span) span.textContent = g.toFixed(3);
+        }
+        if(tempEl && entry.temp_f!=null){
+          const span = tempEl.querySelector('.metric-number');
+          if(span) span.textContent = Number(entry.temp_f).toFixed(1) + '°F';
+        }
+        if(ts && entry.timestamp){
+          try{ const dt=new Date(entry.timestamp); ts.textContent = isNaN(dt.getTime())?entry.timestamp:dt.toLocaleString(); }catch(e){}
+        }
+
+        if(abvEl){
+          if(og !== null && g !== null){
+            const abv = (og - g) * 131.25;
+            abvEl.textContent = (isFinite(abv) ? abv.toFixed(1) + '%' : '--');
+          } else {
+            abvEl.textContent = '--';
+          }
+        }
+      });
+    }
+
+    // Polling + update logic (fetch /live_snapshot and update UI)
+    async function pollLiveSnapshot() {
+      try {
+        const r = await fetch('/live_snapshot', { cache: 'no-cache' });
+        if (!r.ok) {
+          console.warn('live_snapshot fetch failed', r.status);
+          return;
+        }
+        const data = await r.json();
+        if (!data) return;
+
+        if (data.live_tilts) updateTiltValues(data.live_tilts);
+        if (data.temp_control) updateTempControl(data.temp_control, data.live_tilts || {});
+      } catch (err) {
+        console.error('pollLiveSnapshot error', err);
+      }
+    }
+
+    // Temperature control UI updater (status driven only by numeric comparison or OFF)
+    function updateTempControl(tc, liveTilts) {
+      const isModeOff = (tc.mode && tc.mode.toString().toUpperCase() === 'OFF') || (!tc.enable_heating && !tc.enable_cooling);
+
+      const curEl = document.getElementById('temp_control_current');
+      const lowEl = document.getElementById('low_limit_val');
+      const highEl = document.getElementById('high_limit_val');
+      const statusTop = document.getElementById('temp_control_status_top');
+      const heaterEl = document.getElementById('temp_control_heater');
+      const coolerEl = document.getElementById('temp_control_cooler');
+
+      if (isModeOff) {
+        if (curEl) curEl.textContent = '--';
+        if (lowEl) lowEl.textContent = '--';
+        if (highEl) highEl.textContent = '--';
+        if (statusTop) {
+          statusTop.textContent = '';
+          statusTop.classList.remove('status-inrange', 'status-above', 'status-below');
+        }
+        if (heaterEl) {
+          heaterEl.textContent = '';
+          heaterEl.classList.remove('heater-on');
+          heaterEl.classList.add('heater-off');
+        }
+        if (coolerEl) {
+          coolerEl.textContent = '';
+          coolerEl.classList.remove('cooler-on');
+          coolerEl.classList.add('cooler-off');
+        }
+        return;
+      }
+
+      // Update numeric values
+      if (curEl) curEl.textContent = (tc.current_temp != null && tc.current_temp !== undefined) ? tc.current_temp : '--';
+      if (lowEl) lowEl.textContent = (tc.low_limit != null && tc.low_limit !== undefined) ? tc.low_limit : '--';
+      if (highEl) highEl.textContent = (tc.high_limit != null && tc.high_limit !== undefined) ? tc.high_limit : '--';
+
+      // Compute status ONLY from numeric comparison (ignore server textual status)
+      // Prefer runtime current_temp, else first live tilt temp
+      let tempToUse = null;
+      if (tc.current_temp != null && !isNaN(Number(tc.current_temp))) {
+        tempToUse = Number(tc.current_temp);
+      } else {
+        try {
+          const keys = Object.keys(liveTilts || {});
+          for (let k of keys) {
+            const t = liveTilts[k];
+            if (t && (t.temp_f !== undefined) && t.temp_f !== null && !isNaN(Number(t.temp_f))) {
+              tempToUse = Number(t.temp_f);
+              break;
+            }
+          }
+        } catch(e) {
+          tempToUse = null;
+        }
+      }
+
+      let statusText = '';
+      let statusClass = '';
+      if (typeof tempToUse === 'number' && typeof tc.low_limit === 'number' && typeof tc.high_limit === 'number') {
+        if (tempToUse < tc.low_limit) {
+          statusText = 'TEMP BELOW LOW LIMIT';
+          statusClass = 'status-below';
+        } else if (tempToUse > tc.high_limit) {
+          statusText = 'TEMP ABOVE HIGH LIMIT';
+          statusClass = 'status-above';
+        } else {
+          statusText = 'TEMP IN RANGE';
+          statusClass = 'status-inrange';
+        }
+      } else {
+        // If we cannot compute a numeric status, leave blank
+        statusText = '';
+        statusClass = '';
+      }
+
+      if (statusTop) {
+        statusTop.classList.remove('status-inrange', 'status-above', 'status-below');
+        if (statusClass) statusTop.classList.add(statusClass);
+        statusTop.textContent = statusText;
+      }
+
+      // Heater badge (Row1 Col2) - show "HEATING ON" with opaque red bg when on, blank when off
+      if (heaterEl) {
+        const heaterOn = Boolean(tc && tc.enable_heating && tc.heater_on);
+        if (heaterOn) {
+          heaterEl.textContent = 'HEATING ON';
+          heaterEl.classList.remove('heater-off');
+          heaterEl.classList.add('heater-on');
+        } else {
+          heaterEl.textContent = '';
+          heaterEl.classList.remove('heater-on');
+          heaterEl.classList.add('heater-off');
+        }
+      }
+
+      // Cooler badge (Row2 Col2) - show "COOLING ON" with opaque blue bg when on, blank when off
+      if (coolerEl) {
+        const coolerOn = Boolean(tc && tc.enable_cooling && tc.cooler_on);
+        if (coolerOn) {
+          coolerEl.textContent = 'COOLING ON';
+          coolerEl.classList.remove('cooler-off');
+          coolerEl.classList.add('cooler-on');
+        } else {
+          coolerEl.textContent = '';
+          coolerEl.classList.remove('cooler-on');
+          coolerEl.classList.add('cooler-off');
+        }
+      }
+    }
+
+    (function startPolling() {
+      pollLiveSnapshot();
+      setInterval(pollLiveSnapshot, typeof refreshInterval === 'number' ? refreshInterval : 5000);
+    })();
+  </script>
 </body>
 </html>

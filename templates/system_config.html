@@ -2,164 +2,158 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>System Configuration</title>
+  <title>System Settings</title>
   <link rel="stylesheet" href="/static/styles.css">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    body {
-      font-family: Arial, sans-serif;
+    /* small spacing tweaks to match your UI */
+    .config-table input[type="text"], .config-table input[type="email"], .config-table input[type="number"], .config-table select, .config-table textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px;
     }
-    .center-container {
-      display: flex;
-      justify-content: center;
-      margin-top: 36px;
-    }
-    .form-wrapper {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 36px;
-      background: #fff;
-      padding: 32px 40px;
-      border-radius: 10px;
-      box-shadow: 0 2px 16px rgba(0,0,0,0.04);
-      min-width: 720px;
-    }
-    .questions-col {
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-start;
-    }
-    .answers-col {
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-start;
-    }
-    .form-group {
-      margin-bottom: 22px;
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      min-height: 38px;
-    }
-    .form-label {
-      font-weight: bold;
-      margin-bottom: 0;
-      margin-right: 0;
-    }
-    .form-input {
-      width: 320px;
-      padding: 4px;
-      margin-bottom: 6px;
-      margin-left: 0;
-    }
-    .form-section {
-      margin-bottom: 0;
-    }
-    .form-button-row {
-      grid-column: span 2;
-      display: flex;
-      justify-content: flex-end;
-      gap: 12px;
-      margin-top: 24px;
-    }
-    select.form-input {
-      width: 320px;
-    }
+    .config-table td { vertical-align: top; padding: 6px 8px; }
   </style>
 </head>
-<body>
-  <h2 style="text-align:center;">System Configuration</h2>
-  <div class="center-container">
-    <form method="post" action="/update_system_config">
-      <div class="form-wrapper">
-        <div class="questions-col">
-          <div class="form-group"><label class="form-label" for="brewery_name">Brewery Name:</label></div>
-          <div class="form-group"><label class="form-label" for="brewer_name">Brewer Name:</label></div>
-          <div class="form-group"><label class="form-label" for="street">Street:</label></div>
-          <div class="form-group"><label class="form-label" for="city">City:</label></div>
-          <div class="form-group"><label class="form-label" for="state">State:</label></div>
-          <div class="form-group"><label class="form-label" for="email">Email:</label></div>
-          <div class="form-group"><label class="form-label" for="mobile">Mobile:</label></div>
-          <div class="form-group"><label class="form-label" for="timezone">Timezone:</label></div>
-          <div class="form-group"><label class="form-label" for="timestamp_format">Timestamp Format:</label></div>
-          <div class="form-group"><label class="form-label" for="update_interval">Update Interval (minutes):</label></div>
-          <div class="form-group"><label class="form-label" for="external_refresh_rate">Offsite Tracking Software Refresh Rate (minutes):</label></div>
-          <div class="form-group"><label class="form-label" for="offsite_name_1">Offsite Tracking Software #1 Name:</label></div>
-          <div class="form-group"><label class="form-label" for="offsite_url_1">Offsite Tracking Software #1 URL:</label></div>
-          <div class="form-group"><label class="form-label" for="offsite_name_2">Offsite Tracking Software #2 Name:</label></div>
-          <div class="form-group"><label class="form-label" for="offsite_url_2">Offsite Tracking Software #2 URL:</label></div>
-          <div class="form-group"><label class="form-label" for="warning_mode">Warning Mode:</label></div>
-          <div class="form-group"><label class="form-label" for="stall_variance_threshold">Stall Variance Threshold (gravity units):</label></div>
-          <div class="form-group"><label class="form-label" for="stall_notification_days">Number of Days Stalled Before Notification:</label></div>
-        </div>
-        <div class="answers-col">
-          <div class="form-group">
-            <input class="form-input" type="text" name="brewery_name" id="brewery_name" value="{{ system_settings.brewery_name or '' }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="text" name="brewer_name" id="brewer_name" value="{{ system_settings.brewer_name or '' }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="text" name="street" id="street" value="{{ system_settings.street or '' }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="text" name="city" id="city" value="{{ system_settings.city or '' }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="text" name="state" id="state" value="{{ system_settings.state or '' }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="email" name="email" id="email" value="{{ system_settings.email or '' }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="text" name="mobile" id="mobile" value="{{ system_settings.mobile or '' }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="text" name="timezone" id="timezone" value="{{ system_settings.timezone or '' }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="text" name="timestamp_format" id="timestamp_format" value="{{ system_settings.timestamp_format or '' }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="number" min="1" name="update_interval" id="update_interval" value="{{ (system_settings.update_interval|float / 60) if system_settings.update_interval else 1 }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="number" min="1" name="external_refresh_rate" id="external_refresh_rate" value="{{ (system_settings.external_refresh_rate|float / 60) if system_settings.external_refresh_rate else 1 }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="text" name="offsite_name_1" id="offsite_name_1" value="{{ system_settings.offsite_name_1 or '' }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="text" name="offsite_url_1" id="offsite_url_1" value="{{ system_settings.offsite_url_1 or '' }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="text" name="offsite_name_2" id="offsite_name_2" value="{{ system_settings.offsite_name_2 or '' }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="text" name="offsite_url_2" id="offsite_url_2" value="{{ system_settings.offsite_url_2 or '' }}">
-          </div>
-          <div class="form-group">
-            <select class="form-input" name="warning_mode" id="warning_mode">
-              <option value="none" {% if system_settings.warning_mode == "none" %}selected{% endif %}>None</option>
-              <option value="email" {% if system_settings.warning_mode == "email" %}selected{% endif %}>Email</option>
-              <option value="sms" {% if system_settings.warning_mode == "sms" %}selected{% endif %}>SMS</option>
-              <option value="both" {% if system_settings.warning_mode == "both" %}selected{% endif %}>Both</option>
+<body class="page-bg">
+  <div class="temp-config-setup-ribbon">
+    <div class="temp-header">
+      <div class="temp-title">SYSTEM SETTINGS CONFIGURATION</div>
+      <div class="temp-subtitle">Edit global system configuration</div>
+    </div>
+
+    <form action="{{ url_for('update_system_config') }}" method="post" class="temp-config-form">
+      <table class="config-table" style="width: 60%; margin: auto;">
+        <tr>
+          <td><label for="brewery_name"><b>Brewery Name</b></label></td>
+          <td><input type="text" name="brewery_name" id="brewery_name" value="{{ system_settings.get('brewery_name','') }}"></td>
+        </tr>
+        <tr>
+          <td><label for="brewer_name"><b>Brewer Name</b></label></td>
+          <td><input type="text" name="brewer_name" id="brewer_name" value="{{ system_settings.get('brewer_name','') }}"></td>
+        </tr>
+        <tr>
+          <td><label for="street"><b>Street Address</b></label></td>
+          <td><input type="text" name="street" id="street" value="{{ system_settings.get('street','') }}"></td>
+        </tr>
+        <tr>
+          <td><label for="city"><b>City</b></label></td>
+          <td><input type="text" name="city" id="city" value="{{ system_settings.get('city','') }}"></td>
+        </tr>
+        <tr>
+          <td><label for="state"><b>State</b></label></td>
+          <td><input type="text" name="state" id="state" value="{{ system_settings.get('state','') }}"></td>
+        </tr>
+        <tr>
+          <td><label for="email"><b>Email</b></label></td>
+          <td><input type="email" name="email" id="email" value="{{ system_settings.get('email','') }}"></td>
+        </tr>
+        <tr>
+          <td><label for="mobile"><b>Mobile</b></label></td>
+          <td><input type="text" name="mobile" id="mobile" value="{{ system_settings.get('mobile','') }}"></td>
+        </tr>
+        <tr>
+          <td><label for="warning_mode"><b>Warnings & Notifications</b></label></td>
+          <td>
+            <select name="warning_mode" id="warning_mode">
+              <option value="NONE" {% if system_settings.get('warning_mode','NONE')|upper == "NONE" %}selected{% endif %}>None</option>
+              <option value="EMAIL" {% if system_settings.get('warning_mode','NONE')|upper == "EMAIL" %}selected{% endif %}>Email</option>
+              <option value="SMS" {% if system_settings.get('warning_mode','NONE')|upper == "SMS" %}selected{% endif %}>SMS</option>
+              <option value="BOTH" {% if system_settings.get('warning_mode','NONE')|upper == "BOTH" %}selected{% endif %}>Both</option>
             </select>
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="number" step="0.0001" name="stall_variance_threshold" id="stall_variance_threshold"
-                   value="{{ system_settings.stall_variance_threshold or 0.001 }}">
-          </div>
-          <div class="form-group">
-            <input class="form-input" type="number" min="1" name="stall_notification_days" id="stall_notification_days"
-                   value="{{ system_settings.stall_notification_days or 3 }}">
-          </div>
-        </div>
-        <div class="form-button-row">
-          <button type="submit" style="margin-top:0;">Save Configuration</button>
-          <button type="button" onclick="window.location.href='/'" style="margin-top:0;">Return to Dashboard</button>
-        </div>
+          </td>
+        </tr>
+        <tr>
+          <td><label for="timezone"><b>Time Zone</b></label></td>
+          <td><input type="text" name="timezone" id="timezone" value="{{ system_settings.get('timezone','') }}"></td>
+        </tr>
+        <tr>
+          <td><label for="timestamp_format"><b>Timestamp Format</b></label></td>
+          <td><input type="text" name="timestamp_format" id="timestamp_format" value="{{ system_settings.get('timestamp_format','') }}"></td>
+        </tr>
+        <tr>
+          <td><label for="update_interval"><b>Update Interval (minutes between control loop checks)</b></label></td>
+          <td><input type="number" name="update_interval" id="update_interval" value="{{ system_settings.get('update_interval','1') }}"></td>
+        </tr>
+        <tr>
+          <td><label for="tilt_reading_interval"><b>Tilt Reading Logging Interval (minutes)</b></label></td>
+          <td><input type="number" name="tilt_reading_interval" id="tilt_reading_interval" value="{{ system_settings.get('tilt_reading_interval','') }}"></td>
+        </tr>
+        <tr>
+          <td><label for="temp_logging_interval"><b>Temperature Control Logging Interval (minutes)</b></label></td>
+          <td><input type="number" name="temp_logging_interval" id="temp_logging_interval" value="{{ system_settings.get('temp_logging_interval','') }}"></td>
+        </tr>
+
+        <tr>
+          <td><label for="kasa_rate_limit_seconds"><b>Kasa Rate Limit (seconds)</b></label></td>
+          <td><input type="number" name="kasa_rate_limit_seconds" id="kasa_rate_limit_seconds" value="{{ system_settings.get('kasa_rate_limit_seconds', 10) }}"></td>
+        </tr>
+      </table>
+
+      <hr style="width:60%;margin:auto;">
+
+      <h3 style="text-align:center;">External Logging Integrations</h3>
+      <table class="config-table" style="width: 60%; margin: auto;">
+        <tr>
+          <td><label for="external_refresh_rate"><b>External Post Interval (minutes)</b></label></td>
+          <td><input type="number" name="external_refresh_rate" id="external_refresh_rate" value="{{ system_settings.get('external_refresh_rate','0') }}"></td>
+        </tr>
+
+        {% for i in range(3) %}
+        <tr>
+          <td style="width:35%;">
+            <label for="external_name_{{ i }}"><b>Name {{ i + 1 }}</b></label><br>
+            <label for="external_url_{{ i }}"><b>URL {{ i + 1 }}</b></label>
+          </td>
+          <td>
+            <input type="text" name="external_name_{{ i }}" id="external_name_{{ i }}" value="{{ system_settings.get('external_name_' ~ i, '') }}"><br>
+            <input type="text" name="external_url_{{ i }}" id="external_url_{{ i }}" value="{{ system_settings.get('external_url_' ~ i, '') }}">
+          </td>
+        </tr>
+        {% endfor %}
+
+        <tr>
+          <td><label for="external_method"><b>External POST Method</b></label></td>
+          <td>
+            <select name="external_method" id="external_method">
+              <option value="POST" {% if (system_settings.get('external_method','POST')|upper) == 'POST' %}selected{% endif %}>POST</option>
+              <option value="GET" {% if (system_settings.get('external_method','POST')|upper) == 'GET' %}selected{% endif %}>GET</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td><label for="external_content_type"><b>External Content Type</b></label></td>
+          <td>
+            <select name="external_content_type" id="external_content_type">
+              <option value="form" {% if (system_settings.get('external_content_type','form')|lower) == 'form' %}selected{% endif %}>form (application/x-www-form-urlencoded)</option>
+              <option value="json" {% if (system_settings.get('external_content_type','form')|lower) == 'json' %}selected{% endif %}>json (application/json)</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td><label for="external_timeout_seconds"><b>External Request Timeout (seconds)</b></label></td>
+          <td><input type="number" name="external_timeout_seconds" id="external_timeout_seconds" value="{{ system_settings.get('external_timeout_seconds',8) }}"></td>
+        </tr>
+        <tr>
+          <td><label for="external_field_map"><b>External Field Map (JSON)</b></label></td>
+          <td>
+            <textarea name="external_field_map" id="external_field_map" rows="4" placeholder='{"gravity":"gravity","temp_f":"temp","tilt_color":"device"}'>{{ system_settings.get('external_field_map','') }}</textarea>
+            <div style="font-size:0.9em;color:#666;margin-top:6px;">Optional JSON mapping of logical field names to the remote service's parameter names.</div>
+          </td>
+        </tr>
+      </table>
+
+      <div style="text-align:center; margin-top:20px;">
+        <button type="submit" class="btn-primary">Save System Settings</button>
+        <button type="button" onclick="window.location='/'" class="btn-secondary" style="margin-left:16px;">Cancel Changes</button>
       </div>
     </form>
+
+    <div style="text-align:center; margin-top:12px;">
+      <form action="/" method="get" style="display:inline;">
+        <button type="submit" class="btn-action cancel">Return to Dashboard</button>
+      </form>
+    </div>
   </div>
 </body>
 </html>

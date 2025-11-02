@@ -50,14 +50,14 @@
     "brewid": ""
   },
   "Blue": {
-    "beer_name": "MY BEST BEER",
-    "batch_name": "BLUE BATCH ONE",
-    "ferm_start_date": "2025-09-09",
-    "recipe_og": "1.080",
-    "recipe_fg": "1.004",
-    "recipe_abv": "10.5",
-    "actual_og": "1.080",
-    "brewid": "5c3dde3b"
+    "beer_name": "Blue Batch Ale",
+    "batch_name": "BlueFall2025",
+    "ferm_start_date": "2025-09-15",
+    "recipe_og": "1.055",
+    "recipe_fg": "1.005",
+    "recipe_abv": "8",
+    "actual_og": "1.055",
+    "brewid": "22ce290a"
   },
   "Yellow": {
     "beer_name": "",
