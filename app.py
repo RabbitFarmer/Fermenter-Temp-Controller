@@ -9,6 +9,11 @@ app = Flask(__name__)
 # Valid tilt colors based on tilt_config.json
 VALID_TILT_COLORS = ["Red", "Green", "Black", "Purple", "Orange", "Blue", "Yellow", "Pink"]
 
+# Constants for fermentation calculations
+STALL_CHECK_ENTRIES = 100  # Number of recent entries to check for stall detection
+GRAVITY_STALL_THRESHOLD = 0.001  # Gravity change threshold for stall detection
+READINGS_PER_DAY = 96  # Approximate number of readings per day (15 min intervals)
+
 def load_json_config(filename):
     """Load JSON configuration file"""
     try:
@@ -46,16 +51,15 @@ def calculate_fermentation_metrics(history, ferm_start_date):
     if len(history) > 1:
         last_gravity = None
         stall_count = 0
-        for entry in reversed(history[-100:]):  # Check last 100 entries
+        for entry in reversed(history[-STALL_CHECK_ENTRIES:]):
             gravity = entry.get("gravity")
             if gravity is not None:
-                if last_gravity is not None and abs(gravity - last_gravity) < 0.001:
+                if last_gravity is not None and abs(gravity - last_gravity) < GRAVITY_STALL_THRESHOLD:
                     stall_count += 1
                 else:
                     stall_count = 0
                 last_gravity = gravity
-        # Rough estimate: assume readings every ~15 minutes, so ~96 readings per day
-        stall_days = stall_count // 96 if stall_count > 0 else 0
+        stall_days = stall_count // READINGS_PER_DAY if stall_count > 0 else 0
     
     return ferm_days, stall_days
 
@@ -77,9 +81,10 @@ def show_chart(tilt_color):
     system_config = load_json_config('system_config.json')
     
     # Check if tilt color has data configured
-    tilt_info = tilt_config.get(color, {})
-    if not tilt_info:
+    if color not in tilt_config:
         return jsonify({"error": "Tilt color not configured"}), 404
+    
+    tilt_info = tilt_config[color]
     
     # Load batch history data
     history = load_batch_history(color)
