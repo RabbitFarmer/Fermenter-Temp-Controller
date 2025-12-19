@@ -47,19 +47,21 @@ def calculate_fermentation_metrics(history, ferm_start_date):
         except (ValueError, TypeError):
             pass
     
-    # Calculate stall days - count days where gravity hasn't changed
+    # Calculate stall days - count consecutive days where gravity hasn't changed
     if len(history) > 1:
         last_gravity = None
-        stall_count = 0
+        max_stall_count = 0
+        current_stall_count = 0
         for entry in reversed(history[-STALL_CHECK_ENTRIES:]):
             gravity = entry.get("gravity")
             if gravity is not None:
                 if last_gravity is not None and abs(gravity - last_gravity) < GRAVITY_STALL_THRESHOLD:
-                    stall_count += 1
+                    current_stall_count += 1
+                    max_stall_count = max(max_stall_count, current_stall_count)
                 else:
-                    stall_count = 0
+                    current_stall_count = 0
                 last_gravity = gravity
-        stall_days = stall_count // READINGS_PER_DAY if stall_count > 0 else 0
+        stall_days = max_stall_count // READINGS_PER_DAY if max_stall_count > 0 else 0
     
     return ferm_days, stall_days
 
@@ -105,7 +107,14 @@ def show_chart(tilt_color):
         if timestamp and gravity is not None and temp is not None:
             # Format timestamp for display
             try:
-                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                # Handle both UTC timestamps with 'Z' and timestamps without timezone
+                timestamp_str = timestamp.replace('Z', '+00:00') if 'Z' in timestamp else timestamp
+                # Try parsing with timezone info, fall back to naive parsing
+                try:
+                    dt = datetime.fromisoformat(timestamp_str)
+                except ValueError:
+                    # Fallback for timestamps without timezone
+                    dt = datetime.strptime(timestamp_str.split('.')[0], "%Y-%m-%dT%H:%M:%S")
                 formatted_time = dt.strftime("%Y-%m-%d %H:%M")
                 timestamps.append(formatted_time)
                 gravities.append(float(gravity))
