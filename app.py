@@ -52,7 +52,10 @@ def calculate_fermentation_metrics(history, ferm_start_date):
         last_gravity = None
         max_stall_count = 0
         current_stall_count = 0
-        for entry in reversed(history[-STALL_CHECK_ENTRIES:]):
+        # Iterate backwards through recent history without creating temporary lists
+        start_idx = max(0, len(history) - STALL_CHECK_ENTRIES)
+        for i in range(len(history) - 1, start_idx - 1, -1):
+            entry = history[i]
             gravity = entry.get("gravity")
             if gravity is not None:
                 if last_gravity is not None and abs(gravity - last_gravity) < GRAVITY_STALL_THRESHOLD:
@@ -61,6 +64,7 @@ def calculate_fermentation_metrics(history, ferm_start_date):
                 else:
                     current_stall_count = 0
                 last_gravity = gravity
+        # Convert consecutive stalled readings to days
         stall_days = max_stall_count // READINGS_PER_DAY if max_stall_count > 0 else 0
     
     return ferm_days, stall_days
@@ -113,8 +117,9 @@ def show_chart(tilt_color):
                 try:
                     dt = datetime.fromisoformat(timestamp_str)
                 except ValueError:
-                    # Fallback for timestamps without timezone
-                    dt = datetime.strptime(timestamp_str.split('.')[0], "%Y-%m-%dT%H:%M:%S")
+                    # Fallback for timestamps without timezone (remove microseconds if present)
+                    base_timestamp = timestamp_str.split('.')[0] if '.' in timestamp_str else timestamp_str
+                    dt = datetime.strptime(base_timestamp, "%Y-%m-%dT%H:%M:%S")
                 formatted_time = dt.strftime("%Y-%m-%d %H:%M")
                 timestamps.append(formatted_time)
                 gravities.append(float(gravity))
