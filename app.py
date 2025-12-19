@@ -35,13 +35,42 @@ def load_batch_history(color):
         pass
     return history
 
+def parse_timestamp(timestamp):
+    """
+    Parse ISO format timestamp and return datetime object.
+    Handles multiple formats: UTC with 'Z', with timezone offset, or naive timestamps.
+    Supports timestamps with or without microseconds.
+    """
+    try:
+        # Handle both UTC timestamps with 'Z' and timestamps without timezone
+        timestamp_str = timestamp.replace('Z', '+00:00') if 'Z' in timestamp else timestamp
+        # Try parsing with timezone info, fall back to naive parsing
+        try:
+            return datetime.fromisoformat(timestamp_str)
+        except ValueError:
+            # Fallback for timestamps without timezone (remove microseconds if present)
+            base_timestamp = timestamp_str.split('.')[0] if '.' in timestamp_str else timestamp_str
+            return datetime.strptime(base_timestamp, "%Y-%m-%dT%H:%M:%S")
+    except (ValueError, AttributeError):
+        return None
+
 def calculate_fermentation_metrics(history, ferm_start_date):
-    """Calculate fermentation days and stall days from history data"""
+    """
+    Calculate fermentation days and stall days from history data.
+    
+    Args:
+        history: List of batch history entries
+        ferm_start_date: Fermentation start date in 'YYYY-MM-DD' format
+    
+    Returns:
+        Tuple of (ferm_days, stall_days)
+    """
     ferm_days = 0
     stall_days = 0
     
     if ferm_start_date:
         try:
+            # ferm_start_date is expected in 'YYYY-MM-DD' format from tilt_config.json
             start_date = datetime.strptime(ferm_start_date, "%Y-%m-%d")
             ferm_days = (datetime.now() - start_date).days
         except (ValueError, TypeError):
@@ -65,6 +94,9 @@ def calculate_fermentation_metrics(history, ferm_start_date):
                     current_stall_count = 0
                 last_gravity = gravity
         # Convert consecutive stalled readings to days
+        # Note: This assumes READINGS_PER_DAY (96) readings occur per day,
+        # which may not be accurate due to network issues or device restarts.
+        # For a more accurate calculation, consider tracking actual time intervals.
         stall_days = max_stall_count // READINGS_PER_DAY if max_stall_count > 0 else 0
     
     return ferm_days, stall_days
@@ -110,22 +142,12 @@ def show_chart(tilt_color):
         
         if timestamp and gravity is not None and temp is not None:
             # Format timestamp for display
-            try:
-                # Handle both UTC timestamps with 'Z' and timestamps without timezone
-                timestamp_str = timestamp.replace('Z', '+00:00') if 'Z' in timestamp else timestamp
-                # Try parsing with timezone info, fall back to naive parsing
-                try:
-                    dt = datetime.fromisoformat(timestamp_str)
-                except ValueError:
-                    # Fallback for timestamps without timezone (remove microseconds if present)
-                    base_timestamp = timestamp_str.split('.')[0] if '.' in timestamp_str else timestamp_str
-                    dt = datetime.strptime(base_timestamp, "%Y-%m-%dT%H:%M:%S")
+            dt = parse_timestamp(timestamp)
+            if dt:
                 formatted_time = dt.strftime("%Y-%m-%d %H:%M")
                 timestamps.append(formatted_time)
                 gravities.append(float(gravity))
                 temps.append(float(temp))
-            except (ValueError, AttributeError):
-                pass
     
     # Get fermentation start date
     ferm_start_date = tilt_info.get("ferm_start_date", "")
