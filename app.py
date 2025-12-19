@@ -60,17 +60,21 @@ def calculate_fermentation_metrics(history, ferm_start_date):
     
     Args:
         history: List of batch history entries
-        ferm_start_date: Fermentation start date in 'YYYY-MM-DD' format
+        ferm_start_date: Fermentation start date in 'YYYY-MM-DD' format from tilt_config.json
     
     Returns:
         Tuple of (ferm_days, stall_days)
+    
+    Note:
+        The stall days calculation assumes READINGS_PER_DAY (96) readings occur per day,
+        which may not be accurate due to network issues or device restarts. For a more
+        accurate calculation, consider tracking actual time intervals between readings.
     """
     ferm_days = 0
     stall_days = 0
     
     if ferm_start_date:
         try:
-            # ferm_start_date is expected in 'YYYY-MM-DD' format from tilt_config.json
             start_date = datetime.strptime(ferm_start_date, "%Y-%m-%d")
             ferm_days = (datetime.now() - start_date).days
         except (ValueError, TypeError):
@@ -81,10 +85,9 @@ def calculate_fermentation_metrics(history, ferm_start_date):
         last_gravity = None
         max_stall_count = 0
         current_stall_count = 0
-        # Iterate backwards through recent history without creating temporary lists
-        start_idx = max(0, len(history) - STALL_CHECK_ENTRIES)
-        for i in range(len(history) - 1, start_idx - 1, -1):
-            entry = history[i]
+        # Process recent history entries
+        recent_history = history[-STALL_CHECK_ENTRIES:] if len(history) > STALL_CHECK_ENTRIES else history
+        for entry in reversed(recent_history):
             gravity = entry.get("gravity")
             if gravity is not None:
                 if last_gravity is not None and abs(gravity - last_gravity) < GRAVITY_STALL_THRESHOLD:
@@ -94,9 +97,6 @@ def calculate_fermentation_metrics(history, ferm_start_date):
                     current_stall_count = 0
                 last_gravity = gravity
         # Convert consecutive stalled readings to days
-        # Note: This assumes READINGS_PER_DAY (96) readings occur per day,
-        # which may not be accurate due to network issues or device restarts.
-        # For a more accurate calculation, consider tracking actual time intervals.
         stall_days = max_stall_count // READINGS_PER_DAY if max_stall_count > 0 else 0
     
     return ferm_days, stall_days
