@@ -1,24 +1,18 @@
-# Updated app.py file to include a corrected dynamic route for chart rendering for tilt_color
-from flask import Flask, jsonify, render_template
+#!/usr/bin/env python3
+"""
+app.py - FermenterApp main Flask application.
 
-app = Flask(__name__)
+This file provides the full Flask app used in the conversation:
+- BLE scanning (BleakScanner) if available
+- Per-brew JSONL files under batches/{brewid}.jsonl (migrates legacy batch_{COLOR}_{BREWID}_{MMDDYYYY}.jsonl)
+- Restricted control log in temp_control_log.jsonl
+- Kasa worker integration (if kasa_worker available)
+- Per-batch append_sample_to_batch_jsonl and forward_to_third_party_if_configured
+- Chart Plotly page and /chart_data/<identifier> endpoint
+- UI routes: dashboard, tilt_config, batch_settings, temp_config, update_temp_config, temp_report,
+  export_temp_csv, scan_kasa_plugs, live_snapshot, reset_logs, exit_system, system_config
+- Program entry runs Flask on 0.0.0.0:5000 in debug mode (when run directly)
+"""
 
-tilt_data = {
-    "red": [23.4, 24.1, 23.8],
-    "blue": [22.4, 22.9, 23.1]
-}
-
-@app.route('/')
-def home():
-    return "Welcome to the Fermenter Temperature Controller!"
-
-@app.route('/chart/<tilt_color>')
-def show_chart(tilt_color):
-    if tilt_color in tilt_data:
-        data = tilt_data[tilt_color]
-        return render_template('chart.html', data=data, tilt_color=tilt_color)
-    else:
-        return jsonify({"error": "Invalid tilt color"}), 404
-
-if __name__ == '__main__':
-    app.run(debug=True)
+import asyncio
+import hashli...
