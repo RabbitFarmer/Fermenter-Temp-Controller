@@ -995,6 +995,135 @@ def dashboard():
         live_tilts=live_tilts
     )
 
+@app.route('/chart/<tilt_color>')
+def show_chart(tilt_color):
+    """
+    Dynamic chart route for displaying fermentation data by tilt color.
+    Validates color, loads batch data, calculates metrics, and renders chart.html.
+    Returns 404 for invalid colors or missing data.
+    """
+    # Valid tilt colors
+    VALID_TILT_COLORS = ["Red", "Green", "Black", "Purple", "Orange", "Blue", "Yellow", "Pink"]
+    
+    # Normalize color input (capitalize first letter)
+    color = tilt_color.capitalize()
+    
+    # Validate tilt color
+    if color not in VALID_TILT_COLORS:
+        return jsonify({"error": "Invalid tilt color"}), 404
+    
+    # Check if tilt color is configured
+    if color not in tilt_cfg:
+        return jsonify({"error": "Tilt color not configured"}), 404
+    
+    tilt_info = tilt_cfg[color]
+    brewid = tilt_info.get("brewid", "unknown")
+    
+    # Load batch history data from the batch file
+    batch_file = batch_jsonl_filename(color, brewid)
+    history = []
+    
+    try:
+        if os.path.exists(batch_file):
+            with open(batch_file, 'r') as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            entry = json.loads(line)
+                            if entry.get('event') == 'sample':
+                                history.append(entry.get('payload', {}))
+                        except json.JSONDecodeError:
+                            continue
+    except Exception as e:
+        print(f"[LOG] Error loading batch history for {color}: {e}")
+    
+    if not history:
+        return jsonify({"error": "No data available for this tilt color"}), 404
+    
+    # Extract data for chart
+    timestamps = []
+    gravities = []
+    temps = []
+    
+    for entry in history:
+        timestamp = entry.get("timestamp", "")
+        gravity = entry.get("gravity")
+        temp_f = entry.get("temp_f")
+        
+        if timestamp and gravity is not None and temp_f is not None:
+            # Format timestamp for display
+            try:
+                # Parse ISO format timestamp
+                if 'Z' in timestamp:
+                    dt_str = timestamp.replace('Z', '+00:00')
+                else:
+                    dt_str = timestamp
+                
+                try:
+                    dt = datetime.fromisoformat(dt_str)
+                except ValueError:
+                    # Fallback for timestamps without microseconds
+                    base_timestamp = dt_str.split('.')[0] if '.' in dt_str else dt_str
+                    dt = datetime.strptime(base_timestamp, "%Y-%m-%dT%H:%M:%S")
+                
+                formatted_time = dt.strftime("%Y-%m-%d %H:%M")
+                timestamps.append(formatted_time)
+                gravities.append(float(gravity))
+                temps.append(float(temp_f))
+            except (ValueError, AttributeError):
+                continue
+    
+    # Get fermentation start date
+    ferm_start_date = tilt_info.get("ferm_start_date", "")
+    
+    # Calculate fermentation days
+    ferm_days = 0
+    if ferm_start_date:
+        try:
+            start_date = datetime.strptime(ferm_start_date, "%Y-%m-%d")
+            ferm_days = (datetime.now() - start_date).days
+        except (ValueError, TypeError):
+            pass
+    
+    # Calculate stall days - max consecutive days where gravity hasn't changed significantly
+    STALL_CHECK_ENTRIES = 100  # Number of recent entries to check
+    GRAVITY_STALL_THRESHOLD = 0.001  # Gravity change threshold
+    READINGS_PER_DAY = 96  # Approximate readings per day (15 min intervals)
+    
+    stall_days = 0
+    if len(gravities) > 1:
+        last_gravity = None
+        max_stall_count = 0
+        current_stall_count = 0
+        
+        # Check recent history
+        recent_count = min(STALL_CHECK_ENTRIES, len(gravities))
+        for i in range(len(gravities) - recent_count, len(gravities)):
+            gravity = gravities[i]
+            if last_gravity is not None:
+                if abs(gravity - last_gravity) < GRAVITY_STALL_THRESHOLD:
+                    current_stall_count += 1
+                    max_stall_count = max(max_stall_count, current_stall_count)
+                else:
+                    current_stall_count = 0
+            last_gravity = gravity
+        
+        # Convert consecutive stalled readings to days
+        stall_days = max_stall_count // READINGS_PER_DAY if max_stall_count > 0 else 0
+    
+    # Render template with all required data
+    return render_template(
+        'chart.html',
+        color=color,
+        system_settings=system_cfg,
+        ferm_start_date=ferm_start_date,
+        ferm_days=ferm_days,
+        stall_days=stall_days,
+        timestamps=timestamps,
+        gravities=gravities,
+        temps=temps
+    )
+
 @app.route('/system_config')
 def system_config():
     return render_template('system_config.html', system_settings=system_cfg)
