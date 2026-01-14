@@ -15,7 +15,6 @@ This file provides the full Flask app used in the conversation:
 """
 
 import asyncio
-<<<<<<< HEAD
 import hashlib
 import json
 import os
@@ -1198,6 +1197,4 @@ if __name__ == '__main__':
         pass
 
     app.run(host='0.0.0.0', port=5000, debug=True)
-=======
-import hashli...
->>>>>>> 463696c14f02c8e42d21c01a8ee1e14f3ec56c9a
+
