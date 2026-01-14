@@ -43,14 +43,9 @@
           <td><input type="text" name="mobile" id="mobile" value="{{ system_settings.mobile }}"></td>
         </tr>
         <tr>
-          <td><label for="warning_mode"><b>Warnings & Notifications</b></label></td>
+          <td><label><b>SMS/Email Configuration</b></label></td>
           <td>
-            <select name="warning_mode" id="warning_mode">
-              <option value="none" {% if system_settings.warning_mode == "none" %}selected{% endif %}>None</option>
-              <option value="email" {% if system_settings.warning_mode == "email" %}selected{% endif %}>Email</option>
-              <option value="sms" {% if system_settings.warning_mode == "sms" %}selected{% endif %}>SMS</option>
-              <option value="both" {% if system_settings.warning_mode == "both" %}selected{% endif %}>Both</option>
-            </select>
+            <button type="button" class="btn-action" onclick="window.location.href='/sms_email_config'">Configure SMS/Email</button>
           </td>
         </tr>
         <tr>
@@ -73,28 +68,16 @@
           <td><label for="temp_logging_interval"><b>Temperature Control Logging Interval (minutes)</b></label></td>
           <td><input type="number" name="temp_logging_interval" id="temp_logging_interval" value="{{ system_settings.temp_logging_interval }}"></td>
         </tr>
-      </table>
-
-      <hr style="width:60%;margin:auto;">
-
-      <h3 style="text-align:center;">External Logging Integrations</h3>
-      <table class="config-table" style="width: 60%; margin: auto;">
         <tr>
-          <td><label for="external_refresh_rate"><b>External Post Interval (minutes)</b></label></td>
-          <td><input type="number" name="external_refresh_rate" id="external_refresh_rate" value="{{ system_settings.external_refresh_rate }}"></td>
+          <td><label for="smartplug_status_interval"><b>SmartPlug Status Check Interval (seconds)</b></label></td>
+          <td><input type="number" name="smartplug_status_interval" id="smartplug_status_interval" value="{{ system_settings.smartplug_status_interval }}"></td>
         </tr>
-        {% for i in range(2) %}
         <tr>
+          <td><label><b>External Logging Integrations</b></label></td>
           <td>
-            <label for="external_name_{{ i }}"><b>Name {{ i + 1 }}</b></label><br>
-            <label for="external_url_{{ i }}"><b>URL {{ i + 1 }}</b></label>
-          </td>
-          <td>
-            <input type="text" name="external_name_{{ i }}" id="external_name_{{ i }}" value="{{ system_settings['external_name_' ~ i] }}"><br>
-            <input type="text" name="external_url_{{ i }}" id="external_url_{{ i }}" value="{{ system_settings['external_url_' ~ i] }}">
+            <button type="button" class="btn-action" onclick="window.location.href='/external_logging_config'">Configure External Logging</button>
           </td>
         </tr>
-        {% endfor %}
       </table>
 
       <div style="text-align:center; margin-top:20px;">

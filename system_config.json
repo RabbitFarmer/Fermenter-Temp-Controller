@@ -18,5 +18,12 @@
   "external_url_2": "",
   "warning_mode": "both",
   "tilt_reading_interval": 15,
-  "temp_logging_interval": 10
+  "temp_logging_interval": 10,
+  "fermenter_email": "",
+  "fermenter_email_password": "",
+  "send_to_name": "",
+  "send_to_email": "",
+  "send_to_phone": "",
+  "send_to_carrier": "",
+  "smartplug_status_interval": 60
 }
