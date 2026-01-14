@@ -66,8 +66,13 @@
       <div style="text-align:center; margin-top:20px;">
         <button type="submit" class="btn-primary">Save</button>
         <button type="button" class="btn-secondary" style="margin-left:16px;" onclick="window.location.href='/system_config'">Cancel</button>
-        <button type="button" class="btn-secondary" style="margin-left:16px;" onclick="window.location.href='/system_config'">Return to System Config</button>
       </div>
+    </form>
+
+    <div style="text-align:center; margin-top:12px;">
+      <form action="/system_config" method="get" style="display:inline;">
+        <button type="submit" class="btn-action cancel">Return to System Config</button>
+      </form>
     </form>
   </div>
 </body>
