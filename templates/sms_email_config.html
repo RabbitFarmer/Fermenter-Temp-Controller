@@ -12,7 +12,7 @@
       <div class="temp-subtitle">Configure notification settings</div>
     </div>
 
-    <form action="update_sms_email_config" method="post" class="temp-config-form">
+    <form action="/update_sms_email_config" method="post" class="temp-config-form">
       <table class="config-table" style="width: 60%; margin: auto;">
         <tr>
           <td><label for="warning_mode"><b>Notification Selector</b></label></td>
@@ -31,7 +31,7 @@
         </tr>
         <tr>
           <td><label for="fermenter_email_password"><b>Fermenter Email Password</b></label></td>
-          <td><input type="password" name="fermenter_email_password" id="fermenter_email_password" value="{{ system_settings.fermenter_email_password }}"></td>
+          <td><input type="password" name="fermenter_email_password" id="fermenter_email_password" placeholder="Enter password"></td>
         </tr>
         <tr>
           <td><label for="send_to_name"><b>Send to Name</b></label></td>
