@@ -26,4 +26,5 @@
   "external_field_map": "",
   "kasa_rate_limit_seconds": "10",
   "tilt_logging_interval_minutes": 15
+
 }

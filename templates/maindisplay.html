@@ -178,7 +178,6 @@
               <span id="temp_control_heater" class="badge-control heater-off" aria-hidden="false"></span>
             </div>
           </div>
-
           <div class="cell status-cell">
             <div class="temp-block-label"><b>Status</b></div>
             <div class="temp-block-value status-text" id="temp_control_status_top"></div>
@@ -207,11 +206,15 @@
         </div>
       </div>
     </section>
-
   </div>
 
   <script>
     const refreshInterval = 3000;
+
+    // Debounce counters to avoid blinking for transient failures
+    const heaterStateCounter = { value: null, count: 0 };
+    const coolerStateCounter = { value: null, count: 0 };
+    const STABLE_COUNT = 2; // require two consecutive polls to accept change
 
     function safeIdColor(color){ return color.replace(/\s+/g,'_'); }
 
@@ -398,3 +401,4 @@
   </script>
 </body>
 </html>
+

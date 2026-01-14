@@ -5,16 +5,26 @@
    - tiltcards spacing left as last set
 */
 
+/* styles.css - updated: tighter card gaps, fixed card sizing so group centers, all tilt numbers same size,
+   chart pill lower-right, larger characters and numbers for readability */
 :root{
   --page-max-width: 1340px;
   --card-width: 320px;
-  --card-gap: 24px;
-  --metric-number-size: 20px;
+  --card-gap: 6px;            /* tightened further */
+  --metric-number-size: 20px; /* larger numeric values for tiltcards */
   --temp-number-size: 36px;
-  --ribbon-green: #0b8a2e;
-  /* Darkened panel background for clearer contrast */
-  --panel-bg: #e2e6ea;   /* darker than previous #f6f8fa */
-  --panel-border: #cfdbe0;
+  --accent-green: #007b00;
+  --accent-red: #c00;
+  --accent-blue: #007bff;
+}
+
+html,body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: #111;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* Page container */
@@ -23,109 +33,175 @@
   margin: 0 auto;
   padding: 18px 14px 40px;
   box-sizing: border-box;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-  color: #111;
 }
 
-/* Top nav: centered green links */
+/* Header / top nav */
+.site-header { margin-bottom: 8px; }
 .config-ribbon {
   display:flex;
   justify-content:center;
   gap:22px;
   align-items:center;
-  padding:8px 0;
+  padding:10px 0;
 }
 .config-ribbon a {
-  color: var(--ribbon-green);
-  text-decoration: none;
-  font-weight: 800;
+  color:#0b5;
+  text-decoration:none;
+  font-weight:700;
   padding:6px 8px;
 }
-.config-ribbon a:hover { text-decoration: underline; }
 
-/* Brewery title: centered and larger */
+/* Brewery title */
 .dashboard-title {
   text-align:center;
   font-size:36px;
   font-weight:900;
-  margin: 10px 0 18px;
+  margin: 6px 0 18px;
 }
 
-/* Tiltcards wrapper and grid */
-.tiltcards-wrapper { display:flex; justify-content:center; margin-bottom:18px; }
+/* Tiltcards wrapper: centered group */
+.tiltcards-wrapper {
+  display:flex;
+  justify-content:center;
+  margin-bottom:18px;
+}
+
+/* Grid for cards: fixed card width so multiple cards stay centered and gaps remain small */
 .tiltcard-container {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(var(--card-width), var(--card-width)));
   gap: var(--card-gap);
-  justify-content: center;
+  justify-content: center;    /* center the whole group when fewer cards exist */
   justify-items: center;
   align-items: start;
   width: 100%;
   max-width: var(--page-max-width);
+  box-sizing: border-box;
   padding: 0 8px;
 }
 
-/* Tilt card appearance */
-.tilt-card { width: var(--card-width); border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.06); background:#fff; overflow:hidden; display:flex; flex-direction:column; }
-.tilt-banner { padding:14px; text-align:center; font-weight:900; font-size:18px; }
-.tilt-body { padding:12px; }
-.tilt-metrics.restore { width:100%; border-collapse:collapse; }
-.tilt-metrics.restore th.right-header { text-align:right; font-weight:700; padding:6px; font-size:14px; }
-.tilt-metrics.restore .label { color:#444; font-size:16px; padding:6px; text-align:left; vertical-align:middle; }
+/* Individual tilt card */
+.tilt-card {
+  width: var(--card-width);
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  background: #fff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 
-/* Numeric values styling (uniform, bold) */
+/* Card banner */
+.tilt-banner {
+  padding: 14px;
+  text-align: center;
+  font-weight: 900;
+  font-size: 18px; /* larger banner heading */
+}
+
+/* Card body and table */
+.tilt-body { padding: 12px; }
+.tilt-metrics.restore { width: 100%; border-collapse: collapse; }
+.tilt-metrics.restore th.right-header { text-align: right; font-weight:700; padding:6px 6px; font-size:14px; }
+.tilt-metrics.restore .label { color: #444; font-size:16px; padding:6px 6px; text-align:left; vertical-align:middle; }
+
+/* Make all numeric values in the tilt card the same size and bold (same as ABV) */
 .tilt-metrics.restore .value,
 .tilt-metrics.restore .value .metric-number {
   font-family: monospace;
   font-weight: 900;
   font-size: var(--metric-number-size);
-  padding:6px;
+  padding:6px 6px;
   text-align:right;
   vertical-align:middle;
 }
-.metric-number { display:inline-block; }
 
-/* Footer and chart pill */
-.tilt-footer-colored { padding:12px; font-size:14px; position:relative; overflow:visible; }
-.footer-right { position:absolute; right:10px; bottom:10px; }
-.chart-link { box-shadow:0 1px 3px rgba(0,0,0,0.08); background:#fff; padding:6px 8px; border-radius:6px; font-weight:800; text-decoration:none; }
-
-/* Temperature control box (darker background, rounded, with border) */
-.temp-control-box {
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 12px;
-  padding: 18px 22px;
-  margin: 18px auto;
-  max-width: 920px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+/* Numeric values emphasized (keeps compatibility if numbers are wrapped) */
+.metric-number {
+  font-weight: 900;
+  font-size: var(--metric-number-size);
+  display: inline-block;
 }
 
-/* inner panel layout preserved */
-.temp-control-panel { width:100%; box-sizing:border-box; }
-.temp-header .temp-title { font-size:20px; font-weight:900; text-align:center; margin-bottom:4px; }
-.temp-header .temp-subtitle { font-size:13px; text-align:center; color:#444; margin-bottom:8px; }
+/* Footer */
+.tilt-footer-colored {
+  padding: 12px;
+  font-size: 14px;
+  position: relative;   /* so the chart pill can be absolutely positioned to lower-right */
+  overflow: visible;
+}
+.footer-left { display:block; }
+.footer-right { position: absolute; right: 10px; bottom: 10px; }
 
-/* temp grid */
-.temp-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px 18px; align-items:start; margin-top:12px; }
-.cell { text-align:center; padding:6px; }
+/* Chart link overrides (inline style sets background:white and color to tilt color) */
+.chart-link { box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+/* Temperature control panel */
+.temp-control-ribbon {
+  display:flex;
+  justify-content:center;
+  margin-bottom:26px;
+}
+.temp-control-panel {
+  width: 100%;
+  max-width: 820px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+.temp-header .temp-title { font-size: 20px; font-weight: 900; text-align: center; }
+.temp-header .temp-subtitle { font-size: 14px; text-align: center; color: #444; }
+
+/* 3 columns x 2 rows grid */
+.temp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 12px 18px;
+  margin-top: 14px;
+  align-items: start;
+}
+
+/* Cells */
+.cell { text-align:center; padding:6px; box-sizing: border-box; }
+.mode-cell { grid-column:1; grid-row:1; }
+.heating-badge-cell { grid-column:2; grid-row:1; }
+.status-cell { grid-column:3; grid-row:1; }
+.low-cell { grid-column:1; grid-row:2; }
+.current-cell { grid-column:2; grid-row:2; }
+.high-cell { grid-column:3; grid-row:2; }
+
+/* Labels and values */
 .temp-block-label { color:#444; font-weight:800; font-size:14px; }
 .temp-block-value { color:#111; font-weight:800; font-size:16px; margin-top:6px; }
-.temp-number { font-size:var(--temp-number-size); font-weight:900; font-family:monospace; display:inline-block; }
-.current-big .temp-number { font-size:var(--temp-number-size); }
+.temp-block-value.medium { font-size:18px; }
 
-/* Status colors and badges */
+/* Unified numeric temperature size */
+.temp-number {
+  font-size: var(--temp-number-size);
+  font-weight: 900;
+  font-family: monospace;
+  display: inline-block;
+}
+.current-big .temp-number { font-size: var(--temp-number-size); }
+
+/* Status colors */
 .status-text { font-weight:900; font-size:16px; margin-top:8px; }
-.status-inrange { color:#007b00; }
-.status-above { color:#c00; }
-.status-below { color:#007bff; }
+.status-inrange { color: var(--accent-green); }
+.status-above   { color: var(--accent-red); }
+.status-below   { color: var(--accent-blue); }
+
+/* NOW HEATING / NOW COOLING badges */
 .badge { padding:8px 12px; border-radius:8px; font-weight:900; display:inline-block; }
 .now-heating { background:#ffdada; color:#900; }
 .now-cooling { background:#dff3ff; color:#0077aa; }
 
-/* Responsive tweaks */
-@media (max-width:920px) {
-  :root { --temp-number-size:32px; --metric-number-size:18px; }
-  .tilt-card { width:92%; }
-  .temp-control-box { margin: 12px 10px; padding: 12px; }
+/* Responsive adjustments */
+@media (max-width: 920px) {
+  .tilt-card { width: 92%; }
+  .temp-grid { grid-template-columns: 1fr; grid-template-rows: auto; gap:12px; }
+  :root { --temp-number-size: 32px; --metric-number-size: 18px; }
 }
+
+/* Small visual tweaks */
+a { color: #0a53a6; text-decoration: underline; }
+

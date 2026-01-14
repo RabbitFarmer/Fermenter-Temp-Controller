@@ -196,3 +196,4 @@ async def kasa_control(url, action, mode):
         err = str(e)
         log_error(f"{mode.upper()} plug at {url} error: {err}")
         return err
+
