@@ -1003,6 +1003,12 @@ def system_config():
 def update_system_config():
     data = request.form
     old_warn = system_cfg.get('warning_mode', 'NONE')
+    
+    # Handle password field - only update if provided
+    sending_email_password = data.get("sending_email_password", "")
+    if sending_email_password:
+        system_cfg["sending_email_password"] = sending_email_password
+    
     system_cfg.update({
         "brewery_name": data.get("brewery_name", ""),
         "brewer_name": data.get("brewer_name", ""),
@@ -1022,6 +1028,7 @@ def update_system_config():
         "external_name_2": data.get("external_name_2", system_cfg.get('external_name_2','')),
         "external_url_2": data.get("external_url_2", system_cfg.get('external_url_2','')),
         "warning_mode": data.get("warning_mode", "NONE"),
+        "sending_email": data.get("sending_email", system_cfg.get('sending_email','')),
         "sms_gateway_domain": data.get("sms_gateway_domain", system_cfg.get('sms_gateway_domain','')),
         "external_method": data.get("external_method", system_cfg.get('external_method','POST')),
         "external_content_type": data.get("external_content_type", system_cfg.get('external_content_type','form')),

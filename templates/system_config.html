@@ -7,12 +7,50 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
     /* small spacing tweaks to match your UI */
-    .config-table input[type="text"], .config-table input[type="email"], .config-table input[type="number"], .config-table select, .config-table textarea {
+    .config-table input[type="text"], .config-table input[type="email"], .config-table input[type="number"], .config-table input[type="password"], .config-table select, .config-table textarea {
       width: 100%;
       box-sizing: border-box;
       padding: 6px;
     }
     .config-table td { vertical-align: top; padding: 6px 8px; }
+    
+    /* Tab navigation styles */
+    .tab-navigation {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px auto;
+      max-width: 800px;
+    }
+    
+    .tab-button {
+      padding: 12px 24px;
+      background-color: #8B4513;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 5px 5px 0 0;
+      transition: background-color 0.3s;
+    }
+    
+    .tab-button:hover {
+      background-color: #A0522D;
+    }
+    
+    .tab-button.active {
+      background-color: #654321;
+      border-bottom: 3px solid #FFA500;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
   </style>
 </head>
 <body class="page-bg">
@@ -22,131 +60,167 @@
       <div class="temp-subtitle">Edit global system configuration</div>
     </div>
 
+    <!-- Tab Navigation -->
+    <div class="tab-navigation">
+      <button type="button" class="tab-button active" onclick="openTab(event, 'main-settings')">Main Settings</button>
+      <button type="button" class="tab-button" onclick="openTab(event, 'sms-email')">SMS/eMail</button>
+      <button type="button" class="tab-button" onclick="openTab(event, 'logging-integrations')">Logging Integrations</button>
+    </div>
+
     <form action="{{ url_for('update_system_config') }}" method="post" class="temp-config-form">
-      <table class="config-table" style="width: 60%; margin: auto;">
-        <tr>
-          <td><label for="brewery_name"><b>Brewery Name</b></label></td>
-          <td><input type="text" name="brewery_name" id="brewery_name" value="{{ system_settings.get('brewery_name','') }}"></td>
-        </tr>
-        <tr>
-          <td><label for="brewer_name"><b>Brewer Name</b></label></td>
-          <td><input type="text" name="brewer_name" id="brewer_name" value="{{ system_settings.get('brewer_name','') }}"></td>
-        </tr>
-        <tr>
-          <td><label for="street"><b>Street Address</b></label></td>
-          <td><input type="text" name="street" id="street" value="{{ system_settings.get('street','') }}"></td>
-        </tr>
-        <tr>
-          <td><label for="city"><b>City</b></label></td>
-          <td><input type="text" name="city" id="city" value="{{ system_settings.get('city','') }}"></td>
-        </tr>
-        <tr>
-          <td><label for="state"><b>State</b></label></td>
-          <td><input type="text" name="state" id="state" value="{{ system_settings.get('state','') }}"></td>
-        </tr>
-        <tr>
-          <td><label for="email"><b>Email</b></label></td>
-          <td><input type="email" name="email" id="email" value="{{ system_settings.get('email','') }}"></td>
-        </tr>
-        <tr>
-          <td><label for="mobile"><b>Mobile</b></label></td>
-          <td><input type="text" name="mobile" id="mobile" value="{{ system_settings.get('mobile','') }}"></td>
-        </tr>
-        <tr>
-          <td><label for="warning_mode"><b>Warnings & Notifications</b></label></td>
-          <td>
-            <select name="warning_mode" id="warning_mode">
-              <option value="NONE" {% if system_settings.get('warning_mode','NONE')|upper == "NONE" %}selected{% endif %}>None</option>
-              <option value="EMAIL" {% if system_settings.get('warning_mode','NONE')|upper == "EMAIL" %}selected{% endif %}>Email</option>
-              <option value="SMS" {% if system_settings.get('warning_mode','NONE')|upper == "SMS" %}selected{% endif %}>SMS</option>
-              <option value="BOTH" {% if system_settings.get('warning_mode','NONE')|upper == "BOTH" %}selected{% endif %}>Both</option>
-            </select>
-          </td>
-        </tr>
-        <tr>
-          <td><label for="timezone"><b>Time Zone</b></label></td>
-          <td><input type="text" name="timezone" id="timezone" value="{{ system_settings.get('timezone','') }}"></td>
-        </tr>
-        <tr>
-          <td><label for="timestamp_format"><b>Timestamp Format</b></label></td>
-          <td><input type="text" name="timestamp_format" id="timestamp_format" value="{{ system_settings.get('timestamp_format','') }}"></td>
-        </tr>
-        <tr>
-          <td><label for="update_interval"><b>Update Interval (minutes between control loop checks)</b></label></td>
-          <td><input type="number" name="update_interval" id="update_interval" value="{{ system_settings.get('update_interval','1') }}"></td>
-        </tr>
-        <tr>
-          <td><label for="tilt_reading_interval"><b>Tilt Reading Logging Interval (minutes)</b></label></td>
-          <td><input type="number" name="tilt_reading_interval" id="tilt_reading_interval" value="{{ system_settings.get('tilt_reading_interval','') }}"></td>
-        </tr>
-        <tr>
-          <td><label for="temp_logging_interval"><b>Temperature Control Logging Interval (minutes)</b></label></td>
-          <td><input type="number" name="temp_logging_interval" id="temp_logging_interval" value="{{ system_settings.get('temp_logging_interval','') }}"></td>
-        </tr>
+      
+      <!-- Main Settings Tab -->
+      <div id="main-settings" class="tab-content active">
+        <table class="config-table" style="width: 60%; margin: auto;">
+          <tr>
+            <td><label for="brewery_name"><b>Brewery Name</b></label></td>
+            <td><input type="text" name="brewery_name" id="brewery_name" value="{{ system_settings.get('brewery_name','') }}"></td>
+          </tr>
+          <tr>
+            <td><label for="brewer_name"><b>Brewer Name</b></label></td>
+            <td><input type="text" name="brewer_name" id="brewer_name" value="{{ system_settings.get('brewer_name','') }}"></td>
+          </tr>
+          <tr>
+            <td><label for="street"><b>Street Address</b></label></td>
+            <td><input type="text" name="street" id="street" value="{{ system_settings.get('street','') }}"></td>
+          </tr>
+          <tr>
+            <td><label for="city"><b>City</b></label></td>
+            <td><input type="text" name="city" id="city" value="{{ system_settings.get('city','') }}"></td>
+          </tr>
+          <tr>
+            <td><label for="state"><b>State</b></label></td>
+            <td><input type="text" name="state" id="state" value="{{ system_settings.get('state','') }}"></td>
+          </tr>
+          <tr>
+            <td><label for="timezone"><b>Time Zone</b></label></td>
+            <td><input type="text" name="timezone" id="timezone" value="{{ system_settings.get('timezone','') }}"></td>
+          </tr>
+          <tr>
+            <td><label for="timestamp_format"><b>Timestamp Format</b></label></td>
+            <td><input type="text" name="timestamp_format" id="timestamp_format" value="{{ system_settings.get('timestamp_format','') }}"></td>
+          </tr>
+          <tr>
+            <td><label for="update_interval"><b>Update Interval (minutes between control loop checks)</b></label></td>
+            <td><input type="number" name="update_interval" id="update_interval" value="{{ system_settings.get('update_interval','1') }}"></td>
+          </tr>
+          <tr>
+            <td><label for="tilt_reading_interval"><b>Tilt Reading Logging Interval (minutes)</b></label></td>
+            <td><input type="number" name="tilt_reading_interval" id="tilt_reading_interval" value="{{ system_settings.get('tilt_reading_interval','') }}"></td>
+          </tr>
+          <tr>
+            <td><label for="temp_logging_interval"><b>Temperature Control Logging Interval (minutes)</b></label></td>
+            <td><input type="number" name="temp_logging_interval" id="temp_logging_interval" value="{{ system_settings.get('temp_logging_interval','') }}"></td>
+          </tr>
 
-        <tr>
-          <td><label for="kasa_rate_limit_seconds"><b>Kasa Rate Limit (seconds)</b></label></td>
-          <td><input type="number" name="kasa_rate_limit_seconds" id="kasa_rate_limit_seconds" value="{{ system_settings.get('kasa_rate_limit_seconds', 10) }}"></td>
-        </tr>
-      </table>
+          <tr>
+            <td><label for="kasa_rate_limit_seconds"><b>Kasa Rate Limit (seconds)</b></label></td>
+            <td><input type="number" name="kasa_rate_limit_seconds" id="kasa_rate_limit_seconds" value="{{ system_settings.get('kasa_rate_limit_seconds', 10) }}"></td>
+          </tr>
+        </table>
 
-      <hr style="width:60%;margin:auto;">
-
-      <h3 style="text-align:center;">External Logging Integrations</h3>
-      <table class="config-table" style="width: 60%; margin: auto;">
-        <tr>
-          <td><label for="external_refresh_rate"><b>External Post Interval (minutes)</b></label></td>
-          <td><input type="number" name="external_refresh_rate" id="external_refresh_rate" value="{{ system_settings.get('external_refresh_rate','0') }}"></td>
-        </tr>
-
-        {% for i in range(3) %}
-        <tr>
-          <td style="width:35%;">
-            <label for="external_name_{{ i }}"><b>Name {{ i + 1 }}</b></label><br>
-            <label for="external_url_{{ i }}"><b>URL {{ i + 1 }}</b></label>
-          </td>
-          <td>
-            <input type="text" name="external_name_{{ i }}" id="external_name_{{ i }}" value="{{ system_settings.get('external_name_' ~ i, '') }}"><br>
-            <input type="text" name="external_url_{{ i }}" id="external_url_{{ i }}" value="{{ system_settings.get('external_url_' ~ i, '') }}">
-          </td>
-        </tr>
-        {% endfor %}
-
-        <tr>
-          <td><label for="external_method"><b>External POST Method</b></label></td>
-          <td>
-            <select name="external_method" id="external_method">
-              <option value="POST" {% if (system_settings.get('external_method','POST')|upper) == 'POST' %}selected{% endif %}>POST</option>
-              <option value="GET" {% if (system_settings.get('external_method','POST')|upper) == 'GET' %}selected{% endif %}>GET</option>
-            </select>
-          </td>
-        </tr>
-        <tr>
-          <td><label for="external_content_type"><b>External Content Type</b></label></td>
-          <td>
-            <select name="external_content_type" id="external_content_type">
-              <option value="form" {% if (system_settings.get('external_content_type','form')|lower) == 'form' %}selected{% endif %}>form (application/x-www-form-urlencoded)</option>
-              <option value="json" {% if (system_settings.get('external_content_type','form')|lower) == 'json' %}selected{% endif %}>json (application/json)</option>
-            </select>
-          </td>
-        </tr>
-        <tr>
-          <td><label for="external_timeout_seconds"><b>External Request Timeout (seconds)</b></label></td>
-          <td><input type="number" name="external_timeout_seconds" id="external_timeout_seconds" value="{{ system_settings.get('external_timeout_seconds',8) }}"></td>
-        </tr>
-        <tr>
-          <td><label for="external_field_map"><b>External Field Map (JSON)</b></label></td>
-          <td>
-            <textarea name="external_field_map" id="external_field_map" rows="4" placeholder='{"gravity":"gravity","temp_f":"temp","tilt_color":"device"}'>{{ system_settings.get('external_field_map','') }}</textarea>
-            <div style="font-size:0.9em;color:#666;margin-top:6px;">Optional JSON mapping of logical field names to the remote service's parameter names.</div>
-          </td>
-        </tr>
-      </table>
-
-      <div style="text-align:center; margin-top:20px;">
-        <button type="submit" class="btn-primary">Save System Settings</button>
-        <button type="button" onclick="window.location='/'" class="btn-secondary" style="margin-left:16px;">Cancel Changes</button>
+        <div style="text-align:center; margin-top:20px;">
+          <button type="submit" class="btn-primary">Save System Settings</button>
+          <button type="button" onclick="window.location='/'" class="btn-secondary" style="margin-left:16px;">Cancel Changes</button>
+        </div>
       </div>
+
+      <!-- SMS/eMail Tab -->
+      <div id="sms-email" class="tab-content">
+        <table class="config-table" style="width: 60%; margin: auto;">
+          <tr>
+            <td><label for="sending_email"><b>Sending Email Address</b></label></td>
+            <td><input type="email" name="sending_email" id="sending_email" value="{{ system_settings.get('sending_email','') }}"></td>
+          </tr>
+          <tr>
+            <td><label for="sending_email_password"><b>Sending Email Password</b></label></td>
+            <td><input type="password" name="sending_email_password" id="sending_email_password" placeholder="Enter password"></td>
+          </tr>
+          <tr>
+            <td><label for="warning_mode"><b>Messaging Options</b></label></td>
+            <td>
+              <select name="warning_mode" id="warning_mode">
+                <option value="NONE" {% if system_settings.get('warning_mode','NONE')|upper == "NONE" %}selected{% endif %}>None</option>
+                <option value="EMAIL" {% if system_settings.get('warning_mode','NONE')|upper == "EMAIL" %}selected{% endif %}>eMail</option>
+                <option value="SMS" {% if system_settings.get('warning_mode','NONE')|upper == "SMS" %}selected{% endif %}>SMS</option>
+                <option value="BOTH" {% if system_settings.get('warning_mode','NONE')|upper == "BOTH" %}selected{% endif %}>Both</option>
+              </select>
+            </td>
+          </tr>
+          <tr>
+            <td><label for="email"><b>Recipient eMail Address</b></label></td>
+            <td><input type="email" name="email" id="email" value="{{ system_settings.get('email','') }}"></td>
+          </tr>
+          <tr>
+            <td><label for="mobile"><b>Recipient Cell Phone Number</b></label></td>
+            <td><input type="text" name="mobile" id="mobile" value="{{ system_settings.get('mobile','') }}"></td>
+          </tr>
+        </table>
+
+        <div style="text-align:center; margin-top:20px;">
+          <button type="submit" class="btn-primary">Save</button>
+          <button type="button" onclick="window.location='/system_config'" class="btn-secondary" style="margin-left:16px;">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Logging Integrations Tab -->
+      <div id="logging-integrations" class="tab-content">
+        <table class="config-table" style="width: 60%; margin: auto;">
+          <tr>
+            <td><label for="external_refresh_rate"><b>External Post Interval (minutes)</b></label></td>
+            <td><input type="number" name="external_refresh_rate" id="external_refresh_rate" value="{{ system_settings.get('external_refresh_rate','0') }}"></td>
+          </tr>
+
+          {% for i in range(3) %}
+          <tr>
+            <td style="width:35%;">
+              <label for="external_name_{{ i }}"><b>Name {{ i + 1 }}</b></label><br>
+              <label for="external_url_{{ i }}"><b>URL {{ i + 1 }}</b></label>
+            </td>
+            <td>
+              <input type="text" name="external_name_{{ i }}" id="external_name_{{ i }}" value="{{ system_settings.get('external_name_' ~ i, '') }}"><br>
+              <input type="text" name="external_url_{{ i }}" id="external_url_{{ i }}" value="{{ system_settings.get('external_url_' ~ i, '') }}">
+            </td>
+          </tr>
+          {% endfor %}
+
+          <tr>
+            <td><label for="external_method"><b>External POST Method</b></label></td>
+            <td>
+              <select name="external_method" id="external_method">
+                <option value="POST" {% if (system_settings.get('external_method','POST')|upper) == 'POST' %}selected{% endif %}>POST</option>
+                <option value="GET" {% if (system_settings.get('external_method','POST')|upper) == 'GET' %}selected{% endif %}>GET</option>
+              </select>
+            </td>
+          </tr>
+          <tr>
+            <td><label for="external_content_type"><b>External Content Type</b></label></td>
+            <td>
+              <select name="external_content_type" id="external_content_type">
+                <option value="form" {% if (system_settings.get('external_content_type','form')|lower) == 'form' %}selected{% endif %}>form (application/x-www-form-urlencoded)</option>
+                <option value="json" {% if (system_settings.get('external_content_type','form')|lower) == 'json' %}selected{% endif %}>json (application/json)</option>
+              </select>
+            </td>
+          </tr>
+          <tr>
+            <td><label for="external_timeout_seconds"><b>External Request Timeout (seconds)</b></label></td>
+            <td><input type="number" name="external_timeout_seconds" id="external_timeout_seconds" value="{{ system_settings.get('external_timeout_seconds',8) }}"></td>
+          </tr>
+          <tr>
+            <td><label for="external_field_map"><b>External Field Map (JSON)</b></label></td>
+            <td>
+              <textarea name="external_field_map" id="external_field_map" rows="4" placeholder='{"gravity":"gravity","temp_f":"temp","tilt_color":"device"}'>{{ system_settings.get('external_field_map','') }}</textarea>
+              <div style="font-size:0.9em;color:#666;margin-top:6px;">Optional JSON mapping of logical field names to the remote service's parameter names.</div>
+            </td>
+          </tr>
+        </table>
+
+        <div style="text-align:center; margin-top:20px;">
+          <button type="submit" class="btn-primary">Save</button>
+          <button type="button" onclick="window.location='/system_config'" class="btn-secondary" style="margin-left:16px;">Cancel</button>
+        </div>
+      </div>
+
     </form>
 
     <div style="text-align:center; margin-top:12px;">
@@ -155,5 +229,25 @@
       </form>
     </div>
   </div>
+
+  <script>
+    function openTab(evt, tabName) {
+      // Hide all tab contents
+      var tabContents = document.getElementsByClassName("tab-content");
+      for (var i = 0; i < tabContents.length; i++) {
+        tabContents[i].classList.remove("active");
+      }
+      
+      // Remove active class from all tab buttons
+      var tabButtons = document.getElementsByClassName("tab-button");
+      for (var i = 0; i < tabButtons.length; i++) {
+        tabButtons[i].classList.remove("active");
+      }
+      
+      // Show the selected tab and mark button as active
+      document.getElementById(tabName).classList.add("active");
+      evt.currentTarget.classList.add("active");
+    }
+  </script>
 </body>
 </html>
