@@ -23,6 +23,35 @@
         cur.value = live.dataset.value;
       }
     }
+
+    function toggleFormDisabled(checked) {
+      // disable/enable inputs other than the master switch to make it clear the system is inactive
+      var fields = document.querySelectorAll('#tempConfigForm input, #tempConfigForm select, #tempConfigForm button');
+      for (var i = 0; i < fields.length; i++) {
+        var el = fields[i];
+        // leave the master checkbox alone
+        if (el.name === 'temp_control_enabled') continue;
+        // keep reset logs and other non-config buttons enabled
+        if (el.type === 'button' && el.onclick && el.id !== 'saveBtn') continue;
+        // Disable everything else when unchecked
+        el.disabled = !checked;
+      }
+      // but always allow the Save button so the user can persist enabled/disabled change
+      var saveBtn = document.getElementById('saveBtn');
+      if (saveBtn) {
+        saveBtn.disabled = false;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var master = document.getElementById('temp_control_enabled');
+      if (master) {
+        toggleFormDisabled(master.checked);
+        master.addEventListener('change', function() {
+          toggleFormDisabled(master.checked);
+        });
+      }
+    });
   </script>
 
   <style>
@@ -56,12 +85,22 @@
 
     <main style="max-width:1100px; margin: 12px auto;">
       <div class="section">
-        <h2>Control Limits & Mode</h2>
+        <h2>Master Switch</h2>
         <form id="tempConfigForm" action="/update_temp_config" method="post">
           <!-- If you use CSRF tokens, render them here -->
           {% if csrf_token %}
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           {% endif %}
+
+          <div class="form-row">
+            <label for="temp_control_enabled">Temperature Control Enabled:</label>
+           <input id="temp_control_enabled" name="temp_control_enabled" type="checkbox" value="1" checked>
+            <span class="small">When OFF, temperature control is inactive and the Fermenter Temperature Control card will be hidden on the dashboard.</span>
+          </div>
+
+          <hr>
+
+          <h2>Control Limits & Mode</h2>
 
           <div class="form-row">
             <label for="tilt_color">Control Tilt (color):</label>
@@ -133,7 +172,7 @@
           </div>
 
           <div class="form-row" style="margin-top:12px;">
-            <button type="submit" class="btn">Save Settings</button>
+            <button id="saveBtn" type="submit" class="btn">Save Settings</button>
             <a class="btn secondary" href="/temp_report" style="margin-left:8px;">View Log</a>
             <a class="btn secondary" href="/export_temp_csv" style="margin-left:8px;">Export</a>
           </div>

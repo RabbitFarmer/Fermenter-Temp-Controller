@@ -2,244 +2,179 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Fermenter — Chart</title>
+  <title>Fermenter Temperatures - Chart</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 18px; color:#222; }
-    header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
-    a.back { display:inline-block; padding:6px 10px; background:#eee; border-radius:6px; text-decoration:none; color:#222; font-weight:700; }
-    h2 { margin:0; font-size:18px; }
-    .meta { margin-left:auto; color:#666; font-size:13px; }
-    #controls { margin:12px 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    #status { color:#666; font-size:13px; margin-left:6px; }
-    #chart-wrapper { width:100%; max-width:1100px; margin-top:12px; }
-    canvas { background: #fff; border: 1px solid #eee; border-radius:6px; }
-    @media (max-width:600px) { canvas { height: 280px !important; } }
-  </style>
-
-  <!-- Chart.js v4 (no date adapter). We use epoch-ms numbers for x axis. -->
+  <!-- Chart.js from CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 16px; }
+    #chart-container { width: 100%; max-width: 1200px; margin: 0 auto; }
+    canvas { background: #ffffff; border: 1px solid #ddd; }
+    .controls { margin: 12px 0; display:flex; gap:8px; align-items:center; }
+  </style>
 </head>
 <body>
-  <header>
-    <a class="back" href="/">← Back to Dashboard</a>
-    <h2 id="title">Tilt Chart</h2>
-    <div class="meta" id="meta"></div>
-  </header>
-
-  <div id="controls">
-    <label for="limit">Points:</label>
-    <select id="limit">
-      <option value="50">50</option>
-      <option value="100" selected>100</option>
-      <option value="250">250</option>
-      <option value="500">500</option>
-    </select>
+  <h2>Fermenter Temperature Chart</h2>
+  <div class="controls">
+    <label for="limit">Points (max 2000):</label>
+    <input id="limit" type="number" min="10" max="2000" value="1500" style="width:100px" />
     <button id="reload">Reload</button>
-    <span id="status">Loading…</span>
+    <span id="status"></span>
   </div>
-
-  <div id="chart-wrapper">
-    <canvas id="chart" height="360"></canvas>
+  <div id="chart-container">
+    <canvas id="tempChart" width="1200" height="400"></canvas>
   </div>
 
   <script>
-    // Helpers
-    function getTiltFromPath() {
-      const parts = window.location.pathname.split('/').filter(Boolean);
-      if (parts.length >= 2 && parts[0].toLowerCase() === 'chart') return parts[1];
-      const params = new URLSearchParams(window.location.search);
-      return params.get('color') || 'Unknown';
+    // tilt_color provided by the Flask template context
+    const tiltColor = "{{ tilt_color or '' }}";
+    const maxLimit = 2000;
+
+    const ctx = document.getElementById('tempChart').getContext('2d');
+
+    // custom tooltip to display date, time, gravity, temperature
+    function tooltipFormatter(context) {
+      const index = context.dataIndex;
+      const point = context.dataset.data[index];
+      // point.x is timestamp string (ISO) or other string
+      let ts = point.x || point.timestamp || point.timestampISO || '';
+      // format timestamp to readable date/time if ISO
+      let human = ts;
+      try {
+        const d = new Date(ts);
+        if (!Number.isNaN(d.getTime())) {
+          human = d.toLocaleString();
+        }
+      } catch (e) {}
+      const temp = point.y !== undefined ? point.y : point.temp_f;
+      const gravity = point.gravity !== undefined ? point.gravity : '';
+      return [
+        `Time: ${human}`,
+        `Temp: ${temp !== null ? temp + ' °F' : 'N/A'}`,
+        `Gravity: ${gravity !== null && gravity !== '' ? gravity : 'N/A'}`
+      ];
     }
-    function fmtLocal(ms) { return ms ? new Date(ms).toLocaleString() : ''; }
-    function fmtTickLabel(ms) {
-      if (!ms) return '';
-      const d = new Date(ms);
-      return d.toLocaleTimeString([], { hour: 'numeric', minute: 'numeric' });
-    }
 
-    const tiltColor = getTiltFromPath();
-    const titleEl = document.getElementById('title');
-    const metaEl = document.getElementById('meta');
-    const statusEl = document.getElementById('status');
-    const limitEl = document.getElementById('limit');
-    const reloadBtn = document.getElementById('reload');
-
-    titleEl.textContent = `Tilt Chart — ${tiltColor}`;
-
-    let chart = null;
-
-    function createChart() {
-      const ctx = document.getElementById('chart').getContext('2d');
-      const cfg = {
-        type: 'line',
-        data: { datasets: [] },
-        options: {
-          animation: false,
-          responsive: true,
-          maintainAspectRatio: false,
-          parsing: false, // we pass {x,y} with x = epoch ms (number)
-          normalized: true,
-          plugins: {
-            legend: { display: true, position: 'top' },
-            tooltip: {
-              callbacks: {
-                title: (items) => {
-                  const raw = items && items[0] && items[0].raw;
-                  return raw ? fmtLocal(raw.x) : '';
-                },
-                label: (ctx) => {
-                  const raw = ctx.raw || {};
-                  const v = raw.y !== undefined ? raw.y : ctx.parsed.y;
-                  const g = raw.gravity !== undefined ? ` SG:${raw.gravity}` : '';
-                  return `Temp: ${v}°F${g}`;
-                }
-              }
-            }
-          },
-          scales: {
-            x: {
-              type: 'linear', // numeric epoch-ms to avoid date adapter issues
-              title: { display: true, text: 'Time' },
-              ticks: {
-                callback: function(tickValue) {
-                  // handle number, string, or tick object; always return a string
-                  try {
-                    let v = tickValue;
-                    if (typeof v === 'object' && v !== null) {
-                      if ('value' in v) v = v.value;
-                      else if ('tick' in v) v = v.tick;
-                    }
-                    const num = Number(v);
-                    if (!Number.isFinite(num)) return '';
-                    return fmtTickLabel(num);
-                  } catch (e) {
-                    console.error('tick callback error', tickValue, e);
-                    return '';
+    // Chart.js dataset uses objects with x (timestamp) and y (temp). gravity stored as extra prop
+    const chartConfig = {
+      type: 'line',
+      data: {
+        datasets: [{
+          label: 'Temperature (°F)',
+          data: [], // will be populated
+          parsing: false,
+          borderColor: 'rgba(75, 192, 192, 0.6)',
+          backgroundColor: 'rgba(75, 192, 192, 0.12)',
+          pointRadius: 2,
+          hitRadius: 8,
+          hoverRadius: 6,
+          tension: 0.15,
+          showLine: true
+        }]
+      },
+      options: {
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: {
+          mode: 'nearest',
+          intersect: false,
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: true,
+            callbacks: {
+              title: function(items) {
+                // items is array - show timestamp as title
+                const it = items[0];
+                const p = it.raw;
+                let ts = p.x || p.timestamp || '';
+                try {
+                  const d = new Date(ts);
+                  if (!Number.isNaN(d.getTime())) {
+                    ts = d.toLocaleString();
                   }
-                },
-                maxTicksLimit: 10
+                } catch(e){}
+                return ts;
+              },
+              label: function(context) {
+                const p = context.raw;
+                const lines = [];
+                if (p.y !== undefined) {
+                  lines.push(`Temp: ${p.y !== null ? p.y + ' °F' : 'N/A'}`);
+                }
+                if (p.gravity !== undefined) {
+                  lines.push(`Gravity: ${p.gravity !== null ? p.gravity : 'N/A'}`);
+                }
+                return lines;
               }
             }
-            // temp and gravity axes are added/updated when data loads
+          }
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: {
+              tooltipFormat: 'yyyy-MM-dd HH:mm:ss',
+              displayFormats: { millisecond: 'HH:mm', second: 'HH:mm', minute: 'HH:mm', hour: 'HH:mm' }
+            },
+            // Hide axis labels/ticks as requested
+            ticks: { display: false },
+            grid: { display: false }
+          },
+          y: {
+            title: { display: true, text: 'Temperature (°F)' },
+            beginAtZero: false
+          }
+        },
+        elements: {
+          point: {
+            radius: 2
           }
         }
-      };
-      if (chart) chart.destroy();
-      chart = new Chart(ctx, cfg);
-    }
-
-    // Build arrays: tempPoints and gravityPoints with x in epoch ms
-    function buildPointArrays(rawPoints) {
-      const tempPoints = [];
-      const gravityPoints = [];
-      for (const p of rawPoints) {
-        const tsRaw = p.timestamp || (p.date && p.time ? `${p.date}T${p.time}Z` : p.time || null);
-        let ms = null;
-        if (tsRaw) {
-          ms = Date.parse(String(tsRaw));
-          if (Number.isNaN(ms)) ms = null;
-        }
-        let t = null;
-        if (p.temp_f !== undefined && p.temp_f !== null) t = Number(p.temp_f);
-        else if (p.current_temp !== undefined && p.current_temp !== null) t = Number(p.current_temp);
-        else if (p.temp !== undefined && p.temp !== null) t = Number(p.temp);
-
-        let g = null;
-        if (p.gravity !== undefined && p.gravity !== null) g = Number(p.gravity);
-        else if (p.sg !== undefined && p.sg !== null) g = Number(p.sg);
-
-        if (ms !== null && Number.isFinite(t)) tempPoints.push({ x: ms, y: t, gravity: (Number.isFinite(g) ? g : null) });
-        if (ms !== null && Number.isFinite(g)) gravityPoints.push({ x: ms, y: g });
       }
-      tempPoints.sort((a,b) => a.x - b.x);
-      gravityPoints.sort((a,b) => a.x - b.x);
-      return { tempPoints, gravityPoints };
-    }
+    };
 
-    async function loadData() {
-      const limit = encodeURIComponent(limitEl.value || '100');
-      statusEl.textContent = 'Loading…';
+    const tempChart = new Chart(ctx, chartConfig);
+
+    async function loadData(limit) {
+      document.getElementById('status').textContent = 'Loading...';
+      let url = '/chart_data/' + encodeURIComponent(tiltColor) + '?limit=' + encodeURIComponent(limit);
       try {
-        const res = await fetch(`/chart_data/${encodeURIComponent(tiltColor)}?limit=${limit}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        console.log('chart_data response', data);
-        metaEl.textContent = `Matched: ${data.matched || 0}  Truncated: ${data.truncated ? 'yes' : 'no'}`;
-
-        const rawPoints = data.points || [];
-        const { tempPoints, gravityPoints } = buildPointArrays(rawPoints);
-
-        const tempDataset = {
-          label: `${tiltColor} Temp (°F)`,
-          data: tempPoints,
-          borderColor: '#e04b4b',
-          backgroundColor: 'rgba(224,75,75,0.12)',
-          pointRadius: 2,
-          showLine: true,
-          tension: 0.12,
-          yAxisID: 'temp'
-        };
-
-        const gravityDataset = {
-          label: `${tiltColor} Gravity (SG)`,
-          data: gravityPoints,
-          borderColor: '#2a9d8f',
-          backgroundColor: 'rgba(42,157,143,0.08)',
-          pointRadius: 2,
-          showLine: false,
-          tension: 0.12,
-          yAxisID: 'gravity'
-        };
-
-        if (!chart) createChart();
-
-        // Explicitly configure axes so datasets cannot be swapped
-        chart.options.scales = chart.options.scales || {};
-        chart.options.scales.temp = {
-          type: 'linear',
-          position: 'left',
-          title: { display: true, text: 'Temperature (°F)' },
-          ticks: { callback: val => String(val) },
-        };
-        chart.options.scales.gravity = {
-          type: 'linear',
-          position: 'right',
-          title: { display: true, text: 'Gravity (SG)' },
-          grid: { drawOnChartArea: false },
-          ticks: { callback: val => String(val) },
-        };
-
-        chart.data.datasets = [tempDataset];
-        if (gravityPoints.length > 0) chart.data.datasets.push(gravityDataset);
-
-        try {
-          chart.update();
-        } catch (err) {
-          console.error('chart.update() threw', err, { datasets: chart.data.datasets, scales: chart.options.scales });
-          statusEl.textContent = `Chart error: ${err && err.message ? err.message : err}`;
-          return;
-        }
-
-        statusEl.textContent = `Loaded ${tempPoints.length} temp points, ${gravityPoints.length} gravity points (server matched ${data.matched || 0})`;
-      } catch (err) {
-        statusEl.textContent = `Error loading data: ${err && err.message ? err.message : err}`;
-        console.error('loadData error', err);
+        const r = await fetch(url);
+        if (!r.ok) throw new Error('Network response not ok');
+        const json = await r.json();
+        const pts = json.points || [];
+        // Convert to Chart.js friendly points {x: ISO timestamp, y: temp, gravity: val}
+        const data = pts.map(p => {
+          return {
+            x: p.timestamp,
+            y: p.temp_f,
+            gravity: p.gravity
+          };
+        });
+        tempChart.data.datasets[0].data = data;
+        tempChart.update();
+        document.getElementById('status').textContent = `Loaded ${data.length} points (matched ${json.matched || '?'}).`;
+      } catch (e) {
+        console.error(e);
+        document.getElementById('status').textContent = 'Failed to load data';
       }
     }
 
-    // Initialize
-    createChart();
-    loadData();
+    document.getElementById('reload').addEventListener('click', () => {
+      let limit = parseInt(document.getElementById('limit').value) || 1500;
+      limit = Math.max(10, Math.min(limit, maxLimit));
+      loadData(limit);
+    });
 
-    // UI handlers
-    reloadBtn.addEventListener('click', () => loadData());
-    limitEl.addEventListener('change', () => loadData());
+    // initial load
+    window.addEventListener('load', () => {
+      let initial = parseInt(document.getElementById('limit').value) || 1500;
+      initial = Math.max(10, Math.min(initial, maxLimit));
+      loadData(initial);
+    });
 
-    // auto-refresh every 60s while page visible
-    const refreshInterval = setInterval(() => { if (document.visibilityState === 'visible') loadData(); }, 60000);
-    window.addEventListener('beforeunload', () => { clearInterval(refreshInterval); if (chart) chart.destroy(); });
   </script>
 </body>
 </html>
-

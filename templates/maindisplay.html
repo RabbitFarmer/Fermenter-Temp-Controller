@@ -6,60 +6,131 @@
   <link rel="stylesheet" href="/static/styles.css">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    /* Status text colors */
-    .status-below { color: #0b5ed7; }    /* blue */
-    .status-above { color: #dc3545; }    /* red */
-    .status-inrange { color: #198754; }  /* green */
+    :root {
+      --panel-brown: #8B4513;
+      --status-red: #c91f1f;
+      --now-cool-blue: #1e90ff;
+      --card-width: 320px;
+    }
 
-    /* Heater / Cooler badges */
-    .badge-control {
-      display: inline-block;
-      padding: 8px 14px;
+    /* Temp card same width as tilt cards */
+    .tilt-card.temp-control { width: var(--card-width); border-radius:8px; overflow:hidden; box-shadow:0 2px 6px rgba(0,0,0,0.06); background:#fff; display:flex; flex-direction:column; }
+
+    /* Banner */
+    .temp-card-banner {
+      background: var(--panel-brown);
+      color: white;
+      text-align:center;
+      padding: 10px 12px;
+      font-weight:900;
+    }
+    .temp-card-banner .title-line-1 { font-size:18px; }
+    .temp-card-banner .title-line-2 { font-size:13px; margin-top:6px; font-weight:800; }
+
+    /* Reduced body padding to make card shorter */
+    .temp-card-body { padding: 8px 12px 6px 12px; flex: 1 1 auto; box-sizing:border-box; }
+
+    .tc-status {
+      color: var(--status-red);
+      font-weight: 900;
+      text-align:center;
+      font-size:16px;
+      margin: 6px 0 8px 0;
+      letter-spacing: 0.5px;
+      line-height:1.1;
+    }
+
+    /* Grid labels on left and value boxes on right */
+    .tc-grid { display:grid; grid-template-columns: 1fr 120px; align-items:center; gap:10px 12px; }
+    .tc-label { font-weight: 800; color:#222; font-size:13px; }
+    .tc-value-box {
+      border: 4px solid #111;
+      padding:6px 8px;
+      text-align:center;
+      font-weight:900;
+      font-family: monospace;
+      font-size:16px;
+      background: #fff;
+      box-sizing:border-box;
+      min-width: 80px;
+      line-height:1;
+    }
+    .tc-value-current { font-size:24px; padding:6px 10px; }
+
+    /* NOW action single-line and visible */
+    .tc-now-action {
+      margin-top:10px;
+      text-align:center;
+      font-weight:900;
+      font-size:18px;
+      padding:4px 6px;
+      min-height:28px;
+      white-space: nowrap;     /* force single line */
+      line-height:1;
+      overflow:visible;
+      background: transparent; /* ensure no blocking background */
+    }
+    .tc-now-action.now-heating { color: var(--status-red); }
+    .tc-now-action.now-cooling { color: var(--now-cool-blue); }
+
+    /* Visible pulsing: animate opacity + subtle scale + glow */
+    @keyframes pulse-red {
+      0% { opacity: 0.9; transform: scale(1); text-shadow: 0 0 0 rgba(201,31,31,0); }
+      40% { opacity: 1; transform: scale(1.03); text-shadow: 0 0 12px rgba(201,31,31,0.35); }
+      100% { opacity: 0.95; transform: scale(1); text-shadow: 0 0 0 rgba(201,31,31,0); }
+    }
+    @keyframes pulse-blue {
+      0% { opacity: 0.9; transform: scale(1); text-shadow: 0 0 0 rgba(30,144,255,0); }
+      40% { opacity: 1; transform: scale(1.03); text-shadow: 0 0 12px rgba(30,144,255,0.35); }
+      100% { opacity: 0.95; transform: scale(1); text-shadow: 0 0 0 rgba(30,144,255,0); }
+    }
+    .tc-now-action.pulse-heating { animation: pulse-red 1.0s ease-in-out infinite; }
+    .tc-now-action.pulse-cooling { animation: pulse-blue 1.0s ease-in-out infinite; }
+
+    /* Respect reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .tc-now-action.pulse-heating,
+      .tc-now-action.pulse-cooling {
+        animation: none;
+      }
+    }
+
+    /* Footer with brown bar */
+    .temp-card-footer {
+      background: var(--panel-brown);
+      color: white;
+      padding:10px 12px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+    .footer-left { font-size:12px; line-height:1.2; }
+    .footer-left .small-meta { opacity:0.95; display:block; margin-top:6px; color:#f3e7e0; font-weight:700; }
+
+    .chart-pill {
+      background: white;
+      color: var(--panel-brown);
       border-radius: 8px;
-      font-weight: 900;
-      font-size: 0.95em;
-      min-width: 120px;
-      text-align: center;
-      line-height: 1;
-    }
-    .heater-on {
-      background: rgba(220,53,69,0.95); /* opaque red */
-      color: #fff;
-    }
-    .heater-off {
-      background: transparent;
-      color: inherit;
-      box-shadow: none;
-    }
-    .cooler-on {
-      background: rgba(13,110,253,0.95); /* opaque blue */
-      color: #fff;
-    }
-    .cooler-off {
-      background: transparent;
-      color: inherit;
-      box-shadow: none;
+      padding:8px 12px;
+      font-weight:800;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      text-decoration:none;
     }
 
-    /* Ensure status-text visually stands out */
-    .temp-block-value.status-text {
-      min-height: 1.6em;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 900;
-    }
+    /* Prevent any global rule from accidentally disabling only this animation */
+    .tc-now-action { -webkit-animation: none; animation: none; } /* reset then reapply below */
+    .tc-now-action.pulse-heating { -webkit-animation: pulse-red 1.0s ease-in-out infinite; animation: pulse-red 1.0s ease-in-out infinite; }
+    .tc-now-action.pulse-cooling { -webkit-animation: pulse-blue 1.0s ease-in-out infinite; animation: pulse-blue 1.0s ease-in-out infinite; }
 
-    /* small responsive tweaks */
-    @media (max-width: 700px) {
-      .badge-control { min-width: 86px; padding: 6px 8px; font-size: 0.85em; }
+    /* Small responsive tweaks */
+    @media (max-width:720px) {
+      .tilt-card.temp-control { width:92%; }
+      .tc-grid { grid-template-columns: 1fr 110px; }
     }
   </style>
 </head>
 <body>
   <div class="page-container">
-
-    <!-- Header -->
     <header class="site-header">
       <nav class="config-ribbon" role="navigation" aria-label="top navigation">
         <a href="/system_config">System Settings</a>
@@ -75,9 +146,58 @@
       <h1 class="dashboard-title">{{ system_settings.brewery_name }}</h1>
     </header>
 
-    <!-- ACTIVE TILTCARDS -->
     <section class="tiltcards-wrapper" aria-label="Active Tilts">
       <div class="tiltcard-container">
+
+        {% if temp_control.temp_control_enabled %}
+        <article id="temp_control_card" class="tilt-card temp-control" data-tilt="FERMENTER-TEMP-CONTROL">
+          <div class="temp-card-banner" role="banner" aria-label="Fermenter Title">
+            <div class="title-line-1">FERMENTER</div>
+            <div class="title-line-2">TEMPERATURE CONTROLLER</div>
+          </div>
+
+          <div class="temp-card-body">
+            <div id="temp_control_status_top" class="tc-status">{{ temp_control.status or '' }}</div>
+
+            <div class="tc-grid" role="group" aria-label="Temperature limits">
+              <div class="tc-label">HIGH LIMIT</div>
+              <div style="text-align:right;">
+                <div id="high_limit_box" class="tc-value-box">
+                  <span id="high_limit_val">{{ temp_control.high_limit if temp_control.high_limit is not none else '--' }}</span><span class="tc-value-unit"> F</span>
+                </div>
+              </div>
+
+              <div class="tc-label">CURRENT<br>TEMPERATURE</div>
+              <div style="text-align:right;">
+                <div id="current_temp_box" class="tc-value-box tc-value-current">
+                  <span id="temp_control_current">{{ temp_control.current_temp if temp_control.current_temp is not none else '--' }}</span><span class="tc-value-unit"> F</span>
+                </div>
+              </div>
+
+              <div class="tc-label">LOW LIMIT</div>
+              <div style="text-align:right;">
+                <div id="low_limit_box" class="tc-value-box">
+                  <span id="low_limit_val">{{ temp_control.low_limit if temp_control.low_limit is not none else '--' }}</span><span class="tc-value-unit"> F</span>
+                </div>
+              </div>
+            </div>
+
+            <div id="now_action" class="tc-now-action" aria-live="polite" role="status"></div>
+          </div>
+
+          <div class="temp-card-footer">
+            <div class="footer-left">
+              <div style="font-weight:800;">ASSIGNED TILT — {{ (temp_control.tilt_color or '—') }}</div>
+              <div class="small-meta" id="temp_control_last">{{ temp_control.notification_last_sent or '' }}</div>
+            </div>
+
+            <div>
+              <a class="chart-pill" href="/chart_plotly/Fermenter?brew=">Chart</a>
+            </div>
+          </div>
+        </article>
+        {% endif %}
+
         {% for color, tilt in live_tilts.items() %}
           {% set safe_color = color.replace(' ', '_') %}
           <article class="tilt-card" data-tilt="{{ color }}">
@@ -135,86 +255,30 @@
               </table>
             </div>
 
-            <footer class="tilt-footer-colored" style="background: {{ tilt.color_code }}; color: {% if tilt.color_code in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %};">
-              <div class="footer-left">Brew ID: {{ tilt.brewid or '--' }}</div>
-              <div class="footer-right">
-                <a class="chart-link" href="/chart/{{ color }}" style="background:#fff; color: {{ tilt.color_code }}; padding:6px 8px; border-radius:6px; display:inline-block; text-decoration:none; font-weight:800;">Chart</a>
+            <footer class="tilt-footer-colored"
+                    style="background: {{ tilt.color_code }}; color: {% if tilt.color_code in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %}; display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-radius:0 0 6px 6px;">
+              <div style="display:flex; flex-direction:column;">
+                <div style="font-size:0.95em; font-weight:700;">Brew ID: {{ tilt.brewid or '--' }}</div>
+                <div style="font-size:0.85em; opacity:0.95;">
+                   Last Reading: <span id="timestamp-{{ safe_color }}">{{ tilt.timestamp | localtime }}</span>
+                </div>
               </div>
-              <div style="clear:both; margin-top:8px;">Last Reading: <span id="timestamp-{{ safe_color }}">{{ tilt.timestamp | localtime }}</span></div>
+
+              <div style="margin-left:16px; display:flex; align-items:center;">
+                <a class="chart-link" href="/chart_plotly/{{ color }}?brew={{ (tilt.brewid or '') | urlencode }}"
+                   style="background:#fff; color: {{ tilt.color_code }}; padding:6px 10px; border-radius:6px; text-decoration:none; font-weight:800;">
+                   CHART
+                </a>
+              </div>
             </footer>
           </article>
         {% endfor %}
-      </div>
-    </section>
-
-    <!-- TEMPERATURE CONTROL: boxed with slightly darker background -->
-    <section class="temp-control-box" aria-label="Temperature Control Box">
-      <div class="temp-control-panel">
-        <div class="temp-header">
-          <div class="temp-title">FERMENTER TEMPERATURE CONTROL</div>
-          <div class="temp-subtitle">Monitored by {{ temp_control.tilt_color or '—' }} Tilt</div>
-        </div>
-
-        <div class="temp-grid" role="group" aria-label="Temperature control grid">
-          <!-- Row 1 -->
-          <div class="cell mode-cell">
-            <div class="temp-block-label"><b>Mode</b></div>
-            <div class="temp-block-value medium">
-              {% if temp_control.enable_heating and temp_control.enable_cooling %}
-                Heating &amp; Cooling
-              {% elif temp_control.enable_heating %}
-                Heating Selected
-              {% elif temp_control.enable_cooling %}
-                Cooling Selected
-              {% else %}
-                OFF
-              {% endif %}
-            </div>
-          </div>
-
-          <!-- Row1 Col2: Heater badge ONLY (Row 1, Column 2) -->
-          <div class="cell heating-badge-cell" id="heating_badge_cell" aria-live="polite">
-            <div class="temp-block-value" style="display:flex; align-items:center; justify-content:center;">
-              <span id="temp_control_heater" class="badge-control heater-off" aria-hidden="false"></span>
-            </div>
-          </div>
-          <div class="cell status-cell">
-            <div class="temp-block-label"><b>Status</b></div>
-            <div class="temp-block-value status-text" id="temp_control_status_top"></div>
-          </div>
-
-          <!-- Row 2 -->
-          <div class="cell low-cell">
-            <div class="temp-block-label"><b>Low Limit</b></div>
-            <div class="temp-block-value medium"><span class="temp-number" id="low_limit_val">{{ temp_control.low_limit or '--' }}</span></div>
-          </div>
-
-          <div class="cell current-cell">
-            <div class="temp-block-label"><b>Current Temp</b></div>
-            <div class="temp-block-value current-big"><span class="temp-number" id="temp_control_current">{{ temp_control.current_temp if temp_control.current_temp is not none else '--' }}</span></div>
-
-            <!-- Row2 Col2: Cooler badge (placed under Current Temp) -->
-            <div id="cooling_badge_cell" style="margin-top:12px; display:flex; align-items:center; justify-content:center;">
-              <span id="temp_control_cooler" class="badge-control cooler-off" aria-hidden="false"></span>
-            </div>
-          </div>
-
-          <div class="cell high-cell">
-            <div class="temp-block-label"><b>High Limit</b></div>
-            <div class="temp-block-value medium"><span class="temp-number" id="high_limit_val">{{ temp_control.high_limit or '--' }}</span></div>
-          </div>
-        </div>
       </div>
     </section>
   </div>
 
   <script>
     const refreshInterval = 3000;
-
-    // Debounce counters to avoid blinking for transient failures
-    const heaterStateCounter = { value: null, count: 0 };
-    const coolerStateCounter = { value: null, count: 0 };
-    const STABLE_COUNT = 2; // require two consecutive polls to accept change
 
     function safeIdColor(color){ return color.replace(/\s+/g,'_'); }
 
@@ -265,14 +329,10 @@
       });
     }
 
-    // Polling + update logic (fetch /live_snapshot and update UI)
     async function pollLiveSnapshot() {
       try {
         const r = await fetch('/live_snapshot', { cache: 'no-cache' });
-        if (!r.ok) {
-          console.warn('live_snapshot fetch failed', r.status);
-          return;
-        }
+        if (!r.ok) return;
         const data = await r.json();
         if (!data) return;
 
@@ -283,45 +343,31 @@
       }
     }
 
-    // Temperature control UI updater (status driven only by numeric comparison or OFF)
+    function matchTempCardHeightToTilts() {
+      try {
+        const tempCard = document.getElementById('temp_control_card');
+        if (!tempCard) return;
+        const tilt = document.querySelector('.tiltcard-container .tilt-card:not(.temp-control)');
+        if (!tilt) return;
+        const h = tilt.offsetHeight;
+        // subtract a small amount to squeeze the temp card slightly shorter
+        tempCard.style.height = Math.max(180, h - 18) + 'px';
+        tempCard.style.overflow = 'hidden';
+      } catch (e) { /* ignore */ }
+    }
+
     function updateTempControl(tc, liveTilts) {
-      const isModeOff = (tc.mode && tc.mode.toString().toUpperCase() === 'OFF') || (!tc.enable_heating && !tc.enable_cooling);
+      const highBox = document.getElementById('high_limit_val');
+      const curBox = document.getElementById('temp_control_current');
+      const lowBox = document.getElementById('low_limit_val');
+      const statusEl = document.getElementById('temp_control_status_top');
+      const nowAction = document.getElementById('now_action');
+      const lastEl = document.getElementById('temp_control_last');
 
-      const curEl = document.getElementById('temp_control_current');
-      const lowEl = document.getElementById('low_limit_val');
-      const highEl = document.getElementById('high_limit_val');
-      const statusTop = document.getElementById('temp_control_status_top');
-      const heaterEl = document.getElementById('temp_control_heater');
-      const coolerEl = document.getElementById('temp_control_cooler');
+      if (highBox) highBox.textContent = (tc.high_limit !== undefined && tc.high_limit !== null) ? tc.high_limit : '--';
+      if (curBox) curBox.textContent = (tc.current_temp !== undefined && tc.current_temp !== null) ? tc.current_temp : '--';
+      if (lowBox) lowBox.textContent = (tc.low_limit !== undefined && tc.low_limit !== null) ? tc.low_limit : '--';
 
-      if (isModeOff) {
-        if (curEl) curEl.textContent = '--';
-        if (lowEl) lowEl.textContent = '--';
-        if (highEl) highEl.textContent = '--';
-        if (statusTop) {
-          statusTop.textContent = '';
-          statusTop.classList.remove('status-inrange', 'status-above', 'status-below');
-        }
-        if (heaterEl) {
-          heaterEl.textContent = '';
-          heaterEl.classList.remove('heater-on');
-          heaterEl.classList.add('heater-off');
-        }
-        if (coolerEl) {
-          coolerEl.textContent = '';
-          coolerEl.classList.remove('cooler-on');
-          coolerEl.classList.add('cooler-off');
-        }
-        return;
-      }
-
-      // Update numeric values
-      if (curEl) curEl.textContent = (tc.current_temp != null && tc.current_temp !== undefined) ? tc.current_temp : '--';
-      if (lowEl) lowEl.textContent = (tc.low_limit != null && tc.low_limit !== undefined) ? tc.low_limit : '--';
-      if (highEl) highEl.textContent = (tc.high_limit != null && tc.high_limit !== undefined) ? tc.high_limit : '--';
-
-      // Compute status ONLY from numeric comparison (ignore server textual status)
-      // Prefer runtime current_temp, else first live tilt temp
       let tempToUse = null;
       if (tc.current_temp != null && !isNaN(Number(tc.current_temp))) {
         tempToUse = Number(tc.current_temp);
@@ -335,70 +381,50 @@
               break;
             }
           }
-        } catch(e) {
-          tempToUse = null;
-        }
+        } catch(e) { tempToUse = null; }
       }
 
-      let statusText = '';
+      let statusText = tc.status || '';
       let statusClass = '';
       if (typeof tempToUse === 'number' && typeof tc.low_limit === 'number' && typeof tc.high_limit === 'number') {
-        if (tempToUse < tc.low_limit) {
-          statusText = 'TEMP BELOW LOW LIMIT';
-          statusClass = 'status-below';
-        } else if (tempToUse > tc.high_limit) {
-          statusText = 'TEMP ABOVE HIGH LIMIT';
-          statusClass = 'status-above';
-        } else {
-          statusText = 'TEMP IN RANGE';
-          statusClass = 'status-inrange';
-        }
-      } else {
-        // If we cannot compute a numeric status, leave blank
-        statusText = '';
-        statusClass = '';
+        if (tempToUse < tc.low_limit) { statusText = 'TEMP BELOW LOW LIMIT'; statusClass = 'status-below'; }
+        else if (tempToUse > tc.high_limit) { statusText = 'TEMP ABOVE HIGH LIMIT'; statusClass = 'status-above'; }
+        else { statusText = 'TEMP IN RANGE'; statusClass = 'status-inrange'; }
       }
 
-      if (statusTop) {
-        statusTop.classList.remove('status-inrange', 'status-above', 'status-below');
-        if (statusClass) statusTop.classList.add(statusClass);
-        statusTop.textContent = statusText;
+      if (statusEl) {
+        statusEl.classList.remove('status-inrange','status-above','status-below');
+        if (statusClass) statusEl.classList.add(statusClass);
+        statusEl.textContent = statusText;
       }
 
-      // Heater badge (Row1 Col2) - show "HEATING ON" with opaque red bg when on, blank when off
-      if (heaterEl) {
-        const heaterOn = Boolean(tc && tc.enable_heating && tc.heater_on);
-        if (heaterOn) {
-          heaterEl.textContent = 'HEATING ON';
-          heaterEl.classList.remove('heater-off');
-          heaterEl.classList.add('heater-on');
+      if (nowAction) {
+        nowAction.classList.remove('now-heating','now-cooling','pulse-heating','pulse-cooling');
+        // prefer cooler_on -> "COOLING ON", otherwise heater_on -> "HEATING ON"
+        if (tc.cooler_on) {
+          nowAction.textContent = 'COOLING ON';
+          nowAction.classList.add('now-cooling','pulse-cooling');
+        } else if (tc.heater_on) {
+          nowAction.textContent = 'HEATING ON';
+          nowAction.classList.add('now-heating','pulse-heating');
         } else {
-          heaterEl.textContent = '';
-          heaterEl.classList.remove('heater-on');
-          heaterEl.classList.add('heater-off');
+          nowAction.textContent = '';
         }
       }
 
-      // Cooler badge (Row2 Col2) - show "COOLING ON" with opaque blue bg when on, blank when off
-      if (coolerEl) {
-        const coolerOn = Boolean(tc && tc.enable_cooling && tc.cooler_on);
-        if (coolerOn) {
-          coolerEl.textContent = 'COOLING ON';
-          coolerEl.classList.remove('cooler-off');
-          coolerEl.classList.add('cooler-on');
-        } else {
-          coolerEl.textContent = '';
-          coolerEl.classList.remove('cooler-on');
-          coolerEl.classList.add('cooler-off');
-        }
-      }
+      if (lastEl) lastEl.textContent = tc.notification_last_sent || '';
+
+      // make sure temp card height matches tilt cards (squeeze)
+      matchTempCardHeightToTilts();
     }
 
     (function startPolling() {
+      document.addEventListener('DOMContentLoaded', matchTempCardHeightToTilts);
       pollLiveSnapshot();
       setInterval(pollLiveSnapshot, typeof refreshInterval === 'number' ? refreshInterval : 5000);
+      // also re-check size on window resize
+      window.addEventListener('resize', function(){ setTimeout(matchTempCardHeightToTilts, 120); });
     })();
   </script>
 </body>
 </html>
-

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fermenter - Chart (Plotly)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    /* Page container tightness for chart pages */
+    .chart-page {
+      max-width: 1200px;
+      margin: 14px auto;
+      padding: 12px;
+      box-sizing: border-box;
+    }
+
+    /* Minor local tweaks so the chart box looks clear */
+    #chart-wrapper {
+      width:100%;
+      margin-top:8px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+      padding: 12px;
+      box-sizing: border-box;
+    }
+    #chart {
+      width:100%;
+      height:520px;
+    }
+
+    /* Title area small tweak */
+    .chart-title-small {
+      font-size: 14px;
+      color: #444;
+      margin-left: 8px;
+    }
+
+    /* Small responsive adjustments */
+    @media (max-width:900px) {
+      #chart { height:420px; }
+    }
+    @media (max-width:600px) {
+      #chart { height:320px; }
+    }
+
+    /* Ensure controls look like the green ribbon and align properly if stylesheet not yet loaded */
+    .chart-page-header #controls select {
+      padding:6px;
+      border-radius:6px;
+      border:1px solid #cfe9d7;
+      background:#e9f7ee;
+      color:var(--ribbon-green, #0b8a2e);
+    }
+    .chart-page-header #controls #reload {
+      background: var(--ribbon-green, #0b8a2e);
+      color: #fff;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+  </style>
+
+  <!-- Plotly CDN -->
+  <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+</head>
+<body>
+  <div class="chart-page">
+
+    <!-- Header: uses class that styles.css knows about (.chart-page-header) -->
+    <header class="chart-page-header" style="margin-bottom:10px;">
+      <a class="back" href="/" style="padding:6px 10px; background:#eee; border-radius:6px; text-decoration:none; color:#222; font-weight:700;">← Back to Dashboard</a>
+
+      <div style="display:flex; align-items:center; gap:10px;">
+        <h4 id="title" style="margin:0; font-size:16px;">Tilt Chart</h4>
+        <div class="chart-title-small" id="meta"></div>
+      </div>
+
+      <div id="controls" aria-label="Chart controls">
+        <label for="limit" style="font-weight:600; color:var(--ribbon-green); margin-right:6px;">Points:</label>
+        <select id="limit" aria-label="Points to fetch">
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+          <option value="250">250</option>
+          <option value="500">500</option>
+        </select>
+
+        <button id="reload" aria-label="Reload chart" style="margin-left:12px;">Reload</button>
+
+        <span id="status" style="color:#666; font-size:13px; margin-left:10px;">Loading…</span>
+      </div>
+    </header>
+
+    <div id="chart-wrapper">
+      <div id="chart" role="img" aria-label="Temperature and Gravity chart"></div>
+    </div>
+  </div>
+
+  <!-- expose server tilt_color, brewName and brewId to JS before loading the script -->
+  <script>
+    // Template variables inserted by Flask:
+    // - tilt_color: the tilt color token (e.g. "Blue")
+    // - brew_name: human readable brew name (title)
+    // - brewid: the brew id used for per-batch files (short hex)
+    window.tiltColor = "{{ tilt_color }}";
+    window.brewName = "{{ brew_name | e }}";
+    window.brewId = "{{ brewid | default('') | e }}";
+  </script>
+
+  <script src="/static/js/chart_plotly.v2.js"></script>
+</body>
+</html>

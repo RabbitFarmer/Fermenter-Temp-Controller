@@ -1187,7 +1187,355 @@ def batch_settings():
         batch_history=batch_history
     )
 
-# (rest of routes unchanged...)
+@app.route('/temp_config')
+def temp_config():
+    report_colors = list(tilt_cfg.keys())
+    return render_template('temp_control_config.html',
+        temp_control=temp_cfg,
+        tilt_cfg=tilt_cfg,
+        system_settings=system_cfg,
+        batch_cfg=tilt_cfg,
+        report_colors=report_colors
+    )
+
+
+@app.route('/update_temp_config', methods=['POST'])
+def update_temp_config():
+    data = request.form
+    old_warnings = temp_cfg.get('warnings_mode', 'NONE')
+    try:
+        temp_cfg.update({
+            "tilt_color": data.get('tilt_color', ''),
+            "low_limit": float(data.get('low_limit', 0)),
+            "high_limit": float(data.get('high_limit', 100)),
+            "enable_heating": 'enable_heating' in data,
+            "enable_cooling": 'enable_cooling' in data,
+            "heating_plug": data.get("heating_plug", ""),
+            "cooling_plug": data.get("cooling_plug", ""),
+            "current_temp": float(data.get('current_temp', 0.0)) if data.get('current_temp') else None,
+            "mode": data.get("mode", temp_cfg.get('mode','')),
+            "status": data.get("status", temp_cfg.get('status','')),
+            "warnings_mode": data.get("warnings_mode", temp_cfg.get('warnings_mode','NONE'))
+        })
+    except Exception as e:
+        print(f"[LOG] Error parsing temp config form: {e}")
+    try:
+        save_json(TEMP_CFG_FILE, temp_cfg)
+    except Exception as e:
+        print(f"[LOG] Error saving config in update_temp_config: {e}")
+
+
+    # Persist tilt logging interval if provided in temp config UI
+    try:
+        tilt_interval_min = data.get('tilt_logging_interval_minutes')
+        if tilt_interval_min:
+            system_cfg['tilt_logging_interval_minutes'] = int(tilt_interval_min)
+            save_json(SYSTEM_CFG_FILE, system_cfg)
+    except Exception:
+        pass
+
+
+    new_warnings = temp_cfg.get('warnings_mode', 'NONE')
+    if old_warnings.upper() == 'NONE' and new_warnings.upper() in ('EMAIL','SMS','BOTH'):
+        temp_cfg['notifications_trigger'] = False
+        temp_cfg['notification_comm_failure'] = False
+    if new_warnings.upper() == 'NONE':
+        temp_cfg['notifications_trigger'] = False
+        temp_cfg['notification_comm_failure'] = False
+
+
+    # Run control logic immediately (it will normalize mode/status and log selection change if any)
+    temperature_control_logic()
+
+
+    # If immediate action required, call controls (they will be logged on confirmation)
+    try:
+        cur = temp_cfg.get("current_temp")
+        if temp_cfg.get("enable_heating") and cur is not None and cur < temp_cfg.get("low_limit", 0):
+            control_heating("on")
+        if temp_cfg.get("enable_cooling") and cur is not None and cur > temp_cfg.get("high_limit", 999):
+            control_cooling("on")
+    except Exception:
+        pass
+
+
+    return redirect('/temp_config')
+
+
+@app.route('/temp_report', methods=['GET', 'POST'])
+def temp_report():
+    if request.method == 'POST':
+        color = request.form.get('tilt_color')
+        if not color:
+            return redirect('/temp_report')
+        return redirect(f"/temp_report?tilt_color={color}&page=1")
+
+
+    tilt_color = request.args.get('tilt_color')
+    try:
+        page = int(request.args.get('page', '1'))
+    except Exception:
+        page = 1
+
+
+    if not tilt_color:
+        colors = list(tilt_cfg.keys())
+        default_color = colors[0] if colors else None
+        return render_template('temp_report_select.html', colors=colors, default_color=default_color)
+
+
+    entries = []
+    try:
+        if os.path.exists(LOG_PATH):
+            with open(LOG_PATH, 'r') as f:
+                for line in f:
+                    try:
+                        obj = json.loads(line)
+                    except Exception:
+                        continue
+                    if obj.get('event') != 'tilt_reading' and obj.get('event') != 'SAMPLE':
+                        continue
+                    payload = obj.get('payload') or obj if isinstance(obj, dict) else {}
+                    entries.append(payload)
+    except Exception as e:
+        print(f"[LOG] Could not read log for temp_report: {e}")
+
+
+    filtered = []
+    brewid = tilt_cfg.get(tilt_color, {}).get('brewid')
+    tc = tilt_cfg.get(tilt_color, {}) or {}
+    for p in entries:
+        if brewid:
+            if p.get('brewid') == brewid:
+                filtered.append(p)
+        else:
+            if p.get('batch_name') == tc.get('batch_name') or p.get('beer_name') == tc.get('beer_name'):
+                filtered.append(p)
+
+
+    lines = []
+    filtered = list(reversed(filtered))
+    for p in filtered:
+        ts = p.get('timestamp', '')
+        bn = p.get('beer_name') or ''
+        batch = p.get('batch_name') or ''
+        tempf = p.get('temp_f', '')
+        grav = p.get('gravity', '')
+        bid = p.get('brewid') or '--'
+        lines.append(f"{ts} — {bn or batch} — Temp: {tempf}°F — Gravity: {grav} — Brew ID: {bid}")
+
+
+    total_pages = max(1, ceil(len(lines) / PER_PAGE))
+    page = max(1, min(page, total_pages))
+    start = (page - 1) * PER_PAGE
+    end = start + PER_PAGE
+    page_data = lines[start:end]
+    at_end = page >= total_pages
+
+
+    return render_template('temp_report_display.html',
+                           color=tilt_color,
+                           page=page,
+                           total_pages=total_pages,
+                           page_data=page_data,
+                           at_end=at_end)
+
+
+@app.route('/export_temp_log', methods=['GET', 'POST'])
+def export_temp_log():
+    return redirect('/temp_config')
+
+
+@app.route('/export_temp_csv', methods=['GET', 'POST'])
+def export_temp_csv():
+    return redirect('/temp_config')
+
+
+@app.route('/scan_kasa_plugs')
+def scan_kasa_plugs():
+    try:
+        from kasa import Discover
+        found_devices = asyncio.run(Discover.discover())
+        devices = {str(addr): dev.alias for addr, dev in found_devices.items()}
+    except Exception as e:
+        devices = {}
+        print(f"[LOG] Kasa scan failed: {e}")
+    return render_template("kasa_scan_results.html", devices=devices, error=None)
+
+
+@app.route('/live_snapshot')
+def live_snapshot():
+    snapshot = {
+        "live_tilts": {},
+        "temp_control": {
+            "current_temp": temp_cfg.get("current_temp"),
+            "low_limit": temp_cfg.get("low_limit"),
+            "high_limit": temp_cfg.get("high_limit"),
+            "heater_on": temp_cfg.get("heater_on"),
+            "cooler_on": temp_cfg.get("cooler_on"),
+            "heater_pending": temp_cfg.get("heater_pending"),
+            "cooler_pending": temp_cfg.get("cooler_pending"),
+            "enable_heating": temp_cfg.get("enable_heating"),
+            "enable_cooling": temp_cfg.get("enable_cooling"),
+            "status": temp_cfg.get("status"),
+            "mode": temp_cfg.get("mode", 'Off'),
+            "warnings_mode": temp_cfg.get('warnings_mode'),
+            "notifications_trigger": temp_cfg.get('notifications_trigger'),
+            "notification_comm_failure": temp_cfg.get('notification_comm_failure')
+        }
+    }
+    for color, info in live_tilts.items():
+        snapshot["live_tilts"][color] = {
+            "gravity": info.get("gravity"),
+            "temp_f": info.get("temp_f"),
+            "timestamp": info.get("timestamp"),
+            "beer_name": info.get("beer_name"),
+            "batch_name": info.get("batch_name"),
+            "brewid": info.get("brewid"),
+            "recipe_og": info.get("recipe_og"),
+            "recipe_fg": info.get("recipe_fg"),
+            "recipe_abv": info.get("recipe_abv"),
+            "actual_og": info.get("actual_og"),
+            "og_confirmed": info.get("og_confirmed", False),
+            "original_gravity": info.get("original_gravity"),
+            "color_code": info.get("color_code")
+        }
+    return jsonify(snapshot)
+
+
+# --- Chart routes and data endpoint ---------------------------------------
+@app.route('/chart_plotly')
+def chart_plotly_index():
+    colors = list(tilt_cfg.keys())
+    if colors:
+        return redirect(f'/chart_plotly/{colors[0]}')
+    return render_template('chart_plotly.html', tilt_color=None, system_settings=system_cfg)
+
+
+@app.route('/chart_plotly/<tilt_color>')
+def chart_plotly_for(tilt_color):
+    if tilt_color and tilt_color not in tilt_cfg:
+        abort(404)
+    return render_template(
+        'chart_plotly.html',
+        tilt_color=tilt_color,
+        tilt_cfg=tilt_cfg,
+        system_settings=system_cfg
+    )
+
+@app.route('/chart_data/<tilt_color>')
+def chart_data_for(tilt_color):
+    all_flag = str(request.args.get('all', '')).lower() in ('1', 'true', 'yes', 'on')
+    limit_param = request.args.get('limit', None)
+    limit = None
+    if limit_param:
+        try:
+            limit = int(limit_param)
+        except Exception:
+            limit = None
+    if not all_flag and (limit is None or limit <= 0):
+        limit = DEFAULT_CHART_LIMIT
+    if not all_flag and limit is not None:
+        limit = max(10, min(limit, MAX_CHART_LIMIT))
+
+
+    if tilt_color and tilt_color not in tilt_cfg:
+        return jsonify({"tilt_color": tilt_color, "points": [], "truncated": False, "matched": 0})
+
+
+    brewid = tilt_cfg.get(tilt_color, {}).get('brewid')
+
+
+    points = deque(maxlen=limit) if (not all_flag and limit is not None) else []
+    matched = 0
+
+
+    if os.path.exists(LOG_PATH):
+        try:
+            with open(LOG_PATH, 'r') as f:
+                for line in f:
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                    except Exception:
+                        continue
+                    if obj.get('event') != 'tilt_reading' and obj.get('event') != 'SAMPLE':
+                        continue
+                    payload = obj.get('payload') or obj or {}
+                    if brewid:
+                        if payload.get('brewid') != brewid:
+                            # if payload doesn't contain brewid but contains tilt_color, try matching that
+                            if payload.get('tilt_color') and payload.get('tilt_color') != tilt_color:
+                                continue
+                        # else matched by brewid
+                    matched += 1
+                    ts = payload.get('timestamp')
+                    tf = payload.get('temp_f') or payload.get('current_temp')
+                    g = payload.get('gravity')
+                    try:
+                        ts_str = str(ts) if ts is not None else None
+                    except Exception:
+                        ts_str = None
+                    try:
+                        temp_num = float(tf) if (tf is not None and tf != '') else None
+                    except Exception:
+                        temp_num = None
+                    try:
+                        grav_num = float(g) if (g is not None and g != '') else None
+                    except Exception:
+                        grav_num = None
+                    entry = {"timestamp": ts_str, "temp_f": temp_num, "gravity": grav_num}
+                    if isinstance(points, deque):
+                        points.append(entry)
+                    else:
+                        points.append(entry)
+                        if len(points) > MAX_ALL_LIMIT:
+                            points.pop(0)
+        except Exception as e:
+            print(f"[LOG] Error reading log for chart_data: {e}")
+
+
+    if isinstance(points, deque):
+        pts = list(points)
+        truncated = (matched > len(pts))
+    else:
+        pts = list(points)
+        truncated = (matched > len(pts))
+    return jsonify({"tilt_color": tilt_color, "points": pts, "truncated": truncated, "matched": matched})
+
+
+# --- Reset logs endpoint ---------------------------------------------------
+@app.route('/reset_logs', methods=['POST'])
+def reset_logs():
+    """
+    Reset (clear) the main temp_control_log.jsonl file after backing it up.
+    """
+    try:
+        if os.path.exists(LOG_PATH):
+            backup_name = f"{LOG_PATH}.{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}.bak"
+            try:
+                os.rename(LOG_PATH, backup_name)
+                append_control_log("temp_control_mode_changed", {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
+            except Exception as e:
+                print(f"[LOG] Could not backup log: {e}")
+        open(LOG_PATH, 'w').close()
+        return redirect('/temp_config')
+    except Exception as e:
+        print(f"[LOG] reset_logs error: {e}")
+        return "Error resetting logs", 500
+
+
+# --- Misc UI routes -------------------------------------------------------
+@app.route('/export_temp_csv')
+def export_temp_csv_get():
+    return redirect('/temp_config')
+
+
+@app.route('/exit_system')
+def exit_system():
+    return redirect('/')
+
 
 # --- Program entry ---------------------------------------------------------
 if __name__ == '__main__':
@@ -1196,5 +1544,7 @@ if __name__ == '__main__':
     except Exception:
         pass
 
+
+    # Run the Flask app
     app.run(host='0.0.0.0', port=5000, debug=True)
 
