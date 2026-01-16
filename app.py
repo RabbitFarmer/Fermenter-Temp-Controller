@@ -1020,6 +1020,8 @@ def update_system_config():
         "timezone": data.get("timezone", ""),
         "timestamp_format": data.get("timestamp_format", ""),
         "update_interval": data.get("update_interval", "1"),
+        "tilt_reading_interval": data.get("tilt_reading_interval", system_cfg.get('tilt_reading_interval', 15)),
+        "temp_logging_interval": data.get("temp_logging_interval", system_cfg.get('temp_logging_interval', 10)),
         "external_refresh_rate": data.get("external_refresh_rate", "0"),
         "external_name_0": data.get("external_name_0", system_cfg.get('external_name_0','')),
         "external_url_0": data.get("external_url_0", system_cfg.get('external_url_0','')),
