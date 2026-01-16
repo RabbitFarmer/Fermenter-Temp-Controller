@@ -17,14 +17,14 @@
   "external_name_2": "",
   "external_url_2": "",
   "warning_mode": "NONE",
-  "tilt_reading_interval": 15,
-  "temp_logging_interval": 10,
+  "tilt_reading_interval": "15",
+  "temp_logging_interval": "10",
   "sms_gateway_domain": "",
   "external_method": "POST",
   "external_content_type": "form",
   "external_timeout_seconds": "8",
   "external_field_map": "",
   "kasa_rate_limit_seconds": "10",
-  "tilt_logging_interval_minutes": 15
-
+  "tilt_logging_interval_minutes": 15,
+  "sending_email": "fermenter@example.com"
 }
