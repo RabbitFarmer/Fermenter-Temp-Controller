@@ -26,5 +26,23 @@
   "external_field_map": "",
   "kasa_rate_limit_seconds": "10",
   "tilt_logging_interval_minutes": 15,
-  "sending_email": "fermenter@example.com"
+  "sending_email": "fermenter@example.com",
+  "temp_control_notifications": {
+    "enable_temp_below_low_limit": true,
+    "enable_temp_above_high_limit": true,
+    "enable_heating_on": false,
+    "enable_heating_off": false,
+    "enable_cooling_on": false,
+    "enable_cooling_off": false
+  },
+  "batch_notifications": {
+    "enable_loss_of_signal": true,
+    "loss_of_signal_timeout_minutes": 30,
+    "enable_fermentation_starting": true,
+    "enable_daily_report": true,
+    "daily_report_time": "09:00"
+  },
+  "smtp_host": "smtp.gmail.com",
+  "smtp_port": 587,
+  "smtp_starttls": true
 }

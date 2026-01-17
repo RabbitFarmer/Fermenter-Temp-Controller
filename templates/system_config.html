@@ -137,6 +137,18 @@
             <td><input type="password" name="sending_email_password" id="sending_email_password" placeholder="Enter password"></td>
           </tr>
           <tr>
+            <td><label for="smtp_host"><b>SMTP Server Host</b></label></td>
+            <td><input type="text" name="smtp_host" id="smtp_host" value="{{ system_settings.get('smtp_host', 'smtp.gmail.com') }}" placeholder="e.g., smtp.gmail.com"></td>
+          </tr>
+          <tr>
+            <td><label for="smtp_port"><b>SMTP Server Port</b></label></td>
+            <td><input type="number" name="smtp_port" id="smtp_port" value="{{ system_settings.get('smtp_port', 587) }}"></td>
+          </tr>
+          <tr>
+            <td><label for="smtp_starttls"><b>Use STARTTLS</b></label></td>
+            <td><input type="checkbox" name="smtp_starttls" id="smtp_starttls" {% if system_settings.get('smtp_starttls', True) %}checked{% endif %}></td>
+          </tr>
+          <tr>
             <td><label for="warning_mode"><b>Messaging Options</b></label></td>
             <td>
               <select name="warning_mode" id="warning_mode">
@@ -154,6 +166,72 @@
           <tr>
             <td><label for="mobile"><b>Recipient Cell Phone Number</b></label></td>
             <td><input type="text" name="mobile" id="mobile" value="{{ system_settings.get('mobile','') }}"></td>
+          </tr>
+          <tr>
+            <td><label for="sms_gateway_domain"><b>SMS Gateway Domain</b></label></td>
+            <td><input type="text" name="sms_gateway_domain" id="sms_gateway_domain" value="{{ system_settings.get('sms_gateway_domain','') }}" placeholder="e.g., txt.att.net"></td>
+          </tr>
+        </table>
+
+        <h3 style="text-align: center; margin-top: 30px;">Temperature Control Notifications</h3>
+        <table class="config-table" style="width: 60%; margin: auto;">
+          <tr>
+            <td colspan="2" style="text-align: center; font-style: italic; padding: 10px;">
+              Select which temperature control events should trigger notifications
+            </td>
+          </tr>
+          <tr>
+            <td><label for="enable_temp_below_low_limit"><b>Temperature Below Low Limit</b></label></td>
+            <td><input type="checkbox" name="enable_temp_below_low_limit" id="enable_temp_below_low_limit" {% if system_settings.get('temp_control_notifications', {}).get('enable_temp_below_low_limit', True) %}checked{% endif %}></td>
+          </tr>
+          <tr>
+            <td><label for="enable_temp_above_high_limit"><b>Temperature Above High Limit</b></label></td>
+            <td><input type="checkbox" name="enable_temp_above_high_limit" id="enable_temp_above_high_limit" {% if system_settings.get('temp_control_notifications', {}).get('enable_temp_above_high_limit', True) %}checked{% endif %}></td>
+          </tr>
+          <tr>
+            <td><label for="enable_heating_on"><b>Heating Turned On</b></label></td>
+            <td><input type="checkbox" name="enable_heating_on" id="enable_heating_on" {% if system_settings.get('temp_control_notifications', {}).get('enable_heating_on', False) %}checked{% endif %}></td>
+          </tr>
+          <tr>
+            <td><label for="enable_heating_off"><b>Heating Turned Off</b></label></td>
+            <td><input type="checkbox" name="enable_heating_off" id="enable_heating_off" {% if system_settings.get('temp_control_notifications', {}).get('enable_heating_off', False) %}checked{% endif %}></td>
+          </tr>
+          <tr>
+            <td><label for="enable_cooling_on"><b>Cooling Turned On</b></label></td>
+            <td><input type="checkbox" name="enable_cooling_on" id="enable_cooling_on" {% if system_settings.get('temp_control_notifications', {}).get('enable_cooling_on', False) %}checked{% endif %}></td>
+          </tr>
+          <tr>
+            <td><label for="enable_cooling_off"><b>Cooling Turned Off</b></label></td>
+            <td><input type="checkbox" name="enable_cooling_off" id="enable_cooling_off" {% if system_settings.get('temp_control_notifications', {}).get('enable_cooling_off', False) %}checked{% endif %}></td>
+          </tr>
+        </table>
+
+        <h3 style="text-align: center; margin-top: 30px;">Batch Notifications</h3>
+        <table class="config-table" style="width: 60%; margin: auto;">
+          <tr>
+            <td colspan="2" style="text-align: center; font-style: italic; padding: 10px;">
+              System-wide settings that apply to each active tilt
+            </td>
+          </tr>
+          <tr>
+            <td><label for="enable_loss_of_signal"><b>Loss of Signal Alert</b></label></td>
+            <td><input type="checkbox" name="enable_loss_of_signal" id="enable_loss_of_signal" {% if system_settings.get('batch_notifications', {}).get('enable_loss_of_signal', True) %}checked{% endif %}></td>
+          </tr>
+          <tr>
+            <td><label for="loss_of_signal_timeout_minutes"><b>Loss of Signal Timeout (minutes)</b></label></td>
+            <td><input type="number" name="loss_of_signal_timeout_minutes" id="loss_of_signal_timeout_minutes" value="{{ system_settings.get('batch_notifications', {}).get('loss_of_signal_timeout_minutes', 30) }}" min="1"></td>
+          </tr>
+          <tr>
+            <td><label for="enable_fermentation_starting"><b>Fermentation Starting Alert</b></label></td>
+            <td><input type="checkbox" name="enable_fermentation_starting" id="enable_fermentation_starting" {% if system_settings.get('batch_notifications', {}).get('enable_fermentation_starting', True) %}checked{% endif %}></td>
+          </tr>
+          <tr>
+            <td><label for="enable_daily_report"><b>Daily Progress Report</b></label></td>
+            <td><input type="checkbox" name="enable_daily_report" id="enable_daily_report" {% if system_settings.get('batch_notifications', {}).get('enable_daily_report', True) %}checked{% endif %}></td>
+          </tr>
+          <tr>
+            <td><label for="daily_report_time"><b>Daily Report Time (HH:MM, 24-hour format)</b></label></td>
+            <td><input type="time" name="daily_report_time" id="daily_report_time" value="{{ system_settings.get('batch_notifications', {}).get('daily_report_time', '09:00') }}"></td>
           </tr>
         </table>
 
