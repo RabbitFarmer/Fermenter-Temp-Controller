@@ -418,55 +418,6 @@ def update_live_tilt(color, gravity, temp_f, rssi):
         "original_gravity": cfg.get("actual_og", 0),
     }
 
-def log_tilt_reading(color, gravity, temp_f, rssi):
-    """
-    Log tilt readings to batch JSONL files according to the configured interval.
-    Only logs if enough time has elapsed since the last log for this tilt.
-    """
-    now = datetime.utcnow()
-    cfg = tilt_cfg.get(color, {})
-    brewid = cfg.get("brewid")
-    
-    # Don't log if no brewid is configured (batch not started)
-    if not brewid:
-        return
-    
-    # Get logging interval in minutes from system config
-    try:
-        interval_minutes = int(system_cfg.get("tilt_logging_interval_minutes", 15))
-    except Exception:
-        interval_minutes = 15
-    
-    # Check if enough time has elapsed since last log
-    last_log_key = f"{color}_{brewid}"
-    last_log = last_tilt_log_ts.get(last_log_key)
-    
-    if last_log:
-        elapsed_minutes = (now - last_log).total_seconds() / 60.0
-        if elapsed_minutes < interval_minutes:
-            return  # Not enough time has passed
-    
-    # Create sample payload
-    sample_payload = {
-        "timestamp": now.replace(microsecond=0).isoformat() + "Z",
-        "tilt_color": color,
-        "gravity": round(gravity, 3) if gravity is not None else None,
-        "temp_f": temp_f,
-        "rssi": rssi,
-        "brewid": brewid,
-        "beer_name": cfg.get("beer_name", ""),
-        "batch_name": cfg.get("batch_name", "")
-    }
-    
-    # Get start date for filename
-    start_date = cfg.get("ferm_start_date", "")
-    
-    # Append to batch JSONL
-    if append_sample_to_batch_jsonl(color, brewid, sample_payload, created_date_mmddyyyy=start_date):
-        last_tilt_log_ts[last_log_key] = now
-        # Also forward to third party if configured
-        forward_to_third_party_if_configured(sample_payload)
-
 def get_current_temp_for_control_tilt():
     color = temp_cfg.get("tilt_color")
     if color and color in live_tilts:
