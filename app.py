@@ -76,6 +76,7 @@ SYSTEM_CFG_FILE = 'system_config.json'
 DEFAULT_CHART_LIMIT = 500
 MAX_CHART_LIMIT = 2000
 MAX_ALL_LIMIT = 10000
+MAX_FILENAME_LENGTH = 50
 
 # --- Stop other app.py processes on startup --------------------------------
 def stop_other_app_py():
@@ -181,8 +182,10 @@ ALLOWED_EVENTS = {
     "cooling_off": "COOLING-PLUG TURNED OFF",
     "temp_below_low_limit": "TEMP BELOW LOW LIMIT",
     "temp_above_high_limit": "TEMP ABOVE HIGH LIMIT",
+    "temp_in_range": "IN RANGE",
     "temp_control_mode": "MODE_SELECTED",
     "temp_control_mode_changed": "MODE_CHANGED",
+    "temp_control_started": "TEMP CONTROL STARTED",
 }
 
 def _format_control_log_entry(event_type, payload):
@@ -315,10 +318,14 @@ def ensure_temp_defaults():
     temp_cfg.setdefault("last_logged_high_limit", temp_cfg.get("high_limit"))
     temp_cfg.setdefault("last_logged_enable_heating", temp_cfg.get("enable_heating"))
     temp_cfg.setdefault("last_logged_enable_cooling", temp_cfg.get("enable_cooling"))
-    temp_cfg.setdefault("below_limit_logged", False)
-    temp_cfg.setdefault("above_limit_logged", False)
     # New flag to turn on/off the entire temp-control UI and behavior:
     temp_cfg.setdefault("temp_control_enabled", True)
+    # New flag to control active monitoring/recording (user-controlled switch):
+    temp_cfg.setdefault("temp_control_active", False)
+    # Trigger states for event-based logging:
+    temp_cfg.setdefault("in_range_trigger_armed", True)
+    temp_cfg.setdefault("above_limit_trigger_armed", True)
+    temp_cfg.setdefault("below_limit_trigger_armed", True)
 
 ensure_temp_defaults()
 
@@ -405,6 +412,55 @@ def update_live_tilt(color, gravity, temp_f, rssi):
         "og_confirmed": cfg.get("og_confirmed", False),
         "original_gravity": cfg.get("actual_og", 0),
     }
+
+def log_tilt_reading(color, gravity, temp_f, rssi):
+    """
+    Log tilt readings to batch JSONL files according to the configured interval.
+    Only logs if enough time has elapsed since the last log for this tilt.
+    """
+    now = datetime.utcnow()
+    cfg = tilt_cfg.get(color, {})
+    brewid = cfg.get("brewid")
+    
+    # Don't log if no brewid is configured (batch not started)
+    if not brewid:
+        return
+    
+    # Get logging interval in minutes from system config
+    try:
+        interval_minutes = int(system_cfg.get("tilt_logging_interval_minutes", 15))
+    except Exception:
+        interval_minutes = 15
+    
+    # Check if enough time has elapsed since last log
+    last_log_key = f"{color}_{brewid}"
+    last_log = last_tilt_log_ts.get(last_log_key)
+    
+    if last_log:
+        elapsed_minutes = (now - last_log).total_seconds() / 60.0
+        if elapsed_minutes < interval_minutes:
+            return  # Not enough time has passed
+    
+    # Create sample payload
+    sample_payload = {
+        "timestamp": now.replace(microsecond=0).isoformat() + "Z",
+        "tilt_color": color,
+        "gravity": round(gravity, 3) if gravity is not None else None,
+        "temp_f": temp_f,
+        "rssi": rssi,
+        "brewid": brewid,
+        "beer_name": cfg.get("beer_name", ""),
+        "batch_name": cfg.get("batch_name", "")
+    }
+    
+    # Get start date for filename
+    start_date = cfg.get("ferm_start_date", "")
+    
+    # Append to batch JSONL
+    if append_sample_to_batch_jsonl(color, brewid, sample_payload, created_date_mmddyyyy=start_date):
+        last_tilt_log_ts[last_log_key] = now
+        # Also forward to third party if configured
+        forward_to_third_party_if_configured(sample_payload)
 
 def get_current_temp_for_control_tilt():
     color = temp_cfg.get("tilt_color")
@@ -563,29 +619,92 @@ def normalize_to_mmddyyyy(date_str):
     except Exception:
         return datetime.utcnow().strftime("%m%d%Y")
 
-def batch_jsonl_filename(color, brewid, created_date_mmddyyyy=None):
+def normalize_to_yyyymmdd(date_str):
+    """Convert various date formats to YYYYmmdd format."""
+    if not date_str:
+        return datetime.utcnow().strftime("%Y%m%d")
+    for fmt in ("%m-%d-%Y", "%m/%d/%Y", "%Y-%m-%d", "%Y/%m/%d", "%m%d%Y", "%Y%m%d"):
+        try:
+            dt = datetime.strptime(date_str, fmt)
+            return dt.strftime("%Y%m%d")
+        except Exception:
+            continue
+    try:
+        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        return dt.strftime("%Y%m%d")
+    except Exception:
+        return datetime.utcnow().strftime("%Y%m%d")
+
+def sanitize_filename(name):
+    """Sanitize a string for use in a filename."""
+    # Replace invalid characters with underscore
+    invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\n', '\r', '\t']
+    result = name
+    for char in invalid_chars:
+        result = result.replace(char, '_')
+    # Also replace spaces and remove control characters
+    result = result.replace(' ', '_')
+    # Remove ASCII control characters (0-31)
+    result = ''.join(c if ord(c) >= 32 else '_' for c in result)
+    # Limit length to avoid overly long filenames
+    return result[:MAX_FILENAME_LENGTH]
+
+def batch_jsonl_filename(color, brewid, created_date_mmddyyyy=None, beer_name=None, batch_name=None):
+    """Generate batch JSONL filename in format: brewname_YYYYmmdd_brewid.jsonl"""
     ensure_batches_dir()
     bid = (brewid or "unknown")
-    fname = f"{bid}.jsonl"
+    
+    # Get beer_name from tilt config if not provided
+    if beer_name is None:
+        cfg = tilt_cfg.get(color, {})
+        beer_name = cfg.get("beer_name", "")
+    
+    # Create filename with brew name, date, and brewid
+    if beer_name:
+        safe_beer_name = sanitize_filename(beer_name)
+    else:
+        safe_beer_name = "Batch"
+    
+    # Convert date to YYYYmmdd format
+    if created_date_mmddyyyy:
+        date_yyyymmdd = normalize_to_yyyymmdd(created_date_mmddyyyy)
+    else:
+        date_yyyymmdd = datetime.utcnow().strftime("%Y%m%d")
+    
+    fname = f"{safe_beer_name}_{date_yyyymmdd}_{bid}.jsonl"
     return os.path.join(BATCHES_DIR, fname)
 
 def ensure_batch_jsonl_exists(color, brewid, meta=None, created_date_mmddyyyy=None):
-    path = batch_jsonl_filename(color, brewid, created_date_mmddyyyy=created_date_mmddyyyy)
+    beer_name = None
+    if meta and isinstance(meta, dict):
+        beer_name = meta.get("beer_name", "")
+    if not beer_name:
+        cfg = tilt_cfg.get(color, {})
+        beer_name = cfg.get("beer_name", "")
+    
+    path = batch_jsonl_filename(color, brewid, created_date_mmddyyyy=created_date_mmddyyyy, beer_name=beer_name)
     if not os.path.exists(path):
-        # Try to migrate legacy file
+        # Try to migrate legacy files (both old formats)
         try:
-            legacy_pattern = f"batch_{(color or '').upper()}_{brewid}_"
+            # Try pattern 1: batch_{COLOR}_{brewid}_
+            legacy_pattern1 = f"batch_{(color or '').upper()}_{brewid}_"
+            # Try pattern 2: {brewid}.jsonl
+            legacy_pattern2 = f"{brewid}.jsonl"
+            
+            migrated = False
             for fn in os.listdir(BATCHES_DIR):
-                if fn.startswith(legacy_pattern):
+                if migrated:
+                    break
+                if fn.startswith(legacy_pattern1) or fn == legacy_pattern2:
                     legacy_path = os.path.join(BATCHES_DIR, fn)
                     try:
                         os.rename(legacy_path, path)
                         print(f"[MIGRATE] Renamed legacy {legacy_path} -> {path}")
-                        break
+                        migrated = True
                     except Exception as e:
                         print(f"[MIGRATE] Could not rename {legacy_path} -> {path}: {e}")
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[MIGRATE] Migration scan failed: {e}")
         try:
             header = {
                 "event": "batch_metadata",
@@ -603,10 +722,12 @@ def ensure_batch_jsonl_exists(color, brewid, meta=None, created_date_mmddyyyy=No
     return path
 
 def append_sample_to_batch_jsonl(color, brewid, sample_payload, created_date_mmddyyyy=None):
-    path = batch_jsonl_filename(color, brewid, created_date_mmddyyyy=created_date_mmddyyyy)
+    cfg = tilt_cfg.get(color, {})
+    beer_name = cfg.get("beer_name", "")
+    path = batch_jsonl_filename(color, brewid, created_date_mmddyyyy=created_date_mmddyyyy, beer_name=beer_name)
     try:
         if not os.path.exists(path):
-            ensure_batch_jsonl_exists(color, brewid, meta={"beer_name": "", "batch_name": ""}, created_date_mmddyyyy=created_date_mmddyyyy)
+            ensure_batch_jsonl_exists(color, brewid, meta={"beer_name": beer_name, "batch_name": cfg.get("batch_name", "")}, created_date_mmddyyyy=created_date_mmddyyyy)
         entry = {"event": "sample", "payload": sample_payload}
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
@@ -924,6 +1045,9 @@ def temperature_control_logic():
 
     low = temp_cfg.get("low_limit")
     high = temp_cfg.get("high_limit")
+    
+    # Check if temp control monitoring is active
+    is_monitoring_active = bool(temp_cfg.get("temp_control_active"))
 
     if not temp_cfg.get("control_initialized"):
         if enable_heat or enable_cool:
@@ -966,27 +1090,40 @@ def temperature_control_logic():
     if enable_heat and temp < low:
         control_heating("on")
         current_action = "Heating"
-        if not temp_cfg.get("below_limit_logged"):
+        # Log with trigger when temp goes below low limit
+        if temp_cfg.get("below_limit_trigger_armed") and is_monitoring_active:
             append_control_log("temp_below_low_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
-            temp_cfg["below_limit_logged"] = True
+            temp_cfg["below_limit_trigger_armed"] = False
+            temp_cfg["above_limit_trigger_armed"] = False  # Ensure above is disarmed
     else:
         control_heating("off")
 
     if enable_cool and temp > high:
         control_cooling("on")
         current_action = "Cooling"
-        if not temp_cfg.get("above_limit_logged"):
+        # Log with trigger when temp goes above high limit
+        if temp_cfg.get("above_limit_trigger_armed") and is_monitoring_active:
             append_control_log("temp_above_high_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
-            temp_cfg["above_limit_logged"] = True
+            temp_cfg["above_limit_trigger_armed"] = False
+            temp_cfg["below_limit_trigger_armed"] = False  # Ensure below is disarmed
     else:
         control_cooling("off")
 
     try:
         if isinstance(low, (int, float)) and isinstance(high, (int, float)) and (low <= temp <= high):
-            temp_cfg["below_limit_logged"] = False
-            temp_cfg["above_limit_logged"] = False
+            # Temperature is in range
+            # Log with trigger when entering range
+            if temp_cfg.get("in_range_trigger_armed") and is_monitoring_active:
+                append_control_log("temp_in_range", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
+                temp_cfg["in_range_trigger_armed"] = False
+            # Re-arm the out-of-range triggers when in range
+            temp_cfg["above_limit_trigger_armed"] = True
+            temp_cfg["below_limit_trigger_armed"] = True
             temp_cfg["status"] = "In Range"
             return
+        else:
+            # Temperature is out of range - re-arm in_range trigger
+            temp_cfg["in_range_trigger_armed"] = True
     except Exception:
         pass
 
@@ -1403,6 +1540,43 @@ def update_temp_config():
     return redirect('/temp_config')
 
 
+@app.route('/toggle_temp_control', methods=['POST'])
+def toggle_temp_control():
+    """Toggle the temp_control_active state (ON/OFF switch on temp control card)."""
+    try:
+        data = request.get_json() if request.is_json else request.form
+        # Standardize on boolean JSON values
+        active_value = data.get('active')
+        if isinstance(active_value, bool):
+            new_state = active_value
+        elif isinstance(active_value, str):
+            new_state = active_value.lower() in ('true', '1')
+        else:
+            new_state = bool(active_value)
+        
+        temp_cfg['temp_control_active'] = new_state
+        
+        if new_state:
+            # When turning ON, arm all triggers and log the start event
+            temp_cfg['in_range_trigger_armed'] = True
+            temp_cfg['above_limit_trigger_armed'] = True
+            temp_cfg['below_limit_trigger_armed'] = True
+            append_control_log("temp_control_started", {
+                "low_limit": temp_cfg.get("low_limit"),
+                "current_temp": temp_cfg.get("current_temp"),
+                "high_limit": temp_cfg.get("high_limit"),
+                "tilt_color": temp_cfg.get("tilt_color", "")
+            })
+        
+        # Save the state
+        save_json(TEMP_CFG_FILE, temp_cfg)
+        
+        return jsonify({"success": True, "active": new_state})
+    except Exception as e:
+        print(f"[LOG] Error toggling temp control: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route('/temp_report', methods=['GET', 'POST'])
 def temp_report():
     if request.method == 'POST':
@@ -1522,7 +1696,8 @@ def live_snapshot():
             "mode": temp_cfg.get("mode", 'Off'),
             "warnings_mode": temp_cfg.get('warnings_mode'),
             "notifications_trigger": temp_cfg.get('notifications_trigger'),
-            "notification_comm_failure": temp_cfg.get('notification_comm_failure')
+            "notification_comm_failure": temp_cfg.get('notification_comm_failure'),
+            "temp_control_active": temp_cfg.get('temp_control_active', False)
         }
     }
     for color, info in live_tilts.items():
@@ -1555,7 +1730,8 @@ def chart_plotly_index():
 
 @app.route('/chart_plotly/<tilt_color>')
 def chart_plotly_for(tilt_color):
-    if tilt_color and tilt_color not in tilt_cfg:
+    # Allow "Fermenter" as a special identifier for temperature control
+    if tilt_color and tilt_color != "Fermenter" and tilt_color not in tilt_cfg:
         abort(404)
     return render_template(
         'chart_plotly.html',
@@ -1579,7 +1755,63 @@ def chart_data_for(tilt_color):
     if not all_flag and limit is not None:
         limit = max(10, min(limit, MAX_CHART_LIMIT))
 
+    # Handle "Fermenter" as temperature control monitor data
+    if tilt_color == "Fermenter":
+        points = deque(maxlen=limit) if (not all_flag and limit is not None) else []
+        matched = 0
+        
+        if os.path.exists(LOG_PATH):
+            try:
+                with open(LOG_PATH, 'r') as f:
+                    for line in f:
+                        if not line:
+                            continue
+                        try:
+                            obj = json.loads(line)
+                        except Exception:
+                            continue
+                        # Include all temp control events
+                        event = obj.get('event', '')
+                        if event not in ALLOWED_EVENTS.values():
+                            continue
+                        
+                        matched += 1
+                        ts = obj.get('timestamp')
+                        tf = obj.get('temp_f') if obj.get('temp_f') is not None else obj.get('current_temp')
+                        g = obj.get('gravity')
+                        
+                        try:
+                            ts_str = str(ts) if ts is not None else None
+                        except Exception:
+                            ts_str = None
+                        try:
+                            temp_num = float(tf) if (tf is not None and tf != '') else None
+                        except Exception:
+                            temp_num = None
+                        try:
+                            grav_num = float(g) if (g is not None and g != '') else None
+                        except Exception:
+                            grav_num = None
+                        
+                        entry = {"timestamp": ts_str, "temp_f": temp_num, "gravity": grav_num, "event": event}
+                        if isinstance(points, deque):
+                            points.append(entry)
+                        else:
+                            points.append(entry)
+                            if len(points) > MAX_ALL_LIMIT:
+                                points.pop(0)
+            except Exception as e:
+                print(f"[LOG] Error reading temp control log for chart_data: {e}")
+        
+        if isinstance(points, deque):
+            pts = list(points)
+            truncated = (matched > len(pts))
+        else:
+            pts = list(points)
+            truncated = (matched > len(pts))
+        return jsonify({"tilt_color": tilt_color, "points": pts, "truncated": truncated, "matched": matched})
 
+    # Original tilt color logic
     if tilt_color and tilt_color not in tilt_cfg:
         return jsonify({"tilt_color": tilt_color, "points": [], "truncated": False, "matched": 0})
 
@@ -1612,7 +1844,7 @@ def chart_data_for(tilt_color):
                         # else matched by brewid
                     matched += 1
                     ts = payload.get('timestamp')
-                    tf = payload.get('temp_f') or payload.get('current_temp')
+                    tf = payload.get('temp_f') if payload.get('temp_f') is not None else payload.get('current_temp')
                     g = payload.get('gravity')
                     try:
                         ts_str = str(ts) if ts is not None else None
