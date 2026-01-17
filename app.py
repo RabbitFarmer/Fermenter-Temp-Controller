@@ -1541,7 +1541,8 @@ def live_snapshot():
             "mode": temp_cfg.get("mode", 'Off'),
             "warnings_mode": temp_cfg.get('warnings_mode'),
             "notifications_trigger": temp_cfg.get('notifications_trigger'),
-            "notification_comm_failure": temp_cfg.get('notification_comm_failure')
+            "notification_comm_failure": temp_cfg.get('notification_comm_failure'),
+            "temp_control_active": temp_cfg.get('temp_control_active', False)
         }
     }
     for color, info in live_tilts.items():

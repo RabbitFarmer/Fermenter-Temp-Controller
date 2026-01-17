@@ -415,10 +415,16 @@
       const statusEl = document.getElementById('temp_control_status_top');
       const nowAction = document.getElementById('now_action');
       const lastEl = document.getElementById('temp_control_last');
+      const toggleSwitch = document.getElementById('temp_control_toggle');
 
       if (highBox) highBox.textContent = (tc.high_limit !== undefined && tc.high_limit !== null) ? tc.high_limit : '--';
       if (curBox) curBox.textContent = (tc.current_temp !== undefined && tc.current_temp !== null) ? tc.current_temp : '--';
       if (lowBox) lowBox.textContent = (tc.low_limit !== undefined && tc.low_limit !== null) ? tc.low_limit : '--';
+      
+      // Update toggle switch state from server
+      if (toggleSwitch && tc.temp_control_active !== undefined) {
+        toggleSwitch.checked = tc.temp_control_active;
+      }
 
       let tempToUse = null;
       if (tc.current_temp != null && !isNaN(Number(tc.current_temp))) {
