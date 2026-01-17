@@ -117,6 +117,51 @@
       text-decoration:none;
     }
 
+    /* Toggle switch styles */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .3s;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+    }
+    input:checked + .slider {
+      background-color: #4CAF50;
+    }
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+    .slider.round {
+      border-radius: 24px;
+    }
+    .slider.round:before {
+      border-radius: 50%;
+    }
+
     /* Prevent any global rule from accidentally disabling only this animation */
     .tc-now-action { -webkit-animation: none; animation: none; } /* reset then reapply below */
     .tc-now-action.pulse-heating { -webkit-animation: pulse-red 1.0s ease-in-out infinite; animation: pulse-red 1.0s ease-in-out infinite; }
@@ -191,7 +236,14 @@
               <div class="small-meta" id="temp_control_last">{{ temp_control.notification_last_sent or '' }}</div>
             </div>
 
-            <div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="display: flex; flex-direction: column; align-items: center;">
+                <label for="temp_control_toggle" style="font-size: 11px; font-weight: 700; margin-bottom: 4px;">MONITOR</label>
+                <label class="switch">
+                  <input type="checkbox" id="temp_control_toggle" {% if temp_control.temp_control_active %}checked{% endif %}>
+                  <span class="slider round"></span>
+                </label>
+              </div>
               <a class="chart-pill" href="/chart_plotly/Fermenter?brew=">Chart</a>
             </div>
           </div>
@@ -419,7 +471,38 @@
     }
 
     (function startPolling() {
-      document.addEventListener('DOMContentLoaded', matchTempCardHeightToTilts);
+      document.addEventListener('DOMContentLoaded', function() {
+        matchTempCardHeightToTilts();
+        
+        // Setup temp control toggle handler
+        const toggleSwitch = document.getElementById('temp_control_toggle');
+        if (toggleSwitch) {
+          toggleSwitch.addEventListener('change', function() {
+            const isActive = this.checked;
+            fetch('/toggle_temp_control', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ active: isActive })
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (!data.success) {
+                console.error('Failed to toggle temp control:', data.error);
+                // Revert the switch if it failed
+                this.checked = !isActive;
+              }
+            })
+            .catch(error => {
+              console.error('Error toggling temp control:', error);
+              // Revert the switch if it failed
+              this.checked = !isActive;
+            });
+          });
+        }
+      });
+      
       pollLiveSnapshot();
       setInterval(pollLiveSnapshot, typeof refreshInterval === 'number' ? refreshInterval : 5000);
       // also re-check size on window resize
