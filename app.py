@@ -306,7 +306,6 @@ def ensure_temp_defaults():
     temp_cfg.setdefault("cooler_pending", False)
     temp_cfg.setdefault("heating_error", False)
     temp_cfg.setdefault("cooling_error", False)
-    temp_cfg.setdefault("warnings_mode", system_cfg.get("warning_mode", "NONE"))
     temp_cfg.setdefault("notifications_trigger", False)
     temp_cfg.setdefault("notification_last_sent", None)
     temp_cfg.setdefault("notification_comm_failure", False)
@@ -646,20 +645,23 @@ def forward_to_third_party_if_configured(payload):
 # --- Notifications helpers -------------------------------------------------
 def _smtp_send(recipient, subject, body):
     cfg = system_cfg
-    if not (isinstance(cfg, dict) and cfg.get("email")):
+    sending_email = cfg.get("sending_email") or cfg.get("email")
+    if not (isinstance(cfg, dict) and sending_email):
         print("[LOG] SMTP not configured: no sender email in system_cfg")
         return False
     try:
         msg = MIMEText(body)
         msg["Subject"] = subject
-        msg["From"] = cfg["email"]
+        msg["From"] = sending_email
         msg["To"] = recipient
         server = smtplib.SMTP(cfg.get("smtp_host", "localhost"), int(cfg.get("smtp_port", 25)), timeout=10)
         if cfg.get("smtp_starttls"):
             server.starttls()
-        if cfg.get("smtp_user") and cfg.get("smtp_password"):
-            server.login(cfg["smtp_user"], cfg["smtp_password"])
-        server.sendmail(cfg["email"], [recipient], msg.as_string())
+        # Use sending_email as username and smtp_password (or sending_email_password) for authentication
+        smtp_password = cfg.get("smtp_password") or cfg.get("sending_email_password")
+        if sending_email and smtp_password:
+            server.login(sending_email, smtp_password)
+        server.sendmail(sending_email, [recipient], msg.as_string())
         server.quit()
         return True
     except Exception as e:
@@ -683,7 +685,7 @@ def send_sms(body):
     return _smtp_send(recipient, "Fermenter Notification", body)
 
 def attempt_send_notifications(subject, body):
-    mode = (temp_cfg.get('warnings_mode') or 'NONE').upper()
+    mode = (system_cfg.get('warning_mode') or 'NONE').upper()
     success_any = False
     temp_cfg['notifications_trigger'] = True
     try:
@@ -707,16 +709,11 @@ def attempt_send_notifications(subject, body):
         return True
     else:
         temp_cfg['notification_comm_failure'] = True
-        temp_cfg['warnings_mode'] = 'NONE'
-        try:
-            system_cfg['warning_mode'] = 'NONE'
-            save_json(SYSTEM_CFG_FILE, system_cfg)
-        except Exception:
-            pass
+        # Don't disable notifications on failure - just track the failure
         return False
 
 def send_warning(subject, body):
-    mode = (temp_cfg.get('warnings_mode') or 'NONE').upper()
+    mode = (system_cfg.get('warning_mode') or 'NONE').upper()
     if mode == 'NONE':
         return False
     try:
@@ -937,12 +934,13 @@ def send_daily_report():
         
         state = batch_notification_state.get(brewid, {})
         
-        # Check if we already sent today's report
+        # Check if we already sent today's report (within last 23 hours to allow for timing variance)
         last_report = state.get('last_daily_report')
         if last_report:
             try:
                 last_report_dt = datetime.fromisoformat(last_report)
-                if (datetime.utcnow() - last_report_dt).total_seconds() < 20 * 3600:  # Less than 20 hours
+                # Use 23 hours to ensure daily (once per ~24h) but allow for timing variance
+                if (datetime.utcnow() - last_report_dt).total_seconds() < 23 * 3600:
                     continue
             except Exception:
                 pass
@@ -1368,8 +1366,8 @@ def update_system_config():
     # Handle password field - only update if provided
     sending_email_password = data.get("sending_email_password", "")
     if sending_email_password:
-        system_cfg["sending_email_password"] = sending_email_password
-        system_cfg["smtp_password"] = sending_email_password  # Use same password for SMTP
+        # Store as smtp_password for SMTP authentication
+        system_cfg["smtp_password"] = sending_email_password
     
     system_cfg.update({
         "brewery_name": data.get("brewery_name", ""),
@@ -1396,7 +1394,6 @@ def update_system_config():
         "smtp_host": data.get("smtp_host", system_cfg.get('smtp_host', 'smtp.gmail.com')),
         "smtp_port": int(data.get("smtp_port", system_cfg.get('smtp_port', 587))),
         "smtp_starttls": 'smtp_starttls' in data,
-        "smtp_user": data.get("sending_email", system_cfg.get('sending_email','')),  # Use sending_email as SMTP user
         "sms_gateway_domain": data.get("sms_gateway_domain", system_cfg.get('sms_gateway_domain','')),
         "external_method": data.get("external_method", system_cfg.get('external_method','POST')),
         "external_content_type": data.get("external_content_type", system_cfg.get('external_content_type','form')),
@@ -1430,16 +1427,13 @@ def update_system_config():
     save_json(SYSTEM_CFG_FILE, system_cfg)
 
     new_warn = system_cfg.get('warning_mode','NONE')
+    # Reset notification state when warning mode changes
     if old_warn.upper() == 'NONE' and new_warn.upper() in ('EMAIL','SMS','BOTH'):
-        temp_cfg['warnings_mode'] = new_warn
         temp_cfg['notifications_trigger'] = False
         temp_cfg['notification_comm_failure'] = False
     elif new_warn.upper() == 'NONE':
-        temp_cfg['warnings_mode'] = 'NONE'
         temp_cfg['notifications_trigger'] = False
         temp_cfg['notification_comm_failure'] = False
-    else:
-        temp_cfg['warnings_mode'] = new_warn
 
     return redirect('/system_config')
 
@@ -1599,7 +1593,6 @@ def temp_config():
 @app.route('/update_temp_config', methods=['POST'])
 def update_temp_config():
     data = request.form
-    old_warnings = temp_cfg.get('warnings_mode', 'NONE')
     try:
         temp_cfg.update({
             "tilt_color": data.get('tilt_color', ''),
@@ -1611,8 +1604,7 @@ def update_temp_config():
             "cooling_plug": data.get("cooling_plug", ""),
             "current_temp": float(data.get('current_temp', 0.0)) if data.get('current_temp') else None,
             "mode": data.get("mode", temp_cfg.get('mode','')),
-            "status": data.get("status", temp_cfg.get('status','')),
-            "warnings_mode": data.get("warnings_mode", temp_cfg.get('warnings_mode','NONE'))
+            "status": data.get("status", temp_cfg.get('status',''))
         })
     except Exception as e:
         print(f"[LOG] Error parsing temp config form: {e}")
@@ -1630,15 +1622,6 @@ def update_temp_config():
             save_json(SYSTEM_CFG_FILE, system_cfg)
     except Exception:
         pass
-
-
-    new_warnings = temp_cfg.get('warnings_mode', 'NONE')
-    if old_warnings.upper() == 'NONE' and new_warnings.upper() in ('EMAIL','SMS','BOTH'):
-        temp_cfg['notifications_trigger'] = False
-        temp_cfg['notification_comm_failure'] = False
-    if new_warnings.upper() == 'NONE':
-        temp_cfg['notifications_trigger'] = False
-        temp_cfg['notification_comm_failure'] = False
 
 
     # Run control logic immediately (it will normalize mode/status and log selection change if any)
@@ -1776,7 +1759,7 @@ def live_snapshot():
             "enable_cooling": temp_cfg.get("enable_cooling"),
             "status": temp_cfg.get("status"),
             "mode": temp_cfg.get("mode", 'Off'),
-            "warnings_mode": temp_cfg.get('warnings_mode'),
+            "warning_mode": system_cfg.get('warning_mode'),
             "notifications_trigger": temp_cfg.get('notifications_trigger'),
             "notification_comm_failure": temp_cfg.get('notification_comm_failure')
         }
