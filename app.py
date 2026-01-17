@@ -534,63 +534,6 @@ def log_tilt_reading(color, gravity, temp_f, rssi):
     
     # Track batch notification state and check triggers
     check_batch_notifications(color, gravity, temp_f, brewid, cfg)
-    Log a tilt reading to the batch jsonl file and forward to external services if configured.
-    This function implements rate limiting to avoid excessive logging and external API calls.
-    """
-    try:
-        # Get logging interval from system config (in minutes)
-        try:
-            log_interval_minutes = int(system_cfg.get("tilt_logging_interval_minutes", 15))
-        except Exception:
-            log_interval_minutes = 15
-        
-        # Check if enough time has passed since last log
-        last_log = last_tilt_log_ts.get(color)
-        now = time.time()
-        if last_log and (now - last_log) < (log_interval_minutes * 60):
-            # Not enough time has passed, skip logging
-            return
-        
-        # Update last log timestamp
-        last_tilt_log_ts[color] = now
-        
-        # Get tilt configuration
-        cfg = tilt_cfg.get(color, {})
-        brewid = cfg.get("brewid")
-        
-        # Only log if we have a valid brewid (batch is configured)
-        if not brewid:
-            return
-        
-        # Build the payload
-        timestamp = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
-        payload = {
-            "timestamp": timestamp,
-            "tilt_color": color,
-            "gravity": round(gravity, 3) if gravity is not None else None,
-            "temp_f": temp_f,
-            "rssi": rssi,
-            "beer_name": cfg.get("beer_name", ""),
-            "batch_name": cfg.get("batch_name", ""),
-            "brewid": brewid,
-            "recipe_og": cfg.get("recipe_og", ""),
-            "recipe_fg": cfg.get("recipe_fg", ""),
-            "actual_og": cfg.get("actual_og"),
-            "og_confirmed": cfg.get("og_confirmed", False)
-        }
-        
-        # Append to batch JSONL file
-        append_sample_to_batch_jsonl(color, brewid, payload)
-        
-        # Also log to control log if temperature control is enabled for this tilt
-        if temp_cfg.get("tilt_color") == color:
-            append_control_log("tilt_reading", payload)
-        
-        # Forward to external service if configured
-        forward_to_third_party_if_configured(payload)
-        
-    except Exception as e:
-        print(f"[LOG] Error in log_tilt_reading for {color}: {e}")
 
 def detection_callback(device, advertisement_data):
     try:
