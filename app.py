@@ -317,8 +317,6 @@ def ensure_temp_defaults():
     temp_cfg.setdefault("last_logged_high_limit", temp_cfg.get("high_limit"))
     temp_cfg.setdefault("last_logged_enable_heating", temp_cfg.get("enable_heating"))
     temp_cfg.setdefault("last_logged_enable_cooling", temp_cfg.get("enable_cooling"))
-    temp_cfg.setdefault("below_limit_logged", False)
-    temp_cfg.setdefault("above_limit_logged", False)
     # New flag to turn on/off the entire temp-control UI and behavior:
     temp_cfg.setdefault("temp_control_enabled", True)
     # New flag to control active monitoring/recording (user-controlled switch):
@@ -573,6 +571,18 @@ def normalize_to_yyyymmdd(date_str):
     except Exception:
         return datetime.utcnow().strftime("%Y%m%d")
 
+def sanitize_filename(name):
+    """Sanitize a string for use in a filename."""
+    # Replace invalid characters with underscore
+    invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|']
+    result = name
+    for char in invalid_chars:
+        result = result.replace(char, '_')
+    # Also replace spaces
+    result = result.replace(' ', '_')
+    # Limit length to avoid overly long filenames
+    return result[:50]
+
 def batch_jsonl_filename(color, brewid, created_date_mmddyyyy=None, beer_name=None, batch_name=None):
     """Generate batch JSONL filename in format: brewname_YYYYmmdd_brewid.jsonl"""
     ensure_batches_dir()
@@ -585,10 +595,7 @@ def batch_jsonl_filename(color, brewid, created_date_mmddyyyy=None, beer_name=No
     
     # Create filename with brew name, date, and brewid
     if beer_name:
-        # Sanitize beer name for filename
-        safe_beer_name = beer_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
-        # Limit length to avoid overly long filenames
-        safe_beer_name = safe_beer_name[:50]
+        safe_beer_name = sanitize_filename(beer_name)
     else:
         safe_beer_name = "Batch"
     
@@ -900,6 +907,9 @@ def temperature_control_logic():
 
     low = temp_cfg.get("low_limit")
     high = temp_cfg.get("high_limit")
+    
+    # Check if temp control monitoring is active
+    is_monitoring_active = bool(temp_cfg.get("temp_control_active"))
 
     if not temp_cfg.get("control_initialized"):
         if enable_heat or enable_cool:
@@ -943,7 +953,7 @@ def temperature_control_logic():
         control_heating("on")
         current_action = "Heating"
         # Log with trigger when temp goes below low limit
-        if temp_cfg.get("below_limit_trigger_armed") and temp_cfg.get("temp_control_active"):
+        if temp_cfg.get("below_limit_trigger_armed") and is_monitoring_active:
             append_control_log("temp_below_low_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
             temp_cfg["below_limit_trigger_armed"] = False
             temp_cfg["above_limit_trigger_armed"] = False  # Ensure above is disarmed
@@ -954,7 +964,7 @@ def temperature_control_logic():
         control_cooling("on")
         current_action = "Cooling"
         # Log with trigger when temp goes above high limit
-        if temp_cfg.get("above_limit_trigger_armed") and temp_cfg.get("temp_control_active"):
+        if temp_cfg.get("above_limit_trigger_armed") and is_monitoring_active:
             append_control_log("temp_above_high_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
             temp_cfg["above_limit_trigger_armed"] = False
             temp_cfg["below_limit_trigger_armed"] = False  # Ensure below is disarmed
@@ -965,7 +975,7 @@ def temperature_control_logic():
         if isinstance(low, (int, float)) and isinstance(high, (int, float)) and (low <= temp <= high):
             # Temperature is in range
             # Log with trigger when entering range
-            if temp_cfg.get("in_range_trigger_armed") and temp_cfg.get("temp_control_active"):
+            if temp_cfg.get("in_range_trigger_armed") and is_monitoring_active:
                 append_control_log("temp_in_range", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
                 temp_cfg["in_range_trigger_armed"] = False
             # Re-arm the out-of-range triggers when in range
@@ -1397,7 +1407,14 @@ def toggle_temp_control():
     """Toggle the temp_control_active state (ON/OFF switch on temp control card)."""
     try:
         data = request.get_json() if request.is_json else request.form
-        new_state = data.get('active', 'false').lower() in ('true', '1', 'yes', 'on')
+        # Standardize on boolean JSON values
+        active_value = data.get('active')
+        if isinstance(active_value, bool):
+            new_state = active_value
+        elif isinstance(active_value, str):
+            new_state = active_value.lower() in ('true', '1')
+        else:
+            new_state = bool(active_value)
         
         temp_cfg['temp_control_active'] = new_state
         
