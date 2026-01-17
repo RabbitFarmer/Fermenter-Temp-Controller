@@ -382,6 +382,7 @@ live_tilts = {}
 tilt_status = {}
 
 last_tilt_log_ts = {}
+batch_notification_state = {}  # Track notification state per tilt/brewid
 
 def generate_brewid(beer_name, batch_name, date_str):
     id_str = f"{beer_name}-{batch_name}-{date_str}"
@@ -414,6 +415,54 @@ def get_current_temp_for_control_tilt():
         if info.get("temp_f") is not None:
             return info.get("temp_f")
     return None
+
+def log_tilt_reading(color, gravity, temp_f, rssi):
+    """
+    Log tilt readings with interval-based rate limiting and batch tracking.
+    Also handles batch notification triggers (loss of signal, fermentation start, etc.).
+    """
+    cfg = tilt_cfg.get(color, {})
+    brewid = cfg.get('brewid', '')
+    
+    # Rate limiting based on tilt_logging_interval_minutes
+    interval_minutes = int(system_cfg.get('tilt_logging_interval_minutes', 15))
+    now = datetime.utcnow()
+    last_log = last_tilt_log_ts.get(color)
+    
+    if last_log:
+        elapsed = (now - last_log).total_seconds() / 60.0
+        if elapsed < interval_minutes:
+            return
+    
+    last_tilt_log_ts[color] = now
+    
+    # Create payload
+    payload = {
+        "timestamp": now.replace(microsecond=0).isoformat() + "Z",
+        "tilt_color": color,
+        "gravity": round(gravity, 3) if gravity is not None else None,
+        "temp_f": temp_f,
+        "rssi": rssi,
+        "beer_name": cfg.get("beer_name", ""),
+        "batch_name": cfg.get("batch_name", ""),
+        "brewid": brewid,
+        "recipe_og": cfg.get("recipe_og", ""),
+        "actual_og": cfg.get("actual_og"),
+        "og_confirmed": cfg.get("og_confirmed", False)
+    }
+    
+    # Log to control log
+    append_control_log("tilt_reading", payload)
+    
+    # Log to batch-specific jsonl
+    if brewid:
+        append_sample_to_batch_jsonl(color, brewid, payload)
+    
+    # Forward to third-party if configured
+    forward_to_third_party_if_configured(payload)
+    
+    # Track batch notification state and check triggers
+    check_batch_notifications(color, gravity, temp_f, brewid, cfg)
 
 def detection_callback(device, advertisement_data):
     try:
@@ -689,6 +738,266 @@ def send_warning(subject, body):
     ok = attempt_send_notifications(subject, body)
     return ok
 
+def send_temp_control_notification(event_type, temp, low_limit, high_limit, tilt_color):
+    """
+    Send notifications for temperature control events if enabled in settings.
+    """
+    # Get temp control notification settings
+    temp_notif_cfg = system_cfg.get('temp_control_notifications', {})
+    
+    # Check if this specific event type is enabled
+    if not temp_notif_cfg.get(f'enable_{event_type}', False):
+        return
+    
+    brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
+    now = datetime.utcnow()
+    
+    # Create caption based on event type
+    caption_map = {
+        'temp_below_low_limit': f'Temperature Below Low Limit - Current: {temp:.1f}°F, Low Limit: {low_limit:.1f}°F',
+        'temp_above_high_limit': f'Temperature Above High Limit - Current: {temp:.1f}°F, High Limit: {high_limit:.1f}°F',
+        'heating_on': f'Heating Turned On - Current: {temp:.1f}°F, Low Limit: {low_limit:.1f}°F',
+        'heating_off': f'Heating Turned Off - Current: {temp:.1f}°F',
+        'cooling_on': f'Cooling Turned On - Current: {temp:.1f}°F, High Limit: {high_limit:.1f}°F',
+        'cooling_off': f'Cooling Turned Off - Current: {temp:.1f}°F'
+    }
+    
+    caption = caption_map.get(event_type, f'Temperature Control Event: {event_type}')
+    
+    subject = f"{brewery_name} - Temperature Control Alert"
+    body = f"""Brewery Name: {brewery_name}
+Date: {now.strftime('%Y-%m-%d')}
+Time: {now.strftime('%H:%M:%S')}
+Tilt Color: {tilt_color}
+
+{caption}"""
+    
+    attempt_send_notifications(subject, body)
+
+def check_batch_notifications(color, gravity, temp_f, brewid, cfg):
+    """
+    Check and trigger batch-specific notifications:
+    1. Loss of signal detection
+    2. Fermentation starting detection
+    3. Daily report scheduling (handled separately in periodic task)
+    """
+    if not brewid:
+        return
+    
+    # Get notification settings from system config
+    notif_cfg = system_cfg.get('batch_notifications', {})
+    
+    # Initialize state for this brewid if needed
+    if brewid not in batch_notification_state:
+        batch_notification_state[brewid] = {
+            'last_reading_time': datetime.utcnow(),
+            'signal_lost': False,
+            'signal_loss_notified': False,
+            'fermentation_started': False,
+            'fermentation_start_notified': False,
+            'gravity_history': [],
+            'last_daily_report': None
+        }
+    
+    state = batch_notification_state[brewid]
+    state['last_reading_time'] = datetime.utcnow()
+    
+    # Reset signal loss flag when we receive a reading
+    if state['signal_lost']:
+        state['signal_lost'] = False
+        state['signal_loss_notified'] = False
+    
+    # Track gravity history for fermentation start detection
+    if gravity is not None:
+        state['gravity_history'].append({
+            'gravity': gravity,
+            'timestamp': datetime.utcnow()
+        })
+        # Keep only recent readings (last 10)
+        if len(state['gravity_history']) > 10:
+            state['gravity_history'].pop(0)
+    
+    # Check fermentation starting condition
+    if notif_cfg.get('enable_fermentation_starting', True):
+        check_fermentation_starting(color, brewid, cfg, state)
+
+def check_fermentation_starting(color, brewid, cfg, state):
+    """
+    Detect fermentation start: 3 consecutive readings at least 0.010 below starting gravity.
+    """
+    if state.get('fermentation_start_notified'):
+        return
+    
+    actual_og = cfg.get('actual_og')
+    if not actual_og:
+        return
+    
+    try:
+        starting_gravity = float(actual_og)
+    except (ValueError, TypeError):
+        return
+    
+    history = state.get('gravity_history', [])
+    if len(history) < 3:
+        return
+    
+    # Check last 3 readings
+    last_three = history[-3:]
+    all_below_threshold = all(
+        reading['gravity'] is not None and reading['gravity'] <= (starting_gravity - 0.010)
+        for reading in last_three
+    )
+    
+    if all_below_threshold:
+        current_gravity = last_three[-1]['gravity']
+        brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
+        beer_name = cfg.get('beer_name', 'Unknown Beer')
+        
+        subject = f"{brewery_name} - Fermentation Started"
+        body = f"""Brewery Name: {brewery_name}
+Tilt Color: {color}
+Brew Name: {beer_name}
+Date/Time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}
+
+Fermentation has started.
+Gravity at start: {starting_gravity:.3f}
+Gravity now: {current_gravity:.3f}"""
+        
+        if attempt_send_notifications(subject, body):
+            state['fermentation_start_notified'] = True
+            state['fermentation_started'] = True
+
+def check_signal_loss():
+    """
+    Periodic check for loss of signal on all active tilts.
+    Run this in a separate thread or periodic task.
+    """
+    notif_cfg = system_cfg.get('batch_notifications', {})
+    if not notif_cfg.get('enable_loss_of_signal', True):
+        return
+    
+    loss_timeout_minutes = int(notif_cfg.get('loss_of_signal_timeout_minutes', 30))
+    now = datetime.utcnow()
+    
+    for brewid, state in batch_notification_state.items():
+        if state.get('signal_loss_notified'):
+            continue
+        
+        last_reading = state.get('last_reading_time')
+        if not last_reading:
+            continue
+        
+        elapsed_minutes = (now - last_reading).total_seconds() / 60.0
+        
+        if elapsed_minutes >= loss_timeout_minutes:
+            # Find the tilt color and config for this brewid
+            color = None
+            cfg = None
+            for tilt_color, tilt_data in tilt_cfg.items():
+                if tilt_data.get('brewid') == brewid:
+                    color = tilt_color
+                    cfg = tilt_data
+                    break
+            
+            if color and cfg:
+                brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
+                beer_name = cfg.get('beer_name', 'Unknown Beer')
+                
+                subject = f"{brewery_name} - Loss of Signal"
+                body = f"""Brewery Name: {brewery_name}
+Tilt Color: {color}
+Brew Name: {beer_name}
+Date/Time: {now.strftime('%Y-%m-%d %H:%M:%S')}
+
+Loss of Signal -- Receiving no tilt readings"""
+                
+                if attempt_send_notifications(subject, body):
+                    state['signal_lost'] = True
+                    state['signal_loss_notified'] = True
+
+def send_daily_report():
+    """
+    Send daily progress report for all active tilts.
+    Should be scheduled to run at user-specified time.
+    """
+    notif_cfg = system_cfg.get('batch_notifications', {})
+    if not notif_cfg.get('enable_daily_report', True):
+        return
+    
+    brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
+    
+    for color, cfg in tilt_cfg.items():
+        brewid = cfg.get('brewid')
+        if not brewid:
+            continue
+        
+        # Check if we have recent data for this tilt
+        if color not in live_tilts:
+            continue
+        
+        state = batch_notification_state.get(brewid, {})
+        
+        # Check if we already sent today's report
+        last_report = state.get('last_daily_report')
+        if last_report:
+            try:
+                last_report_dt = datetime.fromisoformat(last_report)
+                if (datetime.utcnow() - last_report_dt).total_seconds() < 20 * 3600:  # Less than 20 hours
+                    continue
+            except Exception:
+                pass
+        
+        beer_name = cfg.get('beer_name', 'Unknown Beer')
+        actual_og = cfg.get('actual_og')
+        
+        if not actual_og:
+            continue
+        
+        try:
+            starting_gravity = float(actual_og)
+        except (ValueError, TypeError):
+            continue
+        
+        current_data = live_tilts.get(color, {})
+        current_gravity = current_data.get('gravity')
+        
+        if current_gravity is None:
+            continue
+        
+        net_change = starting_gravity - current_gravity
+        
+        # Calculate change since yesterday (24 hours ago)
+        change_since_yesterday = 0.0
+        history = state.get('gravity_history', [])
+        if history:
+            # Find reading closest to 24 hours ago
+            target_time = datetime.utcnow() - timedelta(hours=24)
+            closest_reading = None
+            min_diff = float('inf')
+            
+            for reading in history:
+                time_diff = abs((reading['timestamp'] - target_time).total_seconds())
+                if time_diff < min_diff:
+                    min_diff = time_diff
+                    closest_reading = reading
+            
+            if closest_reading and closest_reading['gravity'] is not None:
+                change_since_yesterday = closest_reading['gravity'] - current_gravity
+        
+        subject = f"{brewery_name} - Daily Report"
+        body = f"""Brewery Name: {brewery_name}
+Tilt Color: {color}
+Brew Name: {beer_name}
+Date/Time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}
+
+Starting Gravity: {starting_gravity:.3f}
+Last Gravity: {current_gravity:.3f}
+Net Change: {net_change:.3f}
+Change since yesterday: {change_since_yesterday:.3f}"""
+        
+        if attempt_send_notifications(subject, body):
+            state['last_daily_report'] = datetime.utcnow().isoformat()
+
 # --- Kasa command dedupe & rate limit -------------------------------------
 _last_kasa_command = {}
 _KASA_RATE_LIMIT_SECONDS = int(system_cfg.get("kasa_rate_limit_seconds", 10) or 10)
@@ -837,6 +1146,8 @@ def temperature_control_logic():
         if not temp_cfg.get("below_limit_logged"):
             append_control_log("temp_below_low_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
             temp_cfg["below_limit_logged"] = True
+            # Send notification if enabled
+            send_temp_control_notification("temp_below_low_limit", temp, low, high, temp_cfg.get("tilt_color", ""))
     else:
         control_heating("off")
 
@@ -846,6 +1157,8 @@ def temperature_control_logic():
         if not temp_cfg.get("above_limit_logged"):
             append_control_log("temp_above_high_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
             temp_cfg["above_limit_logged"] = True
+            # Send notification if enabled
+            send_temp_control_notification("temp_above_high_limit", temp, low, high, temp_cfg.get("tilt_color", ""))
     else:
         control_cooling("off")
 
@@ -882,6 +1195,8 @@ def kasa_result_listener():
                     temp_cfg["heating_error_msg"] = ""
                     event = "heating_on" if action == 'on' else "heating_off"
                     append_control_log(event, {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
+                    # Send notification if enabled
+                    send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
                 else:
                     temp_cfg["heating_error"] = True
                     temp_cfg["heating_error_msg"] = result.get('error', '') or ''
@@ -893,6 +1208,8 @@ def kasa_result_listener():
                     temp_cfg["cooling_error_msg"] = ""
                     event = "cooling_on" if action == 'on' else "cooling_off"
                     append_control_log(event, {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
+                    # Send notification if enabled
+                    send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
                 else:
                     temp_cfg["cooling_error"] = True
                     temp_cfg["cooling_error_msg"] = result.get('error', '') or ''
@@ -959,6 +1276,50 @@ def periodic_temp_control():
 
 threading.Thread(target=periodic_temp_control, daemon=True).start()
 
+# --- Periodic batch monitoring thread -------------------------------------
+def periodic_batch_monitoring():
+    """Monitor for signal loss and schedule daily reports."""
+    last_daily_check = None
+    
+    while True:
+        try:
+            # Check for signal loss every 5 minutes
+            check_signal_loss()
+            
+            # Check if it's time for daily reports
+            notif_cfg = system_cfg.get('batch_notifications', {})
+            daily_report_time = notif_cfg.get('daily_report_time', '09:00')  # Default 9 AM
+            
+            now = datetime.utcnow()
+            current_time_str = now.strftime('%H:%M')
+            
+            # Check if we should send daily report (within 5 minute window)
+            if daily_report_time:
+                try:
+                    report_hour, report_min = map(int, daily_report_time.split(':'))
+                    current_hour = now.hour
+                    current_min = now.minute
+                    
+                    # Check if current time is within 5 minutes of report time
+                    time_match = (current_hour == report_hour and 
+                                 abs(current_min - report_min) < 5)
+                    
+                    # Only send once per day
+                    if time_match:
+                        if not last_daily_check or (now - last_daily_check).total_seconds() > 3600:
+                            send_daily_report()
+                            last_daily_check = now
+                except Exception as e:
+                    print(f"[LOG] Error checking daily report time: {e}")
+        
+        except Exception as e:
+            print(f"[LOG] Exception in periodic_batch_monitoring: {e}")
+        
+        # Sleep for 5 minutes
+        time.sleep(300)
+
+threading.Thread(target=periodic_batch_monitoring, daemon=True).start()
+
 # --- BLE scanner thread ---------------------------------------------------
 def ble_loop():
     async def run_scanner():
@@ -1008,6 +1369,7 @@ def update_system_config():
     sending_email_password = data.get("sending_email_password", "")
     if sending_email_password:
         system_cfg["sending_email_password"] = sending_email_password
+        system_cfg["smtp_password"] = sending_email_password  # Use same password for SMTP
     
     system_cfg.update({
         "brewery_name": data.get("brewery_name", ""),
@@ -1031,6 +1393,10 @@ def update_system_config():
         "external_url_2": data.get("external_url_2", system_cfg.get('external_url_2','')),
         "warning_mode": data.get("warning_mode", "NONE"),
         "sending_email": data.get("sending_email", system_cfg.get('sending_email','')),
+        "smtp_host": data.get("smtp_host", system_cfg.get('smtp_host', 'smtp.gmail.com')),
+        "smtp_port": int(data.get("smtp_port", system_cfg.get('smtp_port', 587))),
+        "smtp_starttls": 'smtp_starttls' in data,
+        "smtp_user": data.get("sending_email", system_cfg.get('sending_email','')),  # Use sending_email as SMTP user
         "sms_gateway_domain": data.get("sms_gateway_domain", system_cfg.get('sms_gateway_domain','')),
         "external_method": data.get("external_method", system_cfg.get('external_method','POST')),
         "external_content_type": data.get("external_content_type", system_cfg.get('external_content_type','form')),
@@ -1039,6 +1405,28 @@ def update_system_config():
         "kasa_rate_limit_seconds": data.get("kasa_rate_limit_seconds", system_cfg.get('kasa_rate_limit_seconds', 10)),
         "tilt_logging_interval_minutes": int(data.get("tilt_logging_interval_minutes", system_cfg.get("tilt_logging_interval_minutes", 15)))
     })
+    
+    # Update temperature control notifications settings
+    temp_control_notif = {
+        'enable_temp_below_low_limit': 'enable_temp_below_low_limit' in data,
+        'enable_temp_above_high_limit': 'enable_temp_above_high_limit' in data,
+        'enable_heating_on': 'enable_heating_on' in data,
+        'enable_heating_off': 'enable_heating_off' in data,
+        'enable_cooling_on': 'enable_cooling_on' in data,
+        'enable_cooling_off': 'enable_cooling_off' in data,
+    }
+    system_cfg['temp_control_notifications'] = temp_control_notif
+    
+    # Update batch notifications settings
+    batch_notif = {
+        'enable_loss_of_signal': 'enable_loss_of_signal' in data,
+        'loss_of_signal_timeout_minutes': int(data.get('loss_of_signal_timeout_minutes', 30)),
+        'enable_fermentation_starting': 'enable_fermentation_starting' in data,
+        'enable_daily_report': 'enable_daily_report' in data,
+        'daily_report_time': data.get('daily_report_time', '09:00'),
+    }
+    system_cfg['batch_notifications'] = batch_notif
+    
     save_json(SYSTEM_CFG_FILE, system_cfg)
 
     new_warn = system_cfg.get('warning_mode','NONE')
