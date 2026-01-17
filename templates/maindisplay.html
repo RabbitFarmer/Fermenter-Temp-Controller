@@ -483,8 +483,9 @@
         // Setup temp control toggle handler
         const toggleSwitch = document.getElementById('temp_control_toggle');
         if (toggleSwitch) {
-          const revertSwitch = (isActive) => {
-            toggleSwitch.checked = !isActive;
+          // Helper to revert switch to opposite of failed state
+          const revertSwitchState = (attemptedState) => {
+            toggleSwitch.checked = !attemptedState;
           };
           
           toggleSwitch.addEventListener('change', function() {
@@ -500,12 +501,12 @@
             .then(data => {
               if (!data.success) {
                 console.error('Failed to toggle temp control:', data.error);
-                revertSwitch(isActive);
+                revertSwitchState(isActive);
               }
             })
             .catch(error => {
               console.error('Error toggling temp control:', error);
-              revertSwitch(isActive);
+              revertSwitchState(isActive);
             });
           });
         }

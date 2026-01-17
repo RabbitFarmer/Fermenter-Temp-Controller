@@ -76,6 +76,7 @@ SYSTEM_CFG_FILE = 'system_config.json'
 DEFAULT_CHART_LIMIT = 500
 MAX_CHART_LIMIT = 2000
 MAX_ALL_LIMIT = 10000
+MAX_FILENAME_LENGTH = 50
 
 # --- Stop other app.py processes on startup --------------------------------
 def stop_other_app_py():
@@ -574,14 +575,16 @@ def normalize_to_yyyymmdd(date_str):
 def sanitize_filename(name):
     """Sanitize a string for use in a filename."""
     # Replace invalid characters with underscore
-    invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|']
+    invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\n', '\r', '\t']
     result = name
     for char in invalid_chars:
         result = result.replace(char, '_')
-    # Also replace spaces
+    # Also replace spaces and remove control characters
     result = result.replace(' ', '_')
+    # Remove ASCII control characters (0-31)
+    result = ''.join(c if ord(c) >= 32 else '_' for c in result)
     # Limit length to avoid overly long filenames
-    return result[:50]
+    return result[:MAX_FILENAME_LENGTH]
 
 def batch_jsonl_filename(color, brewid, created_date_mmddyyyy=None, beer_name=None, batch_name=None):
     """Generate batch JSONL filename in format: brewname_YYYYmmdd_brewid.jsonl"""
@@ -625,17 +628,20 @@ def ensure_batch_jsonl_exists(color, brewid, meta=None, created_date_mmddyyyy=No
             # Try pattern 2: {brewid}.jsonl
             legacy_pattern2 = f"{brewid}.jsonl"
             
+            migrated = False
             for fn in os.listdir(BATCHES_DIR):
+                if migrated:
+                    break
                 if fn.startswith(legacy_pattern1) or fn == legacy_pattern2:
                     legacy_path = os.path.join(BATCHES_DIR, fn)
                     try:
                         os.rename(legacy_path, path)
                         print(f"[MIGRATE] Renamed legacy {legacy_path} -> {path}")
-                        break
+                        migrated = True
                     except Exception as e:
                         print(f"[MIGRATE] Could not rename {legacy_path} -> {path}: {e}")
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[MIGRATE] Migration scan failed: {e}")
         try:
             header = {
                 "event": "batch_metadata",
@@ -1639,7 +1645,7 @@ def chart_data_for(tilt_color):
                         
                         matched += 1
                         ts = obj.get('timestamp')
-                        tf = obj.get('temp_f') or obj.get('current_temp')
+                        tf = obj.get('temp_f') if obj.get('temp_f') is not None else obj.get('current_temp')
                         g = obj.get('gravity')
                         
                         try:
@@ -1706,7 +1712,7 @@ def chart_data_for(tilt_color):
                         # else matched by brewid
                     matched += 1
                     ts = payload.get('timestamp')
-                    tf = payload.get('temp_f') or payload.get('current_temp')
+                    tf = payload.get('temp_f') if payload.get('temp_f') is not None else payload.get('current_temp')
                     g = payload.get('gravity')
                     try:
                         ts_str = str(ts) if ts is not None else None
