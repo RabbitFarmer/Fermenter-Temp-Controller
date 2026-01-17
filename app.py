@@ -494,7 +494,10 @@ def detection_callback(device, advertisement_data):
             return
         rssi = advertisement_data.rssi
         update_live_tilt(color, gravity, temp_f, rssi)
-        log_tilt_reading(color, gravity, temp_f, rssi)
+        try:
+            log_tilt_reading(color, gravity, temp_f, rssi)
+        except Exception as log_err:
+            print(f"[BLE] log_tilt_reading failed for {color}: {log_err}")
     except Exception as e:
         print("[BLE] detection_callback exception:", e)
 
