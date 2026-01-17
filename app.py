@@ -634,6 +634,7 @@ def forward_to_third_party_if_configured(payload):
     2. System-wide external_url_0, external_url_1, external_url_2 in system_cfg
     
     The function will try to send to all configured URLs.
+    Automatically transforms the payload to Brewers Friend format if URL contains "brewersfriend.com".
     """
     color = (payload.get("tilt_color") or "").upper()
     if not color:
@@ -675,15 +676,34 @@ def forward_to_third_party_if_configured(payload):
         method = config["method"]
         send_json = config["send_json"]
         
+        # Transform payload for Brewers Friend if needed
+        if "brewersfriend.com" in url.lower():
+            # Brewers Friend expects a specific format
+            transformed_payload = {
+                "name": payload.get("tilt_color", "Tilt"),
+                "temp": payload.get("temp_f", ""),
+                "temp_unit": "F",
+                "gravity": payload.get("gravity", ""),
+                "gravity_unit": "G",
+                "beer": payload.get("beer_name", "") or payload.get("batch_name", ""),
+                "comment": f"Batch: {payload.get('batch_name', '')} | BrewID: {payload.get('brewid', '')}"
+            }
+            forwarding_payload = transformed_payload
+            # Brewers Friend always uses JSON
+            send_json = True
+        else:
+            # Use original payload for other services
+            forwarding_payload = payload
+        
         headers = {}
         try:
             timeout = int(system_cfg.get("external_timeout_seconds", 8) or 8)
             if send_json:
                 headers["Content-Type"] = "application/json"
-                resp = requests.request(method, url, json=payload, headers=headers, timeout=timeout)
+                resp = requests.request(method, url, json=forwarding_payload, headers=headers, timeout=timeout)
             else:
                 headers["Content-Type"] = "application/x-www-form-urlencoded"
-                formdata = {k: ("" if v is None else v) for k, v in payload.items() if isinstance(v, (str, int, float)) or v is None}
+                formdata = {k: ("" if v is None else v) for k, v in forwarding_payload.items() if isinstance(v, (str, int, float)) or v is None}
                 resp = requests.request(method, url, data=formdata, headers=headers, timeout=timeout)
             
             result = {"url": url, "forwarded": True, "status_code": resp.status_code, "text": resp.text[:200]}
