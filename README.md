@@ -8,7 +8,11 @@ This project is a Raspberry Pi-based fermentation monitor and temperature contro
 - Controls heating/cooling with Kasa smart plugs
 - Web dashboard for monitoring and configuration (Flask)
 - Batch history and temperature logging to JSONL/CSV
-- Email/SMS notification for fermentation status
+- **Email/SMS notifications for fermentation status and temperature alerts**
+  - Temperature control alerts (out of range, heating/cooling events)
+  - Batch alerts (signal loss, fermentation starting, daily reports)
+  - Configurable notification settings per event type
+  - See [NOTIFICATIONS.md](NOTIFICATIONS.md) for detailed configuration guide
 
 ## Getting Started
 
