@@ -678,12 +678,12 @@ def forward_to_third_party_if_configured(payload):
         
         # Transform payload for Brewers Friend if needed
         if "brewersfriend.com" in url.lower():
-            # Brewers Friend expects a specific format
+            # Brewers Friend expects a specific format with numeric values
             transformed_payload = {
                 "name": payload.get("tilt_color", "Tilt"),
-                "temp": payload.get("temp_f", ""),
+                "temp": payload.get("temp_f") if payload.get("temp_f") is not None else 0,
                 "temp_unit": "F",
-                "gravity": payload.get("gravity", ""),
+                "gravity": payload.get("gravity") if payload.get("gravity") is not None else 0,
                 "gravity_unit": "G",
                 "beer": payload.get("beer_name", "") or payload.get("batch_name", ""),
                 "comment": f"Batch: {payload.get('batch_name', '')} | BrewID: {payload.get('brewid', '')}"
@@ -706,7 +706,7 @@ def forward_to_third_party_if_configured(payload):
                 formdata = {k: ("" if v is None else v) for k, v in forwarding_payload.items() if isinstance(v, (str, int, float)) or v is None}
                 resp = requests.request(method, url, data=formdata, headers=headers, timeout=timeout)
             
-            result = {"url": url, "forwarded": True, "status_code": resp.status_code, "text": resp.text[:200]}
+            result = {"url": url, "forwarded": True, "status_code": resp.status_code, "text": resp.text[:500]}
             results.append(result)
             print(f"[FORWARD] Successfully forwarded tilt {color} to {url}, status: {resp.status_code}")
         except Exception as e:
