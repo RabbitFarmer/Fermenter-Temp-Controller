@@ -383,6 +383,11 @@ tilt_status = {}
 last_tilt_log_ts = {}
 batch_notification_state = {}  # Track notification state per tilt/brewid
 
+# Notification timing constants
+DAILY_REPORT_COOLDOWN_HOURS = 23  # Prevent duplicate daily reports (allows timing variance)
+DAILY_REPORT_WINDOW_MINUTES = 5   # Time window for daily report triggering
+BATCH_MONITORING_INTERVAL_SECONDS = 300  # Check signal loss and daily reports every 5 minutes
+
 def generate_brewid(beer_name, batch_name, date_str):
     id_str = f"{beer_name}-{batch_name}-{date_str}"
     return hashlib.sha256(id_str.encode('utf-8')).hexdigest()[:8]
@@ -418,7 +423,18 @@ def get_current_temp_for_control_tilt():
 def log_tilt_reading(color, gravity, temp_f, rssi):
     """
     Log tilt readings with interval-based rate limiting and batch tracking.
-    Also handles batch notification triggers (loss of signal, fermentation start, etc.).
+    
+    This function handles:
+    - Rate-limited logging based on tilt_logging_interval_minutes
+    - Recording readings to control log and batch-specific JSONL files
+    - Forwarding to third-party services if configured
+    - Triggering batch notifications (signal loss, fermentation start, etc.)
+    
+    Args:
+        color: Tilt color identifier
+        gravity: Specific gravity reading
+        temp_f: Temperature in Fahrenheit
+        rssi: Bluetooth signal strength
     """
     cfg = tilt_cfg.get(color, {})
     brewid = cfg.get('brewid', '')
@@ -659,7 +675,7 @@ def _smtp_send(recipient, subject, body):
             server.starttls()
         # Use sending_email as username and smtp_password (or sending_email_password) for authentication
         smtp_password = cfg.get("smtp_password") or cfg.get("sending_email_password")
-        if sending_email and smtp_password:
+        if sending_email and smtp_password and len(smtp_password) > 0:
             server.login(sending_email, smtp_password)
         server.sendmail(sending_email, [recipient], msg.as_string())
         server.quit()
@@ -939,8 +955,8 @@ def send_daily_report():
         if last_report:
             try:
                 last_report_dt = datetime.fromisoformat(last_report)
-                # Use 23 hours to ensure daily (once per ~24h) but allow for timing variance
-                if (datetime.utcnow() - last_report_dt).total_seconds() < 23 * 3600:
+                # Use DAILY_REPORT_COOLDOWN_HOURS to ensure daily (once per ~24h) but allow for timing variance
+                if (datetime.utcnow() - last_report_dt).total_seconds() < DAILY_REPORT_COOLDOWN_HOURS * 3600:
                     continue
             except Exception:
                 pass
@@ -1298,9 +1314,9 @@ def periodic_batch_monitoring():
                     current_hour = now.hour
                     current_min = now.minute
                     
-                    # Check if current time is within 5 minutes of report time
+                    # Check if current time is within DAILY_REPORT_WINDOW_MINUTES of report time
                     time_match = (current_hour == report_hour and 
-                                 abs(current_min - report_min) < 5)
+                                 abs(current_min - report_min) < DAILY_REPORT_WINDOW_MINUTES)
                     
                     # Only send once per day
                     if time_match:
@@ -1313,8 +1329,8 @@ def periodic_batch_monitoring():
         except Exception as e:
             print(f"[LOG] Exception in periodic_batch_monitoring: {e}")
         
-        # Sleep for 5 minutes
-        time.sleep(300)
+        # Sleep for BATCH_MONITORING_INTERVAL_SECONDS
+        time.sleep(BATCH_MONITORING_INTERVAL_SECONDS)
 
 threading.Thread(target=periodic_batch_monitoring, daemon=True).start()
 
