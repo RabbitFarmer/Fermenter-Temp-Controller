@@ -415,6 +415,66 @@ def get_current_temp_for_control_tilt():
             return info.get("temp_f")
     return None
 
+def log_tilt_reading(color, gravity, temp_f, rssi):
+    """
+    Log a tilt reading to the batch jsonl file and forward to external services if configured.
+    This function implements rate limiting to avoid excessive logging and external API calls.
+    """
+    try:
+        # Get logging interval from system config (in minutes)
+        try:
+            log_interval_minutes = int(system_cfg.get("tilt_logging_interval_minutes", 15))
+        except Exception:
+            log_interval_minutes = 15
+        
+        # Check if enough time has passed since last log
+        last_log = last_tilt_log_ts.get(color)
+        now = time.time()
+        if last_log and (now - last_log) < (log_interval_minutes * 60):
+            # Not enough time has passed, skip logging
+            return
+        
+        # Update last log timestamp
+        last_tilt_log_ts[color] = now
+        
+        # Get tilt configuration
+        cfg = tilt_cfg.get(color, {})
+        brewid = cfg.get("brewid")
+        
+        # Only log if we have a valid brewid (batch is configured)
+        if not brewid:
+            return
+        
+        # Build the payload
+        timestamp = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+        payload = {
+            "timestamp": timestamp,
+            "tilt_color": color,
+            "gravity": round(gravity, 3) if gravity is not None else None,
+            "temp_f": temp_f,
+            "rssi": rssi,
+            "beer_name": cfg.get("beer_name", ""),
+            "batch_name": cfg.get("batch_name", ""),
+            "brewid": brewid,
+            "recipe_og": cfg.get("recipe_og", ""),
+            "recipe_fg": cfg.get("recipe_fg", ""),
+            "actual_og": cfg.get("actual_og"),
+            "og_confirmed": cfg.get("og_confirmed", False)
+        }
+        
+        # Append to batch JSONL file
+        append_sample_to_batch_jsonl(color, brewid, payload)
+        
+        # Also log to control log if temperature control is enabled for this tilt
+        if temp_cfg.get("tilt_color") == color:
+            append_control_log("tilt_reading", payload)
+        
+        # Forward to external service if configured
+        forward_to_third_party_if_configured(payload)
+        
+    except Exception as e:
+        print(f"[LOG] Error in log_tilt_reading for {color}: {e}")
+
 def detection_callback(device, advertisement_data):
     try:
         mfg_data = advertisement_data.manufacturer_data
@@ -566,33 +626,82 @@ def write_normalized_tilt_reading(payload, event_name="tilt_reading"):
         return False
 
 def forward_to_third_party_if_configured(payload):
+    """
+    Forward tilt reading data to configured external services.
+    
+    Supports two configuration methods:
+    1. Per-tilt external_url in tilt_cfg[color] (highest priority)
+    2. System-wide external_url_0, external_url_1, external_url_2 in system_cfg
+    
+    The function will try to send to all configured URLs.
+    """
     color = (payload.get("tilt_color") or "").upper()
     if not color:
         return {"forwarded": False, "reason": "no color"}
-    tc = tilt_cfg.get(color) or {}
-    url = tc.get("external_url") or None
-    if not url:
-        return {"forwarded": False, "reason": "no external_url configured"}
-    method = (tc.get("external_method") or "POST").upper()
-    send_json = bool(tc.get("external_json")) if ("external_json" in tc) else True
-
+    
     if requests is None:
         return {"forwarded": False, "reason": "requests library not available"}
-
-    headers = {}
-    try:
-        timeout = int(system_cfg.get("external_timeout_seconds", 8) or 8)
-        if send_json:
-            headers["Content-Type"] = "application/json"
-            resp = requests.request(method, url, json=payload, headers=headers, timeout=timeout)
-        else:
-            headers["Content-Type"] = "application/x-www-form-urlencoded"
-            formdata = {k: ("" if v is None else v) for k, v in payload.items() if isinstance(v, (str, int, float)) or v is None}
-            resp = requests.request(method, url, data=formdata, headers=headers, timeout=timeout)
-        return {"forwarded": True, "status_code": getattr(resp, "status_code", None), "text": getattr(resp, "text", "")}
-    except Exception as e:
-        print(f"[FORWARD] Error forwarding tilt {color} to {url}: {e}")
-        return {"forwarded": False, "error": str(e)}
+    
+    # Collect all URLs to forward to
+    urls_to_forward = []
+    
+    # 1. Check per-tilt configuration
+    tc = tilt_cfg.get(color) or {}
+    tilt_url = tc.get("external_url")
+    if tilt_url:
+        urls_to_forward.append({
+            "url": tilt_url,
+            "method": (tc.get("external_method") or "POST").upper(),
+            "send_json": bool(tc.get("external_json")) if ("external_json" in tc) else True
+        })
+    
+    # 2. Check system-wide configuration (external_url_0, external_url_1, external_url_2)
+    for i in range(3):
+        sys_url = system_cfg.get(f"external_url_{i}")
+        if sys_url:
+            urls_to_forward.append({
+                "url": sys_url,
+                "method": system_cfg.get("external_method", "POST").upper(),
+                "send_json": (system_cfg.get("external_content_type", "form") == "json")
+            })
+    
+    if not urls_to_forward:
+        return {"forwarded": False, "reason": "no external_url configured"}
+    
+    # Forward to all configured URLs
+    results = []
+    for config in urls_to_forward:
+        url = config["url"]
+        method = config["method"]
+        send_json = config["send_json"]
+        
+        headers = {}
+        try:
+            timeout = int(system_cfg.get("external_timeout_seconds", 8) or 8)
+            if send_json:
+                headers["Content-Type"] = "application/json"
+                resp = requests.request(method, url, json=payload, headers=headers, timeout=timeout)
+            else:
+                headers["Content-Type"] = "application/x-www-form-urlencoded"
+                formdata = {k: ("" if v is None else v) for k, v in payload.items() if isinstance(v, (str, int, float)) or v is None}
+                resp = requests.request(method, url, data=formdata, headers=headers, timeout=timeout)
+            
+            result = {"url": url, "forwarded": True, "status_code": resp.status_code, "text": resp.text[:200]}
+            results.append(result)
+            print(f"[FORWARD] Successfully forwarded tilt {color} to {url}, status: {resp.status_code}")
+        except Exception as e:
+            result = {"url": url, "forwarded": False, "error": str(e)}
+            results.append(result)
+            print(f"[FORWARD] Error forwarding tilt {color} to {url}: {e}")
+    
+    # Return summary
+    success_count = sum(1 for r in results if r.get("forwarded"))
+    return {
+        "forwarded": success_count > 0,
+        "success_count": success_count,
+        "total_count": len(results),
+        "results": results
+    }
 
 # --- Notifications helpers -------------------------------------------------
 def _smtp_send(recipient, subject, body):
