@@ -58,6 +58,7 @@
     "recipe_fg": "1.001",
     "recipe_abv": "8.000",
     "actual_og": "1.070",
+    "og_confirmed": true,
     "brewid": "8026a548"
   },
   "Yellow": {
