@@ -355,8 +355,8 @@
       let recipeFg = tilt.recipe_fg || 0;
       let recipeAbv = tilt.recipe_abv || '';
       let actualAbv = '--';
-      if(tilt.actual_og && tilt.gravity) {
-        actualAbv = ((Number(tilt.actual_og) - Number(tilt.gravity)) * 131.25).toFixed(1) + '%';
+      if(tilt.original_gravity && tilt.gravity) {
+        actualAbv = ((Number(tilt.original_gravity) - Number(tilt.gravity)) * 131.25).toFixed(1) + '%';
       }
       let timestamp = '';
       if(tilt.timestamp) {
