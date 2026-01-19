@@ -59,8 +59,10 @@ def batch_jsonl_filename(color, brewid, created_date_mmddyyyy=None, beer_name=No
             if not fn.endswith('.jsonl'):
                 continue
             # Remove .jsonl extension for matching
-            name_without_ext = fn[:-6]  # Remove '.jsonl'
+            name_without_ext = fn.removesuffix('.jsonl')
             # Match if brewid is the entire name, or ends with _brewid
+            # This ensures exact token matching: "abc" matches "abc.jsonl" or "name_abc.jsonl"
+            # but NOT "xyzabc.jsonl" (no underscore separator before brewid)
             if name_without_ext == bid or name_without_ext.endswith(f"_{bid}"):
                 # Found an existing file with this brewid
                 existing_path = os.path.join(BATCHES_DIR, fn)
