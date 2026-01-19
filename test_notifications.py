@@ -10,10 +10,10 @@ from datetime import datetime
 
 # Load configuration
 try:
-    with open('system_config.json', 'r') as f:
+    with open('config/system_config.json', 'r') as f:
         system_cfg = json.load(f)
 except Exception as e:
-    print(f"Error loading system_config.json: {e}")
+    print(f"Error loading config/system_config.json: {e}")
     sys.exit(1)
 
 print("=" * 80)
