@@ -21,13 +21,13 @@ def test_config_loading():
         # Check that Black tilt has og_confirmed
         if 'Black' in tilt_cfg:
             assert 'og_confirmed' in tilt_cfg['Black'], "Black tilt missing og_confirmed"
-            assert tilt_cfg['Black']['og_confirmed'] == True, "Black tilt og_confirmed should be True"
+            assert tilt_cfg['Black']['og_confirmed'] is True, "Black tilt og_confirmed should be True"
             print("  ✓ Black tilt has og_confirmed=True")
         
         # Check that Red tilt has og_confirmed
         if 'Red' in tilt_cfg:
             assert 'og_confirmed' in tilt_cfg['Red'], "Red tilt missing og_confirmed"
-            assert tilt_cfg['Red']['og_confirmed'] == False, "Red tilt og_confirmed should be False"
+            assert tilt_cfg['Red']['og_confirmed'] is False, "Red tilt og_confirmed should be False"
             print("  ✓ Red tilt has og_confirmed=False")
         
         print("  ✓ Config loads correctly with og_confirmed\n")
@@ -50,7 +50,7 @@ def test_update_live_tilt():
         # Check that live_tilts has the data
         assert 'Black' in live_tilts, "Black not in live_tilts"
         assert 'og_confirmed' in live_tilts['Black'], "og_confirmed not in live_tilts"
-        assert live_tilts['Black']['og_confirmed'] == True, "og_confirmed should be True"
+        assert live_tilts['Black']['og_confirmed'] is True, "og_confirmed should be True"
         assert live_tilts['Black']['original_gravity'] == tilt_cfg['Black'].get('actual_og'), \
             "original_gravity should equal actual_og"
         
