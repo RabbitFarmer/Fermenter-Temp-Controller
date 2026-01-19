@@ -55,14 +55,48 @@ This project is a Raspberry Pi-based fermentation monitor and temperature contro
 
 ## File Structure
 
+### Core Application Files
 - `app.py` — Main web server and controller
 - `tilt_static.py` — Tilt UUIDs and color maps
 - `kasa_worker.py` — Kasa plug interface
 - `logger.py` — Logging and notification system
 - `fermentation_monitor.py` — Fermentation stability logic
 - `batch_history.py` — Batch logging and management
-- `/templates` — HTML files for web UI
-- `/static` — CSS and static assets
+- `archive_compact_logs.py` — Log archival and compaction utility
+
+### Directory Structure
+```
+/config/              Configuration files (JSON)
+  ├── system_config.json
+  ├── tilt_config.json
+  ├── temp_control_config.json
+  ├── batch_settings.json
+  └── config.json
+
+/batches/             Per-batch data files (JSONL)
+  ├── {brewname}_{YYYYmmdd}_{brewid}.jsonl
+  └── batch_history_{color}.json
+
+/temp_control/        Temperature control logs (JSONL)
+  └── temp_control_log.jsonl
+
+/logs/                General application logs
+  ├── error.log
+  ├── warning.log
+  └── kasa_errors.log
+
+/templates/           HTML files for web UI
+/static/              CSS and static assets
+/export/              Exported CSV files
+```
+
+### Configuration Files
+Configuration files are stored in `/config/` directory and contain:
+- `system_config.json` - System-wide settings (brewery info, SMTP, notifications)
+- `tilt_config.json` - Per-tilt configuration (batch info, OG/FG targets)
+- `temp_control_config.json` - Temperature control settings
+- `batch_settings.json` - Batch-specific settings
+- `config.json` - Additional configuration options
 
 ## Contributing
 

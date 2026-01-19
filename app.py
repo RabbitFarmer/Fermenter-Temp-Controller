@@ -63,14 +63,14 @@ except Exception:
 app = Flask(__name__)
 
 # --- Files and global constants ---------------------------------------------
-LOG_PATH = 'temp_control_log.jsonl'        # control events only
+LOG_PATH = 'temp_control/temp_control_log.jsonl'        # control events only
 BATCHES_DIR = 'batches'                    # per-batch jsonl files live here
 PER_PAGE = 30
 
 # Config files
-TILT_CONFIG_FILE = 'tilt_config.json'
-TEMP_CFG_FILE = 'temp_control_config.json'
-SYSTEM_CFG_FILE = 'system_config.json'
+TILT_CONFIG_FILE = 'config/tilt_config.json'
+TEMP_CFG_FILE = 'config/temp_control_config.json'
+SYSTEM_CFG_FILE = 'config/system_config.json'
 
 # Chart caps
 DEFAULT_CHART_LIMIT = 500
@@ -1621,7 +1621,7 @@ def tilt_config():
     batch_history = []
     if selected:
         try:
-            with open(f'batch_history_{selected}.json', 'r') as f:
+            with open(f'batches/batch_history_{selected}.json', 'r') as f:
                 batch_history = json.load(f)
         except Exception:
             batch_history = []
@@ -1713,13 +1713,13 @@ def batch_settings():
         }
 
         try:
-            with open(f'batch_history_{color}.json', 'r') as f:
+            with open(f'batches/batch_history_{color}.json', 'r') as f:
                 batches = json.load(f)
         except Exception:
             batches = []
         batches.append(batch_entry)
         try:
-            with open(f'batch_history_{color}.json', 'w') as f:
+            with open(f'batches/batch_history_{color}.json', 'w') as f:
                 json.dump(batches, f, indent=2)
         except Exception as e:
             print(f"[LOG] Could not append batch history for {color}: {e}")
@@ -1738,7 +1738,7 @@ def batch_settings():
     batch_history = []
     if selected:
         try:
-            with open(f'batch_history_{selected}.json', 'r') as f:
+            with open(f'batches/batch_history_{selected}.json', 'r') as f:
                 batch_history = json.load(f)
         except Exception:
             batch_history = []

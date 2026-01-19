@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """
-Archive/compact temp_control_log.jsonl:
+Archive/compact temp_control/temp_control_log.jsonl:
 
 - Splits tilt_reading entries into batches/<brewid_or_color>_YYYYMMDDTHHMMSS.jsonl
-- Rebuilds temp_control_log.jsonl keeping:
+- Rebuilds temp_control/temp_control_log.jsonl keeping:
     * All non-tilt_reading events
     * The last `keep_per_tilt` tilt_reading entries per brewid (or color fallback)
 - Backup is created automatically.
 
 Usage:
-    # stop the app first
+    # Run from repository root directory
+    # Stop the app first
     pkill -f app.py
     sleep 1
 
-    python3 scripts/archive_compact_logs.py --log temp_control_log.jsonl --batches batches --keep 1
+    python3 archive_compact_logs.py --log temp_control/temp_control_log.jsonl --batches batches --keep 1
 """
 import argparse
 import json
@@ -92,7 +93,7 @@ def archive_split(input_log, batches_dir, keep_per_tilt=1):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--log', default='temp_control_log.jsonl')
+    p.add_argument('--log', default='temp_control/temp_control_log.jsonl')
     p.add_argument('--batches', default='batches')
     p.add_argument('--keep', type=int, default=1, help='number of tilt_reading entries to keep per brew/color in main log')
     args = p.parse_args()

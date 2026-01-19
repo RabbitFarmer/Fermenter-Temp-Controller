@@ -2,4 +2,15 @@ __pycache__/
 venv/
 *.log
 app.log
-kasa_errors.log
+logs/*.log
+
+# Configuration files (structure preserved, data ignored)
+config/*.json
+
+# Batch data files
+batches/*.jsonl
+batches/*.json
+
+# Temperature control logs
+temp_control/*.jsonl
+temp_control/*.bak
