@@ -1753,7 +1753,8 @@ def batch_settings():
         selected_config=config,
         system_settings=system_cfg,
         action=action,
-        batch_history=batch_history
+        batch_history=batch_history,
+        color_map=COLOR_MAP
     )
 
 @app.route('/temp_config')
