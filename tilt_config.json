@@ -1,0 +1,83 @@
+{
+  "Red": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": ""
+  },
+  "Green": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": ""
+  },
+  "Black": {
+    "beer_name": "HOLIDAY SPICED SAISON",
+    "batch_name": "First Test of Software",
+    "ferm_start_date": "2025-10-30",
+    "recipe_og": "1.054",
+    "recipe_fg": "1.009",
+    "recipe_abv": "5.9",
+    "actual_og": "1.053",
+    "og_confirmed": true,
+    "brewid": "cf38d0a8"
+  },
+  "Purple": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": ""
+  },
+  "Orange": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": ""
+  },
+  "Blue": {
+    "beer_name": "IT'S A BLUE BEER",
+    "batch_name": "BLUE BATCH ONE",
+    "ferm_start_date": "2025-09-25",
+    "recipe_og": "1.070",
+    "recipe_fg": "1.001",
+    "recipe_abv": "8.000",
+    "actual_og": "1.070",
+    "brewid": "8026a548"
+  },
+  "Yellow": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": ""
+  },
+  "Pink": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": ""
+  }
+}
