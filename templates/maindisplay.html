@@ -334,9 +334,113 @@
 
     function safeIdColor(color){ return color.replace(/\s+/g,'_'); }
 
+    function createTiltCard(color, tilt) {
+      const safe = safeIdColor(color);
+      const colorCode = tilt.color_code || '#333';
+      const useBlackText = ['#ffff00','#ffc0cb','#00ff00'].includes(colorCode);
+      const textColor = useBlackText ? 'black' : 'white';
+      
+      const card = document.createElement('article');
+      card.className = 'tilt-card';
+      card.setAttribute('data-tilt', color);
+      
+      const beerName = tilt.beer_name || 'Unnamed Beer';
+      const batchName = tilt.batch_name || 'Unnamed Batch';
+      const brewid = tilt.brewid || '--';
+      
+      let og = tilt.original_gravity || 0;
+      let gravity = tilt.gravity || 0;
+      let tempF = tilt.temp_f || 0;
+      let recipeOg = tilt.recipe_og || 0;
+      let recipeFg = tilt.recipe_fg || 0;
+      let recipeAbv = tilt.recipe_abv || '';
+      let actualAbv = '--';
+      if(tilt.original_gravity && tilt.gravity) {
+        actualAbv = ((Number(tilt.original_gravity) - Number(tilt.gravity)) * 131.25).toFixed(1) + '%';
+      }
+      let timestamp = '';
+      if(tilt.timestamp) {
+        try { 
+          const dt = new Date(tilt.timestamp); 
+          timestamp = isNaN(dt.getTime()) ? tilt.timestamp : dt.toLocaleString(); 
+        } catch(e) { timestamp = tilt.timestamp; }
+      }
+      
+      card.innerHTML = `
+        <div class="tilt-banner" style="background-color: ${colorCode}; color: ${textColor};">
+          <div class="beer-name">${beerName}</div>
+          <div class="tilt-batch-name">Batch: ${batchName}</div>
+        </div>
+        <div class="tilt-body">
+          <table class="tilt-metrics restore">
+            <tr>
+              <th></th>
+              <th class="right-header">Recipe</th>
+              <th class="right-header">Actual</th>
+            </tr>
+            <tr>
+              <td class="label">Original Gravity</td>
+              <td class="value"><span class="metric-number" id="recipe_og-${safe}">${Number(recipeOg).toFixed(3)}</span></td>
+              <td class="value"><b id="og-${safe}"><span class="metric-number">${Number(og).toFixed(3)}</span></b></td>
+            </tr>
+            <tr>
+              <td class="label">Final / Current Gravity</td>
+              <td class="value"><span class="metric-number" id="recipe_fg-${safe}">${Number(recipeFg).toFixed(3)}</span></td>
+              <td class="value"><b id="gravity-${safe}"><span class="metric-number">${Number(gravity).toFixed(3)}</span></b></td>
+            </tr>
+            <tr>
+              <td class="label">Temperature</td>
+              <td class="value"><!-- recipe temperature not used --></td>
+              <td class="value"><b id="temp-${safe}"><span class="metric-number">${Number(tempF).toFixed(1)}°F</span></b></td>
+            </tr>
+            <tr>
+              <td class="label">A.B.V.</td>
+              <td class="value">
+                <span class="metric-number" id="recipe_abv-${safe}">${recipeAbv ? Number(recipeAbv).toFixed(1)+'%' : '--'}</span>
+              </td>
+              <td class="value">
+                <b><span class="metric-number" id="abv-${safe}">${actualAbv}</span></b>
+              </td>
+            </tr>
+          </table>
+        </div>
+        <footer class="tilt-footer-colored" style="background: ${colorCode}; color: ${textColor}; display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-radius:0 0 6px 6px;">
+          <div style="display:flex; flex-direction:column;">
+            <div style="font-size:0.95em; font-weight:700;">Brew ID: ${brewid}</div>
+            <div style="font-size:0.85em; opacity:0.95;">
+               Last Reading: <span id="timestamp-${safe}">${timestamp}</span>
+            </div>
+          </div>
+          <div style="margin-left:16px; display:flex; align-items:center;">
+            <a class="chart-link" href="/chart_plotly/${color}?brew=${encodeURIComponent(brewid)}"
+               style="background:#fff; color: ${colorCode}; padding:6px 10px; border-radius:6px; text-decoration:none; font-weight:800;">
+               CHART
+            </a>
+          </div>
+        </footer>
+      `;
+      
+      return card;
+    }
+
     function updateTiltValues(live) {
+      const container = document.querySelector('.tiltcard-container');
+      if (!container) return;
+      
       Object.keys(live).forEach(function(color){
         const safe = safeIdColor(color);
+        const entry = live[color];
+        
+        // Check if card exists; if not, create it
+        let existingCard = document.querySelector(`[data-tilt="${color}"]`);
+        if (!existingCard || existingCard.classList.contains('temp-control')) {
+          // Create new card and add it to the container
+          const newCard = createTiltCard(color, entry);
+          container.appendChild(newCard);
+          existingCard = newCard;
+        }
+        
+        // Update existing card values
         const gEl = document.getElementById('gravity-'+safe);
         const ogEl = document.getElementById('og-'+safe);
         const tempEl = document.getElementById('temp-'+safe);
@@ -345,7 +449,6 @@
         const recipeFgEl = document.getElementById('recipe_fg-'+safe);
         const recipeAbvEl = document.getElementById('recipe_abv-'+safe);
         const ts = document.getElementById('timestamp-'+safe);
-        const entry = live[color];
 
         if(recipeOgEl && entry.recipe_og!=null) recipeOgEl.textContent = Number(entry.recipe_og).toFixed(3);
         if(recipeFgEl && entry.recipe_fg!=null) recipeFgEl.textContent = Number(entry.recipe_fg).toFixed(3);
