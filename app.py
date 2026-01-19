@@ -605,10 +605,35 @@ def sanitize_filename(name):
     return result[:MAX_FILENAME_LENGTH]
 
 def batch_jsonl_filename(color, brewid, created_date_mmddyyyy=None, beer_name=None, batch_name=None):
-    """Generate batch JSONL filename in format: brewname_YYYYmmdd_brewid.jsonl"""
+    """Generate batch JSONL filename in format: brewname_YYYYmmdd_brewid.jsonl
+    
+    First searches for an existing file containing the brewid.
+    If found, returns that file to prevent multiple files for the same batch.
+    If not found, generates a new filename.
+    """
     ensure_batches_dir()
     bid = (brewid or "unknown")
     
+    # First, search for any existing file that contains this brewid
+    # Match brewid as complete token: either whole filename or preceded by underscore
+    try:
+        for fn in os.listdir(BATCHES_DIR):
+            if not fn.endswith('.jsonl'):
+                continue
+            # Remove .jsonl extension for matching
+            name_without_ext = fn.removesuffix('.jsonl')
+            # Match if brewid is the entire name, or ends with _brewid
+            # This ensures exact token matching: "abc" matches "abc.jsonl" or "name_abc.jsonl"
+            # but NOT "xyzabc.jsonl" (no underscore separator before brewid)
+            if name_without_ext == bid or name_without_ext.endswith(f"_{bid}"):
+                # Found an existing file with this brewid
+                existing_path = os.path.join(BATCHES_DIR, fn)
+                print(f"[BATCH] Found existing batch file for brewid {bid}: {fn}")
+                return existing_path
+    except Exception as e:
+        print(f"[BATCH] Error searching for existing batch file: {e}")
+    
+    # No existing file found, generate a new filename
     # Get beer_name from tilt config if not provided
     if beer_name is None:
         cfg = tilt_cfg.get(color, {})
@@ -627,6 +652,7 @@ def batch_jsonl_filename(color, brewid, created_date_mmddyyyy=None, beer_name=No
         date_yyyymmdd = datetime.utcnow().strftime("%Y%m%d")
     
     fname = f"{safe_beer_name}_{date_yyyymmdd}_{bid}.jsonl"
+    print(f"[BATCH] Creating new batch file for brewid {bid}: {fname}")
     return os.path.join(BATCHES_DIR, fname)
 
 def ensure_batch_jsonl_exists(color, brewid, meta=None, created_date_mmddyyyy=None):
