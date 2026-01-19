@@ -96,36 +96,15 @@ def verify_config_files():
     """Verify all config files exist."""
     print(f"\n{BLUE}=== CONFIG FILES ==={RESET}")
     
-    # Runtime config files (in config/ subdirectory - gitignored, created at runtime)
-    print(f"\n  {YELLOW}Runtime Config Files (created at runtime, gitignored):{RESET}")
-    runtime_configs = [
+    # Config files should be in config/ subdirectory
+    config_files = [
         'config/tilt_config.json',
         'config/temp_control_config.json',
         'config/system_config.json'
     ]
     
     results = []
-    for config_file in runtime_configs:
-        exists = check_exists(config_file)
-        if exists:
-            status = f"{GREEN}✓ EXISTS (already created){RESET}"
-        else:
-            status = f"{YELLOW}○ RUNTIME-CREATED (normal){RESET}"
-        print(f"  {config_file:<40} {status}")
-        # Mark as "exists" for purposes of validation since runtime creation is expected
-        results.append((config_file, True))
-    
-    # Template config files (in root directory - committed as examples)
-    print(f"\n  {BLUE}Template Config Files (examples in repository):{RESET}")
-    template_configs = [
-        'tilt_config.json',
-        'temp_control_config.json',
-        'system_config.json',
-        'config.json',
-        'batch_settings.json'
-    ]
-    
-    for config_file in template_configs:
+    for config_file in config_files:
         exists = check_exists(config_file)
         status = f"{GREEN}✓ EXISTS{RESET}" if exists else f"{RED}✗ MISSING{RESET}"
         print(f"  {config_file:<40} {status}")

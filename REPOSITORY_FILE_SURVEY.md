@@ -3,9 +3,33 @@
 **Date:** 2026-01-19  
 **Purpose:** Verify all files referenced in code exist in the main repository
 
+## File Relocation Summary
+
+**Files Moved to Correct Directories:**
+
+1. **Config Files** (moved to `config/` directory):
+   - `tilt_config.json` → `config/tilt_config.json` ✓
+   - `temp_control_config.json` → `config/temp_control_config.json` ✓
+   - `system_config.json` → `config/system_config.json` ✓
+
+2. **Batch Files** (moved to `batches/` directory):
+   - `batch_history_Black.json` → `batches/batch_history_Black.json` ✓
+   - `batch_history_Blue.jsonl` → `batches/batch_history_Blue.jsonl` ✓
+
+3. **Temperature Control Logs** (moved to `temp_control/` directory):
+   - `temp_control_log.jsonl` → `temp_control/temp_control_log.jsonl` ✓
+
+**Legacy/Unused Files Remaining in Root:**
+- `config.json` - Old consolidated configuration format (not referenced in code)
+- `batch_settings.json` - Old batch settings format (not referenced in code)
+
+These files are not used by the application and can be safely removed if desired.
+
+---
+
 ## Executive Summary
 
-✅ **REPOSITORY STATUS: COMPLETE**
+✅ **REPOSITORY STATUS: COMPLETE AND VERIFIED**
 
 All files referenced in the code either exist in the repository or are runtime-created files (which is expected). The repository structure is properly organized with clear separation between:
 - Committed template/example files (root directory)
@@ -32,33 +56,32 @@ All core Python modules are present:
 
 ### 2. Configuration Files
 
-#### Runtime Config Files (in `config/` directory - gitignored)
+#### Config Files (in `config/` directory - gitignored)
 
-These files are created at runtime and contain user-specific settings:
+These files are located in the `config/` directory and contain user-specific settings:
 
-| File | Expected by Code | Runtime Created | Gitignored |
-|------|-----------------|-----------------|------------|
-| `config/tilt_config.json` | ✓ | ✓ | ✓ |
-| `config/temp_control_config.json` | ✓ | ✓ | ✓ |
-| `config/system_config.json` | ✓ | ✓ | ✓ |
+| File | Expected by Code | Status | Gitignored |
+|------|-----------------|--------|------------|
+| `config/tilt_config.json` | ✓ | ✓ EXISTS | ✓ |
+| `config/temp_control_config.json` | ✓ | ✓ EXISTS | ✓ |
+| `config/system_config.json` | ✓ | ✓ EXISTS | ✓ |
 
-**Note:** These files don't need to exist in the repository because:
-1. They are generated at runtime when the application first runs
-2. They contain user-specific settings (email, phone, IP addresses)
-3. They are explicitly gitignored to prevent committing sensitive data
-4. The `load_json()` function handles missing files gracefully with fallback defaults
+**Note:** These files are gitignored to prevent committing sensitive data:
+1. They contain user-specific settings (email, phone, IP addresses, SMTP passwords)
+2. They are explicitly gitignored via `config/*.json` pattern
+3. The `load_json()` function handles missing files gracefully with fallback defaults
+4. **Files have been moved from root to `config/` directory where application expects them**
 
-#### Template Config Files (in root directory - committed)
+#### Legacy Config Files (no longer referenced)
 
-These files serve as examples/templates:
+These files remain in the repository but are not actively used:
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `tilt_config.json` | Example tilt configuration | ✓ EXISTS |
-| `temp_control_config.json` | Example temperature control settings | ✓ EXISTS |
-| `system_config.json` | Example system settings | ✓ EXISTS |
-| `config.json` | Legacy configuration format | ✓ EXISTS |
-| `batch_settings.json` | Example batch settings | ✓ EXISTS |
+| `config.json` | Old consolidated configuration format | ✓ EXISTS (root) |
+| `batch_settings.json` | Old batch settings format | ✓ EXISTS (root) |
+
+**Note:** These files are not referenced in current code and may be candidates for removal.
 
 ### 3. HTML Templates ✓ (9/9 core templates exist)
 
@@ -116,21 +139,24 @@ All data directories are present:
 | `export/` | Exported CSV files | ✓ EXISTS | ✓ (contents) |
 | `chart/` | Chart data (if used) | ✓ EXISTS | ✓ (contents) |
 
-### 6. Runtime Data Files (Created at runtime)
+### 6. Runtime Data Files (Created at runtime or moved to correct locations)
 
-These files are referenced in code but created at runtime:
+These files are referenced in code and have been verified:
 
-| File Pattern | Purpose | Exists at Clone | Created When |
-|--------------|---------|-----------------|--------------|
-| `temp_control/temp_control_log.jsonl` | Temperature control event log | No | First temp control event |
-| `logs/kasa_errors.log` | Kasa plug error log | No | First Kasa error |
-| `batches/{brewname}_{date}_{brewid}.jsonl` | Per-batch fermentation data | Some examples | New batch created |
-| `batches/batch_history_{color}.json` | Legacy batch history | Some examples | Batch update |
+| File Pattern | Purpose | Location | Status |
+|--------------|---------|----------|--------|
+| `temp_control/temp_control_log.jsonl` | Temperature control event log | temp_control/ | ✓ EXISTS (moved from root) |
+| `logs/kasa_errors.log` | Kasa plug error log | logs/ | Runtime-created |
+| `batches/{brewname}_{date}_{brewid}.jsonl` | Per-batch fermentation data | batches/ | ✓ Examples exist |
+| `batches/batch_history_{color}.json` | Batch history by color | batches/ | ✓ Examples exist (moved from root) |
+| `batches/batch_history_{color}.jsonl` | Legacy batch history format | batches/ | ✓ Example exists (moved from root) |
 
-**Current Batch Files Found:**
+**Current Batch Files Found (all in correct location):**
 - `batches/8026a548.jsonl`
 - `batches/Blue_OctoberFest_MainBatch_20251001_1234abcd.jsonl`
 - `batches/batch_BLACK_cf38d0a8_10302025.jsonl`
+- `batches/batch_history_Black.json`
+- `batches/batch_history_Blue.jsonl`
 - `batches/cf38d0a8.jsonl`
 
 ## File Naming Conventions
