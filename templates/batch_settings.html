@@ -41,7 +41,8 @@
         <div class="tilt-grid">
           {% for color in active_colors %}
             {% set t = live_tilts.get(color, {}) %}
-            <a class="tilt-tile" href="{{ url_for('batch_settings') }}?tilt_color={{ color|urlencode }}">
+            {% set border_color = color_map.get(color, '#cccccc') %}
+            <a class="tilt-tile" href="{{ url_for('batch_settings') }}?tilt_color={{ color|urlencode }}" style="border: 3px solid {{ border_color }};">
               <div class="title">{{ t.beer_name or 'Unnamed Beer' }}</div>
               <div class="meta">Tilt: <strong>{{ color }}</strong></div>
               <div class="meta">Batch: {{ t.batch_name or '--' }}</div>
