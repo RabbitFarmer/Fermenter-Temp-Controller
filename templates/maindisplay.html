@@ -29,6 +29,16 @@
 
     /* Reduced body padding to make card shorter */
     .temp-card-body { padding: 8px 12px 6px 12px; flex: 1 1 auto; box-sizing:border-box; }
+    
+    /* Assigned tilt display above footer */
+    .temp-card-assigned-tilt {
+      text-align: center;
+      font-weight: 800;
+      font-size: 14px;
+      color: #222;
+      padding: 8px 12px;
+      background: #fff;
+    }
 
     .tc-status {
       color: var(--status-red);
@@ -104,8 +114,21 @@
       justify-content:space-between;
       align-items:center;
     }
-    .footer-left { font-size:12px; line-height:1.2; }
-    .footer-left .small-meta { opacity:0.95; display:block; margin-top:6px; color:#f3e7e0; font-weight:700; }
+    .footer-left { font-size:11px; line-height:1.2; color:#f3e7e0; font-weight:700; }
+    
+    /* Toggle switch container - moved to left */
+    .footer-toggle-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .toggle-label {
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+    }
 
     .chart-pill {
       background: white;
@@ -230,22 +253,22 @@
             <div id="now_action" class="tc-now-action" aria-live="polite" role="status"></div>
           </div>
 
+          <div class="temp-card-assigned-tilt">
+            ASSIGNED TILT — {{ (temp_control.tilt_color or '—') }}
+          </div>
+
           <div class="temp-card-footer">
-            <div class="footer-left">
-              <div style="font-weight:800;">ASSIGNED TILT — {{ (temp_control.tilt_color or '—') }}</div>
-              <div class="small-meta" id="temp_control_last">{{ temp_control.notification_last_sent or '' }}</div>
+            <div class="footer-toggle-container">
+              <label class="switch">
+                <input type="checkbox" id="temp_control_toggle" aria-label="Temperature control monitor toggle" {% if temp_control.temp_control_active %}checked{% endif %}>
+                <span class="slider round"></span>
+              </label>
+              <label for="temp_control_toggle" class="toggle-label">MONITOR</label>
             </div>
 
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <div style="display: flex; flex-direction: column; align-items: center;">
-                <label for="temp_control_toggle" style="font-size: 11px; font-weight: 700; margin-bottom: 4px;">MONITOR</label>
-                <label class="switch">
-                  <input type="checkbox" id="temp_control_toggle" {% if temp_control.temp_control_active %}checked{% endif %}>
-                  <span class="slider round"></span>
-                </label>
-              </div>
-              <a class="chart-pill" href="/chart_plotly/Fermenter?brew=">Chart</a>
-            </div>
+            <div class="footer-left" id="temp_control_last">{{ temp_control.notification_last_sent or '' }}</div>
+
+            <a class="chart-pill" href="/chart_plotly/Fermenter?brew=">Chart</a>
           </div>
         </article>
         {% endif %}
@@ -505,8 +528,8 @@
         const tilt = document.querySelector('.tiltcard-container .tilt-card:not(.temp-control)');
         if (!tilt) return;
         const h = tilt.offsetHeight;
-        // subtract a small amount to squeeze the temp card slightly shorter
-        tempCard.style.height = Math.max(180, h - 18) + 'px';
+        // match the tilt card height exactly
+        tempCard.style.height = Math.max(180, h) + 'px';
         tempCard.style.overflow = 'hidden';
       } catch (e) { /* ignore */ }
     }
