@@ -8,7 +8,12 @@ def generate_brewid(beer_name, batch_name, ferm_start_date):
 
 def save_batch_jsonl(color, batch_data, action):
     """
-    Append a batch entry to the batches/batch_history_[color].jsonl file.
+    Append a batch entry to the batches/batch_history_[color].jsonl file in JSONL format.
+    
+    NOTE: This function is LEGACY code for JSONL event logging.
+    The main app uses JSON array format in batch_history_[color].json files instead.
+    Use this function only if implementing event-based batch logging.
+    
     batch_data must include all batch fields (beer_name, batch_name, etc).
     action is "new" or "edit".
     brewid is generated for "new", preserved for "edit".

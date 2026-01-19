@@ -9,7 +9,8 @@ Archive/compact temp_control/temp_control_log.jsonl:
 - Backup is created automatically.
 
 Usage:
-    # stop the app first
+    # Run from repository root directory
+    # Stop the app first
     pkill -f app.py
     sleep 1
 
