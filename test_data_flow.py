@@ -65,7 +65,7 @@ def test_complete_data_flow():
             print("\nStep 4: Verifying og_confirmed attribute...")
             assert 'og_confirmed' in black_data, "og_confirmed missing from response"
             assert isinstance(black_data['og_confirmed'], bool), "og_confirmed should be boolean"
-            assert black_data['og_confirmed'] == True, "og_confirmed should be True for Black tilt"
+            assert black_data['og_confirmed'] is True, "og_confirmed should be True for Black tilt"
             print(f"  ✓ og_confirmed: {black_data['og_confirmed']}")
             
             # Step 5: Verify ABV calculation data
