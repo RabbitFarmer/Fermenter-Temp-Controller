@@ -33,9 +33,15 @@
 
   <script>
     const tiltColor = "{{ tilt_color or '' }}";
+    {% if tilt_color == "Fermenter" %}
+    const beerName = "Temperature Control";
+    const batchName = "N/A";
+    const brewId = "N/A";
+    {% else %}
     const beerName = "{{ tilt_cfg[tilt_color].beer_name or 'Unknown' }}";
     const batchName = "{{ tilt_cfg[tilt_color].batch_name or 'Unknown' }}";
     const brewId = "{{ tilt_cfg[tilt_color].brewid or 'Unknown' }}";
+    {% endif %}
     
     async function loadData(limit = 1500) {
       document.getElementById('status').textContent = 'Loading data...';
