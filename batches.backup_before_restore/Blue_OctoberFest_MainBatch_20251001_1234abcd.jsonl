@@ -1,9 +1,0 @@
-{"beer_name": "OctoberFest", "batch_name": "MainBatch", "ferm_start_date": "2025-10-01", "recipe_og": "1.055", "recipe_fg": "1.012", "recipe_abv": "5.6", "actual_og": 1.055, "brewid": "1234abcd"}
-{"timestamp": "2025-10-01T09:00:00", "gravity": 1.055, "temp_f": 68, "rssi": -60}
-{"timestamp": "2025-10-02T09:00:00", "gravity": 1.050, "temp_f": 68, "rssi": -59}
-{"timestamp": "2025-10-03T09:00:00", "gravity": 1.045, "temp_f": 67, "rssi": -61}
-{"timestamp": "2025-10-04T09:00:00", "gravity": 1.035, "temp_f": 67, "rssi": -63}
-{"timestamp": "2025-10-05T09:00:00", "gravity": 1.025, "temp_f": 66, "rssi": -62}
-{"timestamp": "2025-10-06T09:00:00", "gravity": 1.018, "temp_f": 66, "rssi": -64}
-{"timestamp": "2025-10-07T09:00:00", "gravity": 1.015, "temp_f": 65, "rssi": -65}
-{"timestamp": "2025-10-08T09:00:00", "gravity": 1.012, "temp_f": 65, "rssi": -67}

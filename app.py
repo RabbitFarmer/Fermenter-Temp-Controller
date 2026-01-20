@@ -2333,59 +2333,63 @@ def restore_system():
         }), 400
     
     try:
-        # Create a temporary directory for extraction validation
-        temp_dir = '/tmp/fermenter_restore_temp'
-        if os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
-        os.makedirs(temp_dir)
+        # Create a secure temporary directory for extraction validation
+        import tempfile
+        temp_dir = tempfile.mkdtemp(prefix='fermenter_restore_')
         
-        # Extract the backup to temporary directory first
-        with tarfile.open(backup_full_path, 'r:gz') as tar:
-            # Security check: ensure no absolute paths or parent directory references
-            for member in tar.getmembers():
-                if member.name.startswith('/') or '..' in member.name:
-                    return jsonify({
-                        'success': False,
-                        'message': f'Invalid backup file: contains unsafe paths'
-                    }), 400
+        try:
+            # Extract the backup to temporary directory first
+            with tarfile.open(backup_full_path, 'r:gz') as tar:
+                # Security check: ensure no absolute paths or parent directory references
+                safe_members = []
+                for member in tar.getmembers():
+                    if member.name.startswith('/') or '..' in member.name:
+                        shutil.rmtree(temp_dir)
+                        return jsonify({
+                            'success': False,
+                            'message': f'Invalid backup file: contains unsafe paths'
+                        }), 400
+                    safe_members.append(member)
+                
+                # Extract only validated members to temp directory
+                tar.extractall(temp_dir, members=safe_members)
             
-            # Extract to temp directory
-            tar.extractall(temp_dir)
-        
-        # Now copy files from temp to current directory
-        # This allows us to validate before overwriting
-        current_dir = os.getcwd()
-        
-        for item in os.listdir(temp_dir):
-            src = os.path.join(temp_dir, item)
-            dst = os.path.join(current_dir, item)
+            # Now copy files from temp to current directory
+            # This allows us to validate before overwriting
+            current_dir = os.getcwd()
             
-            # Backup existing files before overwriting
-            if os.path.exists(dst):
-                backup_old = f'{dst}.backup_before_restore'
-                if os.path.isdir(dst):
-                    if os.path.exists(backup_old):
-                        shutil.rmtree(backup_old)
-                    shutil.copytree(dst, backup_old)
-                else:
-                    shutil.copy2(dst, backup_old)
-            
-            # Copy from temp to current
-            if os.path.isdir(src):
+            for item in os.listdir(temp_dir):
+                src = os.path.join(temp_dir, item)
+                dst = os.path.join(current_dir, item)
+                
+                # Backup existing files before overwriting
                 if os.path.exists(dst):
-                    shutil.rmtree(dst)
-                shutil.copytree(src, dst)
-            else:
-                shutil.copy2(src, dst)
-        
-        # Cleanup temp directory
-        shutil.rmtree(temp_dir)
-        
-        return jsonify({
-            'success': True,
-            'message': f'System restored successfully from {backup_filename}. Please restart the application for changes to take effect.',
-            'restart_required': True
-        })
+                    backup_old = f'{dst}.backup_before_restore'
+                    if os.path.isdir(dst):
+                        if os.path.exists(backup_old):
+                            shutil.rmtree(backup_old)
+                        shutil.copytree(dst, backup_old)
+                    else:
+                        shutil.copy2(dst, backup_old)
+                
+                # Copy from temp to current
+                if os.path.isdir(src):
+                    if os.path.exists(dst):
+                        shutil.rmtree(dst)
+                    shutil.copytree(src, dst)
+                else:
+                    shutil.copy2(src, dst)
+            
+            return jsonify({
+                'success': True,
+                'message': f'System restored successfully from {backup_filename}. Please restart the application for changes to take effect.',
+                'restart_required': True
+            })
+            
+        finally:
+            # Always cleanup temp directory
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
         
     except Exception as e:
         return jsonify({
