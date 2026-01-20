@@ -224,12 +224,21 @@ def _format_control_log_entry(event_type, payload):
     grav = _to_float(grav)
 
     event_label = ALLOWED_EVENTS.get(event_type, event_type)
+    
+    # Get brewid from tilt config if we have a tilt_color
+    brewid = None
+    if tilt_color and 'tilt_cfg' in globals():
+        try:
+            brewid = tilt_cfg.get(tilt_color, {}).get('brewid')
+        except Exception:
+            brewid = None
 
     entry = {
         "timestamp": iso_ts,
         "date": date,
         "time": time_str,
         "tilt_color": tilt_color,
+        "brewid": brewid,
         "low_limit": low,
         "current_temp": cur,
         "temp_f": cur,
@@ -1851,7 +1860,10 @@ def update_temp_config():
 
 @app.route('/toggle_temp_control', methods=['POST'])
 def toggle_temp_control():
-    """Toggle the temp_control_active state (ON/OFF switch on temp control card)."""
+    """Toggle the temp_control_active state (ON/OFF switch on temp control card).
+    
+    When turning ON, if 'new_session' is True in the request, archive the existing log.
+    """
     try:
         data = request.get_json() if request.is_json else request.form
         # Standardize on boolean JSON values
@@ -1862,6 +1874,33 @@ def toggle_temp_control():
             new_state = active_value.lower() in ('true', '1')
         else:
             new_state = bool(active_value)
+        
+        # Check if this is a new session request (archive existing log)
+        new_session = data.get('new_session', False)
+        if isinstance(new_session, str):
+            new_session = new_session.lower() in ('true', '1')
+        
+        # If turning ON and new_session is requested, archive the existing log
+        if new_state and new_session:
+            try:
+                if os.path.exists(LOG_PATH):
+                    # Create logs directory if it doesn't exist
+                    logs_dir = 'logs'
+                    os.makedirs(logs_dir, exist_ok=True)
+                    
+                    # Generate archive filename with timestamp
+                    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                    tilt_color = temp_cfg.get("tilt_color", "unknown")
+                    archive_name = f"temp_control_{tilt_color}_{timestamp}.jsonl"
+                    archive_path = os.path.join(logs_dir, archive_name)
+                    
+                    # Move the existing log to archive
+                    import shutil
+                    shutil.move(LOG_PATH, archive_path)
+                    print(f"[LOG] Archived temp control log to {archive_path}")
+            except Exception as e:
+                print(f"[LOG] Error archiving temp control log: {e}")
+                return jsonify({"success": False, "error": f"Failed to archive log: {str(e)}"}), 500
         
         temp_cfg['temp_control_active'] = new_state
         
@@ -1973,6 +2012,57 @@ def export_temp_log():
 @app.route('/export_temp_csv', methods=['GET', 'POST'])
 def export_temp_csv():
     return redirect('/temp_config')
+
+
+@app.route('/export_temp_control_csv', methods=['POST'])
+def export_temp_control_csv():
+    """Export temperature control log data to CSV in the /export directory."""
+    try:
+        import csv
+        from datetime import datetime
+        
+        # Create export directory if it doesn't exist
+        export_dir = 'export'
+        os.makedirs(export_dir, exist_ok=True)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'temp_control_{timestamp}.csv'
+        filepath = os.path.join(export_dir, filename)
+        
+        # Read data from temp_control_log.jsonl
+        data_rows = []
+        if os.path.exists(LOG_PATH):
+            with open(LOG_PATH, 'r') as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        obj = json.loads(line)
+                        # Only include events that are in ALLOWED_EVENTS
+                        if obj.get('event') in ALLOWED_EVENTS.values():
+                            data_rows.append(obj)
+                    except Exception as e:
+                        print(f"[LOG] Error parsing line in export: {e}")
+                        continue
+        
+        # Write to CSV
+        if data_rows:
+            with open(filepath, 'w', newline='') as csvfile:
+                # Define fieldnames from the data
+                fieldnames = ['timestamp', 'date', 'time', 'tilt_color', 'low_limit', 'current_temp', 'temp_f', 'gravity', 'high_limit', 'event']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
+                writer.writeheader()
+                for row in data_rows:
+                    writer.writerow(row)
+            
+            return jsonify({'success': True, 'filename': filename, 'rows': len(data_rows)})
+        else:
+            return jsonify({'success': False, 'error': 'No data to export'})
+            
+    except Exception as e:
+        print(f"[LOG] Error exporting temp control CSV: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/scan_kasa_plugs')

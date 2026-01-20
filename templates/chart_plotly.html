@@ -8,9 +8,11 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 16px; background: #f6f6f6; }
     #chart-container { max-width: 1200px; margin: auto; background: #ffffff; border-radius: 4px; padding: 16px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); }
-    #tempChart { height: 400px; }
+    #tempChart { height: 500px; }
     .controls { text-align: center; margin: 12px 0; }
     .controls input { width: 80px; margin-right: 12px; }
+    .controls button { padding: 6px 16px; margin: 0 4px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .controls button:hover { background-color: #45a049; }
     .back-button { margin-top: 16px; text-align: center; }
     .back-button a { display: inline-block; padding: 10px 20px; text-decoration: none; color: white; background-color: green; border-radius: 5px; font-weight: bold; }
     .back-button a:hover { background-color: darkgreen; }
@@ -22,6 +24,9 @@
     <label for="limit">Points:</label>
     <input id="limit" type="number" min="20" max="2000" value="1500" />
     <button id="reload">Reload</button>
+    {% if tilt_color == "Fermenter" %}
+    <button id="export">Export CSV</button>
+    {% endif %}
     <span id="status"></span>
   </div>
   <div id="chart-container">
@@ -53,7 +58,13 @@
 
         const json = await response.json();
         const dataPoints = json.points || [];
-
+        
+        // Check if this is temperature control data
+        const isTempControl = (tiltColor === 'Fermenter');
+        
+        const traces = [];
+        
+        // Temperature trace - always included
         const tempTrace = {
           x: dataPoints.map((p) => p.timestamp),
           y: dataPoints.map((p) => p.temp_f),
@@ -62,46 +73,131 @@
           line: { color: 'blue', shape: 'spline' },
           yaxis: 'y1',
         };
+        traces.push(tempTrace);
+        
+        let layout;
+        
+        if (isTempControl) {
+          // For temperature control, add heating/cooling markers instead of gravity
+          
+          // Filter events for markers
+          const heatingOnEvents = dataPoints.filter(p => p.event === 'HEATING-PLUG TURNED ON');
+          const heatingOffEvents = dataPoints.filter(p => p.event === 'HEATING-PLUG TURNED OFF');
+          const coolingOnEvents = dataPoints.filter(p => p.event === 'COOLING-PLUG TURNED ON');
+          const coolingOffEvents = dataPoints.filter(p => p.event === 'COOLING-PLUG TURNED OFF');
+          
+          // Heating ON markers (red triangles pointing up)
+          if (heatingOnEvents.length > 0) {
+            traces.push({
+              x: heatingOnEvents.map(p => p.timestamp),
+              y: heatingOnEvents.map(p => p.temp_f),
+              mode: 'markers',
+              name: 'Heating ON',
+              marker: { color: 'red', size: 10, symbol: 'triangle-up' },
+              yaxis: 'y1',
+            });
+          }
+          
+          // Heating OFF markers (pink triangles pointing down)
+          if (heatingOffEvents.length > 0) {
+            traces.push({
+              x: heatingOffEvents.map(p => p.timestamp),
+              y: heatingOffEvents.map(p => p.temp_f),
+              mode: 'markers',
+              name: 'Heating OFF',
+              marker: { color: 'pink', size: 10, symbol: 'triangle-down' },
+              yaxis: 'y1',
+            });
+          }
+          
+          // Cooling ON markers (blue squares)
+          if (coolingOnEvents.length > 0) {
+            traces.push({
+              x: coolingOnEvents.map(p => p.timestamp),
+              y: coolingOnEvents.map(p => p.temp_f),
+              mode: 'markers',
+              name: 'Cooling ON',
+              marker: { color: 'blue', size: 10, symbol: 'square' },
+              yaxis: 'y1',
+            });
+          }
+          
+          // Cooling OFF markers (light blue squares)
+          if (coolingOffEvents.length > 0) {
+            traces.push({
+              x: coolingOffEvents.map(p => p.timestamp),
+              y: coolingOffEvents.map(p => p.temp_f),
+              mode: 'markers',
+              name: 'Cooling OFF',
+              marker: { color: 'lightblue', size: 10, symbol: 'square' },
+              yaxis: 'y1',
+            });
+          }
+          
+          // Layout without gravity axis
+          layout = {
+            title: {
+              text: `Temperature Control Log | ${beerName}`,
+              font: { size: 16 },
+            },
+            xaxis: {
+              title: 'Timestamp',
+              titlefont: { size: 12 },
+              gridcolor: '#eaf2f5',
+            },
+            yaxis: {
+              title: 'Temperature (°F)',
+              titlefont: { color: 'blue', size: 12 },
+              tickfont: { color: 'blue', size: 10 },
+              gridcolor: '#eaf2f5',
+            },
+            showlegend: true,
+            legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
+            margin: { l: 50, r: 50, t: 50, b: 80 },
+          };
+        } else {
+          // For regular tilt data, include gravity
+          const gravityTrace = {
+            x: dataPoints.map((p) => p.timestamp),
+            y: dataPoints.map((p) => parseFloat(p.gravity).toFixed(3)), // Gravity precision
+            mode: 'lines',
+            name: 'Gravity',
+            line: { color: '#E69D00', shape: 'spline' }, // Darker, bolder yellow
+            yaxis: 'y2',
+          };
+          traces.push(gravityTrace);
+          
+          layout = {
+            title: {
+              text: `Fermenter Readings | ${beerName} | Batch: ${batchName} | BrewId: ${brewId}`,
+              font: { size: 16 },
+            },
+            xaxis: {
+              title: 'Timestamp',
+              titlefont: { size: 12 },
+              gridcolor: '#eaf2f5',
+            },
+            yaxis: {
+              title: 'Temperature (°F)',
+              titlefont: { color: 'blue', size: 12 },
+              tickfont: { color: 'blue', size: 10 },
+              gridcolor: '#eaf2f5',
+            },
+            yaxis2: {
+              title: 'Gravity',
+              titlefont: { color: '#E69D00', size: 12 },
+              tickfont: { color: '#E69D00', size: 10 },
+              overlaying: 'y',
+              side: 'right',
+              gridcolor: '#ffffff',
+            },
+            showlegend: true,
+            legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
+            margin: { l: 50, r: 50, t: 50, b: 50 },
+          };
+        }
 
-        const gravityTrace = {
-          x: dataPoints.map((p) => p.timestamp),
-          y: dataPoints.map((p) => parseFloat(p.gravity).toFixed(3)), // Gravity precision
-          mode: 'lines',
-          name: 'Gravity',
-          line: { color: '#E69D00', shape: 'spline' }, // Darker, bolder yellow
-          yaxis: 'y2',
-        };
-
-        const layout = {
-          title: {
-            text: `Fermenter Readings | ${beerName} | Batch: ${batchName} | BrewId: ${brewId}`,
-            font: { size: 16 },
-          },
-          xaxis: {
-            title: 'Timestamp',
-            titlefont: { size: 12 },
-            gridcolor: '#eaf2f5',
-          },
-          yaxis: {
-            title: 'Temperature (°F)',
-            titlefont: { color: 'blue', size: 12 },
-            tickfont: { color: 'blue', size: 10 },
-            gridcolor: '#eaf2f5',
-          },
-          yaxis2: {
-            title: 'Gravity',
-            titlefont: { color: '#E69D00', size: 12 },
-            tickfont: { color: '#E69D00', size: 10 },
-            overlaying: 'y',
-            side: 'right',
-            gridcolor: '#ffffff',
-          },
-          showlegend: true,
-          legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
-          margin: { l: 50, r: 50, t: 50, b: 50 },
-        };
-
-        Plotly.newPlot('tempChart', [tempTrace, gravityTrace], layout);
+        Plotly.newPlot('tempChart', traces, layout);
         document.getElementById('status').textContent = `Loaded ${dataPoints.length} points.`;
       } catch (err) {
         console.error(err);
@@ -113,6 +209,29 @@
       const limit = Math.min(2000, Math.max(20, parseInt(document.getElementById('limit').value) || 1500));
       loadData(limit);
     });
+    
+    // Add export functionality for temperature control
+    {% if tilt_color == "Fermenter" %}
+    document.getElementById('export').addEventListener('click', async () => {
+      try {
+        document.getElementById('status').textContent = 'Exporting data...';
+        const response = await fetch('/export_temp_control_csv', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!response.ok) throw new Error('Export failed');
+        const result = await response.json();
+        if (result.success) {
+          document.getElementById('status').textContent = `Exported to ${result.filename}`;
+        } else {
+          document.getElementById('status').textContent = 'Export failed: ' + (result.error || 'Unknown error');
+        }
+      } catch (err) {
+        console.error(err);
+        document.getElementById('status').textContent = 'Export failed';
+      }
+    });
+    {% endif %}
 
     loadData();
   </script>
