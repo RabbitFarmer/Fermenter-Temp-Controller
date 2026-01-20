@@ -2309,20 +2309,6 @@ def restore_system():
             'message': 'No backup file specified.'
         }), 400
     
-    # Security: Validate filename to prevent directory traversal
-    if '..' in backup_filename or '/' in backup_filename or '\\' in backup_filename:
-        return jsonify({
-            'success': False,
-            'message': 'Invalid backup filename.'
-        }), 400
-    
-    # Security: Ensure filename has expected format
-    if not backup_filename.startswith('fermenter_backup_') or not backup_filename.endswith('.tar.gz'):
-        return jsonify({
-            'success': False,
-            'message': 'Invalid backup file format.'
-        }), 400
-    
     backup_full_path = os.path.join(backup_path, backup_filename)
     
     # Validate that the backup file exists

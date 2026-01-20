@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SMS/Email Configuration</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="page-bg">
+  <div class="temp-config-setup-ribbon">
+    <div class="temp-header">
+      <div class="temp-title">SMS/EMAIL CONFIGURATION</div>
+      <div class="temp-subtitle">Configure notification settings</div>
+    </div>
+
+    <form action="/update_sms_email_config" method="post" class="temp-config-form">
+      <table class="config-table" style="width: 60%; margin: auto;">
+        <tr>
+          <td><label for="warning_mode"><b>Notification Selector</b></label></td>
+          <td>
+            <select name="warning_mode" id="warning_mode">
+              <option value="none" {% if system_settings.warning_mode == "none" %}selected{% endif %}>None</option>
+              <option value="email" {% if system_settings.warning_mode == "email" %}selected{% endif %}>Email</option>
+              <option value="sms" {% if system_settings.warning_mode == "sms" %}selected{% endif %}>SMS</option>
+              <option value="both" {% if system_settings.warning_mode == "both" %}selected{% endif %}>Both</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td><label for="fermenter_email"><b>Fermenter Email Account Address</b></label></td>
+          <td><input type="email" name="fermenter_email" id="fermenter_email" value="{{ system_settings.fermenter_email }}"></td>
+        </tr>
+        <tr>
+          <td><label for="fermenter_email_password"><b>Fermenter Email Password</b></label></td>
+          <td><input type="password" name="fermenter_email_password" id="fermenter_email_password" placeholder="Enter password"></td>
+        </tr>
+        <tr>
+          <td><label for="send_to_name"><b>Send to Name</b></label></td>
+          <td><input type="text" name="send_to_name" id="send_to_name" value="{{ system_settings.send_to_name }}"></td>
+        </tr>
+        <tr>
+          <td><label for="send_to_email"><b>Send to Email Address</b></label></td>
+          <td><input type="email" name="send_to_email" id="send_to_email" value="{{ system_settings.send_to_email }}"></td>
+        </tr>
+        <tr>
+          <td><label for="send_to_phone"><b>Send to Cell Phone Number</b></label></td>
+          <td><input type="tel" name="send_to_phone" id="send_to_phone" value="{{ system_settings.send_to_phone }}"></td>
+        </tr>
+        <tr>
+          <td><label for="send_to_carrier"><b>Send to Cell Phone Carrier</b></label></td>
+          <td>
+            <select name="send_to_carrier" id="send_to_carrier">
+              <option value="" {% if not system_settings.send_to_carrier %}selected{% endif %}>Select Carrier</option>
+              <option value="att" {% if system_settings.send_to_carrier == "att" %}selected{% endif %}>AT&T</option>
+              <option value="tmobile" {% if system_settings.send_to_carrier == "tmobile" %}selected{% endif %}>T-Mobile</option>
+              <option value="verizon" {% if system_settings.send_to_carrier == "verizon" %}selected{% endif %}>Verizon</option>
+              <option value="sprint" {% if system_settings.send_to_carrier == "sprint" %}selected{% endif %}>Sprint</option>
+              <option value="uscellular" {% if system_settings.send_to_carrier == "uscellular" %}selected{% endif %}>US Cellular</option>
+              <option value="boost" {% if system_settings.send_to_carrier == "boost" %}selected{% endif %}>Boost Mobile</option>
+              <option value="cricket" {% if system_settings.send_to_carrier == "cricket" %}selected{% endif %}>Cricket</option>
+              <option value="metro" {% if system_settings.send_to_carrier == "metro" %}selected{% endif %}>Metro PCS</option>
+            </select>
+          </td>
+        </tr>
+      </table>
+
+      <div style="text-align:center; margin-top:20px;">
+        <button type="submit" class="btn-primary">Save</button>
+        <button type="button" class="btn-secondary" style="margin-left:16px;" onclick="window.location.href='/system_config'">Cancel</button>
+      </div>
+    </form>
+
+    <div style="text-align:center; margin-top:12px;">
+      <form action="/system_config" method="get" style="display:inline;">
+        <button type="submit" class="btn-action cancel">Return to System Config</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

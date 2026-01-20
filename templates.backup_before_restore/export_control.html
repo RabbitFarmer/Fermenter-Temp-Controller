@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Export Result</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="page-bg">
+
+  <div class="header">{{ system_settings.brewery_name }}</div>
+  <div class="title">Export Status</div>
+
+  <div class="export-message">
+    <p>{{ message }}</p>
+    <p>You can retrieve the file from <strong>/export/</strong> on your system.</p>
+  </div>
+
+  <form action="/" method="get">
+    <button type="submit" class="btn-chart">Return to Dashboard</button>
+  </form>
+
+</body>
+</html>

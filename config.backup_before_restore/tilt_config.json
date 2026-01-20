@@ -1,0 +1,90 @@
+{
+  "Red": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false
+  },
+  "Green": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false
+  },
+  "Black": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false
+  },
+  "Purple": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false
+  },
+  "Orange": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false
+  },
+  "Blue": {
+    "beer_name": "Blue Batch Ale",
+    "batch_name": "BlueFall2025",
+    "ferm_start_date": "2025-09-15",
+    "recipe_og": "1.055",
+    "recipe_fg": "1.005",
+    "recipe_abv": "8",
+    "actual_og": "1.055",
+    "og_confirmed": true,
+    "brewid": "22ce290a"
+  },
+  "Yellow": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false
+  },
+  "Pink": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false
+  }
+}

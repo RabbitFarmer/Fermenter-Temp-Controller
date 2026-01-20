@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ system_settings.brewery_name }} - Fermentation Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    :root {
+      --panel-brown: #8B4513;
+      --status-red: #c91f1f;
+      --now-cool-blue: #1e90ff;
+      --card-width: 320px;
+    }
+
+    /* Temp card same width as tilt cards */
+    .tilt-card.temp-control { width: var(--card-width); border-radius:8px; overflow:hidden; box-shadow:0 2px 6px rgba(0,0,0,0.06); background:#fff; display:flex; flex-direction:column; }
+
+    /* Banner */
+    .temp-card-banner {
+      background: var(--panel-brown);
+      color: white;
+      text-align:center;
+      padding: 10px 12px;
+      font-weight:900;
+    }
+    .temp-card-banner .title-line-1 { font-size:18px; }
+    .temp-card-banner .title-line-2 { font-size:13px; margin-top:6px; font-weight:800; }
+
+    /* Reduced body padding to make card shorter */
+    .temp-card-body { padding: 8px 12px 6px 12px; flex: 1 1 auto; box-sizing:border-box; }
+    
+    /* Assigned tilt display above footer */
+    .temp-card-assigned-tilt {
+      text-align: center;
+      font-weight: 800;
+      font-size: 14px;
+      color: #222;
+      padding: 8px 12px;
+      background: #fff;
+    }
+
+    .tc-status {
+      color: var(--status-red);
+      font-weight: 900;
+      text-align:center;
+      font-size:16px;
+      margin: 6px 0 8px 0;
+      letter-spacing: 0.5px;
+      line-height:1.1;
+    }
+
+    /* Grid labels on left and value boxes on right */
+    .tc-grid { display:grid; grid-template-columns: 1fr 120px; align-items:center; gap:10px 12px; }
+    .tc-label { font-weight: 800; color:#222; font-size:13px; }
+    .tc-value-box {
+      border: 4px solid #111;
+      padding:6px 8px;
+      text-align:center;
+      font-weight:900;
+      font-family: monospace;
+      font-size:16px;
+      background: #fff;
+      box-sizing:border-box;
+      min-width: 80px;
+      line-height:1;
+    }
+    .tc-value-current { font-size:24px; padding:6px 10px; }
+
+    /* NOW action single-line and visible */
+    .tc-now-action {
+      margin-top:10px;
+      text-align:center;
+      font-weight:900;
+      font-size:18px;
+      padding:4px 6px;
+      min-height:28px;
+      white-space: nowrap;     /* force single line */
+      line-height:1;
+      overflow:visible;
+      background: transparent; /* ensure no blocking background */
+    }
+    .tc-now-action.now-heating { color: var(--status-red); }
+    .tc-now-action.now-cooling { color: var(--now-cool-blue); }
+
+    /* Visible pulsing: animate opacity + subtle scale + glow */
+    @keyframes pulse-red {
+      0% { opacity: 0.9; transform: scale(1); text-shadow: 0 0 0 rgba(201,31,31,0); }
+      40% { opacity: 1; transform: scale(1.03); text-shadow: 0 0 12px rgba(201,31,31,0.35); }
+      100% { opacity: 0.95; transform: scale(1); text-shadow: 0 0 0 rgba(201,31,31,0); }
+    }
+    @keyframes pulse-blue {
+      0% { opacity: 0.9; transform: scale(1); text-shadow: 0 0 0 rgba(30,144,255,0); }
+      40% { opacity: 1; transform: scale(1.03); text-shadow: 0 0 12px rgba(30,144,255,0.35); }
+      100% { opacity: 0.95; transform: scale(1); text-shadow: 0 0 0 rgba(30,144,255,0); }
+    }
+    .tc-now-action.pulse-heating { animation: pulse-red 1.0s ease-in-out infinite; }
+    .tc-now-action.pulse-cooling { animation: pulse-blue 1.0s ease-in-out infinite; }
+
+    /* Respect reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .tc-now-action.pulse-heating,
+      .tc-now-action.pulse-cooling {
+        animation: none;
+      }
+    }
+
+    /* Footer with brown bar */
+    .temp-card-footer {
+      background: var(--panel-brown);
+      color: white;
+      padding:10px 12px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+    .footer-left { font-size:11px; line-height:1.2; color:#f3e7e0; font-weight:700; }
+    
+    /* Toggle switch container - moved to left */
+    .footer-toggle-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .toggle-label {
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .chart-pill {
+      background: white;
+      color: var(--panel-brown);
+      border-radius: 8px;
+      padding:8px 12px;
+      font-weight:800;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      text-decoration:none;
+    }
+
+    /* Toggle switch styles */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .3s;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+    }
+    input:checked + .slider {
+      background-color: #4CAF50;
+    }
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+    .slider.round {
+      border-radius: 24px;
+    }
+    .slider.round:before {
+      border-radius: 50%;
+    }
+
+    /* Prevent any global rule from accidentally disabling only this animation */
+    .tc-now-action { -webkit-animation: none; animation: none; } /* reset then reapply below */
+    .tc-now-action.pulse-heating { -webkit-animation: pulse-red 1.0s ease-in-out infinite; animation: pulse-red 1.0s ease-in-out infinite; }
+    .tc-now-action.pulse-cooling { -webkit-animation: pulse-blue 1.0s ease-in-out infinite; animation: pulse-blue 1.0s ease-in-out infinite; }
+
+    /* Small responsive tweaks */
+    @media (max-width:720px) {
+      .tilt-card.temp-control { width:92%; }
+      .tc-grid { grid-template-columns: 1fr 110px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-container">
+    <header class="site-header">
+      <nav class="config-ribbon" role="navigation" aria-label="top navigation">
+        <a href="/system_config">System Settings</a>
+        <a href="/temp_config">Temperature Control</a>
+        <a href="/batch_settings">Batch Settings</a>
+        <a href="/exit_system" class="exit-link">Exit System</a>
+      </nav>
+
+      {% if temp_control.notification_comm_failure %}
+      <div class="notification-failure">NOTIFICATION COMMUNICATIONS FAILURE</div>
+      {% endif %}
+
+      <h1 class="dashboard-title">{{ system_settings.brewery_name }}</h1>
+    </header>
+
+    <section class="tiltcards-wrapper" aria-label="Active Tilts">
+      <div class="tiltcard-container">
+
+        {% if temp_control.temp_control_enabled %}
+        <article id="temp_control_card" class="tilt-card temp-control" data-tilt="FERMENTER-TEMP-CONTROL">
+          <div class="temp-card-banner" role="banner" aria-label="Fermenter Title">
+            <div class="title-line-1">FERMENTER</div>
+            <div class="title-line-2">TEMPERATURE CONTROLLER</div>
+          </div>
+
+          <div class="temp-card-body">
+            <div id="temp_control_status_top" class="tc-status">{{ temp_control.status or '' }}</div>
+
+            <div class="tc-grid" role="group" aria-label="Temperature limits">
+              <div class="tc-label">HIGH LIMIT</div>
+              <div style="text-align:right;">
+                <div id="high_limit_box" class="tc-value-box">
+                  <span id="high_limit_val">{{ temp_control.high_limit if temp_control.high_limit is not none else '--' }}</span><span class="tc-value-unit"> F</span>
+                </div>
+              </div>
+
+              <div class="tc-label">CURRENT<br>TEMPERATURE</div>
+              <div style="text-align:right;">
+                <div id="current_temp_box" class="tc-value-box tc-value-current">
+                  <span id="temp_control_current">{{ temp_control.current_temp if temp_control.current_temp is not none else '--' }}</span><span class="tc-value-unit"> F</span>
+                </div>
+              </div>
+
+              <div class="tc-label">LOW LIMIT</div>
+              <div style="text-align:right;">
+                <div id="low_limit_box" class="tc-value-box">
+                  <span id="low_limit_val">{{ temp_control.low_limit if temp_control.low_limit is not none else '--' }}</span><span class="tc-value-unit"> F</span>
+                </div>
+              </div>
+            </div>
+
+            <div id="now_action" class="tc-now-action" aria-live="polite" role="status"></div>
+          </div>
+
+          <div class="temp-card-assigned-tilt">
+            ASSIGNED TILT — {{ (temp_control.tilt_color or '—') }}
+          </div>
+
+          <div class="temp-card-footer">
+            <div class="footer-toggle-container">
+              <label class="switch">
+                <input type="checkbox" id="temp_control_toggle" aria-label="Temperature control monitor toggle" {% if temp_control.temp_control_active %}checked{% endif %}>
+                <span class="slider round"></span>
+              </label>
+              <label for="temp_control_toggle" class="toggle-label">MONITOR</label>
+            </div>
+
+            <div class="footer-left" id="temp_control_last">{{ temp_control.notification_last_sent or '' }}</div>
+
+            <a class="chart-pill" href="/chart_plotly/Fermenter?brew=">Chart</a>
+          </div>
+        </article>
+        {% endif %}
+
+        {% for color, tilt in live_tilts.items() %}
+          {% set safe_color = color.replace(' ', '_') %}
+          <article class="tilt-card" data-tilt="{{ color }}">
+            <div class="tilt-banner"
+                 style="background-color: {{ tilt.color_code }}; color: {% if tilt.color_code in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %};">
+              <div class="beer-name">{{ tilt.beer_name or 'Unnamed Beer' }}</div>
+              <div class="tilt-batch-name">Batch: {{ tilt.batch_name or 'Unnamed Batch' }}</div>
+            </div>
+
+            <div class="tilt-body">
+              <table class="tilt-metrics restore">
+                <tr>
+                  <th></th>
+                  <th class="right-header">Recipe</th>
+                  <th class="right-header">Actual</th>
+                </tr>
+
+                <tr>
+                  <td class="label">Original Gravity</td>
+                  <td class="value"><span class="metric-number" id="recipe_og-{{ safe_color }}">{{ "%.3f"|format((tilt.recipe_og|default(0)|float)) }}</span></td>
+                  <td class="value"><b id="og-{{ safe_color }}"><span class="metric-number">{{ "%.3f"|format((tilt.original_gravity|default(0)|float)) }}</span></b></td>
+                </tr>
+
+                <tr>
+                  <td class="label">Final / Current Gravity</td>
+                  <td class="value"><span class="metric-number" id="recipe_fg-{{ safe_color }}">{{ "%.3f"|format((tilt.recipe_fg|default(0)|float)) }}</span></td>
+                  <td class="value"><b id="gravity-{{ safe_color }}"><span class="metric-number">{{ "%.3f"|format((tilt.gravity|default(0)|float)) }}</span></b></td>
+                </tr>
+
+                <tr>
+                  <td class="label">Temperature</td>
+                  <td class="value"><!-- recipe temperature not used --></td>
+                  <td class="value"><b id="temp-{{ safe_color }}"><span class="metric-number">{{ "%.1f"|format((tilt.temp_f|default(0)|float)) }}°F</span></b></td>
+                </tr>
+
+                <tr>
+                  <td class="label">A.B.V.</td>
+                  <td class="value">
+                    {% if tilt.recipe_abv %}
+                      <span class="metric-number" id="recipe_abv-{{ safe_color }}">{{ "%.1f"|format(tilt.recipe_abv|float) }}%</span>
+                    {% else %}
+                      <span class="metric-number" id="recipe_abv-{{ safe_color }}">--</span>
+                    {% endif %}
+                  </td>
+                  <td class="value">
+                    <b><span class="metric-number" id="abv-{{ safe_color }}">
+                      {% if tilt.actual_og and tilt.gravity %}
+                        {{ ((tilt.actual_og|float - tilt.gravity|float) * 131.25)|round(1) }}%
+                      {% else %}
+                        --
+                      {% endif %}
+                    </span></b>
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            <footer class="tilt-footer-colored"
+                    style="background: {{ tilt.color_code }}; color: {% if tilt.color_code in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %}; display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-radius:0 0 6px 6px;">
+              <div style="display:flex; flex-direction:column;">
+                <div style="font-size:0.95em; font-weight:700;">Brew ID: {{ tilt.brewid or '--' }}</div>
+                <div style="font-size:0.85em; opacity:0.95;">
+                   Last Reading: <span id="timestamp-{{ safe_color }}">{{ tilt.timestamp | localtime }}</span>
+                </div>
+              </div>
+
+              <div style="margin-left:16px; display:flex; align-items:center;">
+                <a class="chart-link" href="/chart_plotly/{{ color }}?brew={{ (tilt.brewid or '') | urlencode }}"
+                   style="background:#fff; color: {{ tilt.color_code }}; padding:6px 10px; border-radius:6px; text-decoration:none; font-weight:800;">
+                   CHART
+                </a>
+              </div>
+            </footer>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const refreshInterval = 3000;
+
+    function safeIdColor(color){ return color.replace(/\s+/g,'_'); }
+
+    function createTiltCard(color, tilt) {
+      const safe = safeIdColor(color);
+      const colorCode = tilt.color_code || '#333';
+      const useBlackText = ['#ffff00','#ffc0cb','#00ff00'].includes(colorCode);
+      const textColor = useBlackText ? 'black' : 'white';
+      
+      const card = document.createElement('article');
+      card.className = 'tilt-card';
+      card.setAttribute('data-tilt', color);
+      
+      const beerName = tilt.beer_name || 'Unnamed Beer';
+      const batchName = tilt.batch_name || 'Unnamed Batch';
+      const brewid = tilt.brewid || '--';
+      
+      let og = tilt.original_gravity || 0;
+      let gravity = tilt.gravity || 0;
+      let tempF = tilt.temp_f || 0;
+      let recipeOg = tilt.recipe_og || 0;
+      let recipeFg = tilt.recipe_fg || 0;
+      let recipeAbv = tilt.recipe_abv || '';
+      let actualAbv = '--';
+      if(tilt.original_gravity && tilt.gravity) {
+        actualAbv = ((Number(tilt.original_gravity) - Number(tilt.gravity)) * 131.25).toFixed(1) + '%';
+      }
+      let timestamp = '';
+      if(tilt.timestamp) {
+        try { 
+          const dt = new Date(tilt.timestamp); 
+          timestamp = isNaN(dt.getTime()) ? tilt.timestamp : dt.toLocaleString(); 
+        } catch(e) { timestamp = tilt.timestamp; }
+      }
+      
+      card.innerHTML = `
+        <div class="tilt-banner" style="background-color: ${colorCode}; color: ${textColor};">
+          <div class="beer-name">${beerName}</div>
+          <div class="tilt-batch-name">Batch: ${batchName}</div>
+        </div>
+        <div class="tilt-body">
+          <table class="tilt-metrics restore">
+            <tr>
+              <th></th>
+              <th class="right-header">Recipe</th>
+              <th class="right-header">Actual</th>
+            </tr>
+            <tr>
+              <td class="label">Original Gravity</td>
+              <td class="value"><span class="metric-number" id="recipe_og-${safe}">${Number(recipeOg).toFixed(3)}</span></td>
+              <td class="value"><b id="og-${safe}"><span class="metric-number">${Number(og).toFixed(3)}</span></b></td>
+            </tr>
+            <tr>
+              <td class="label">Final / Current Gravity</td>
+              <td class="value"><span class="metric-number" id="recipe_fg-${safe}">${Number(recipeFg).toFixed(3)}</span></td>
+              <td class="value"><b id="gravity-${safe}"><span class="metric-number">${Number(gravity).toFixed(3)}</span></b></td>
+            </tr>
+            <tr>
+              <td class="label">Temperature</td>
+              <td class="value"><!-- recipe temperature not used --></td>
+              <td class="value"><b id="temp-${safe}"><span class="metric-number">${Number(tempF).toFixed(1)}°F</span></b></td>
+            </tr>
+            <tr>
+              <td class="label">A.B.V.</td>
+              <td class="value">
+                <span class="metric-number" id="recipe_abv-${safe}">${recipeAbv ? Number(recipeAbv).toFixed(1)+'%' : '--'}</span>
+              </td>
+              <td class="value">
+                <b><span class="metric-number" id="abv-${safe}">${actualAbv}</span></b>
+              </td>
+            </tr>
+          </table>
+        </div>
+        <footer class="tilt-footer-colored" style="background: ${colorCode}; color: ${textColor}; display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-radius:0 0 6px 6px;">
+          <div style="display:flex; flex-direction:column;">
+            <div style="font-size:0.95em; font-weight:700;">Brew ID: ${brewid}</div>
+            <div style="font-size:0.85em; opacity:0.95;">
+               Last Reading: <span id="timestamp-${safe}">${timestamp}</span>
+            </div>
+          </div>
+          <div style="margin-left:16px; display:flex; align-items:center;">
+            <a class="chart-link" href="/chart_plotly/${color}?brew=${encodeURIComponent(brewid)}"
+               style="background:#fff; color: ${colorCode}; padding:6px 10px; border-radius:6px; text-decoration:none; font-weight:800;">
+               CHART
+            </a>
+          </div>
+        </footer>
+      `;
+      
+      return card;
+    }
+
+    function updateTiltValues(live) {
+      const container = document.querySelector('.tiltcard-container');
+      if (!container) return;
+      
+      Object.keys(live).forEach(function(color){
+        const safe = safeIdColor(color);
+        const entry = live[color];
+        
+        // Check if card exists; if not, create it
+        let existingCard = document.querySelector(`[data-tilt="${color}"]`);
+        if (!existingCard || existingCard.classList.contains('temp-control')) {
+          // Create new card and add it to the container
+          const newCard = createTiltCard(color, entry);
+          container.appendChild(newCard);
+          existingCard = newCard;
+        }
+        
+        // Update existing card values
+        const gEl = document.getElementById('gravity-'+safe);
+        const ogEl = document.getElementById('og-'+safe);
+        const tempEl = document.getElementById('temp-'+safe);
+        const abvEl = document.getElementById('abv-'+safe);
+        const recipeOgEl = document.getElementById('recipe_og-'+safe);
+        const recipeFgEl = document.getElementById('recipe_fg-'+safe);
+        const recipeAbvEl = document.getElementById('recipe_abv-'+safe);
+        const ts = document.getElementById('timestamp-'+safe);
+
+        if(recipeOgEl && entry.recipe_og!=null) recipeOgEl.textContent = Number(entry.recipe_og).toFixed(3);
+        if(recipeFgEl && entry.recipe_fg!=null) recipeFgEl.textContent = Number(entry.recipe_fg).toFixed(3);
+        if(recipeAbvEl) recipeAbvEl.textContent = (entry.recipe_abv!=null && entry.recipe_abv!=='') ? Number(entry.recipe_abv).toFixed(1)+'%' : '--';
+
+        let og = null, g = null;
+        if(ogEl && entry.original_gravity!=null){
+          og = Number(entry.original_gravity);
+          const span = ogEl.querySelector('.metric-number');
+          if(span) span.textContent = og.toFixed(3);
+        }
+        if(gEl && entry.gravity!=null){
+          g = Number(entry.gravity);
+          const span = gEl.querySelector('.metric-number');
+          if(span) span.textContent = g.toFixed(3);
+        }
+        if(tempEl && entry.temp_f!=null){
+          const span = tempEl.querySelector('.metric-number');
+          if(span) span.textContent = Number(entry.temp_f).toFixed(1) + '°F';
+        }
+        if(ts && entry.timestamp){
+          try{ const dt=new Date(entry.timestamp); ts.textContent = isNaN(dt.getTime())?entry.timestamp:dt.toLocaleString(); }catch(e){}
+        }
+
+        if(abvEl){
+          if(og !== null && g !== null){
+            const abv = (og - g) * 131.25;
+            abvEl.textContent = (isFinite(abv) ? abv.toFixed(1) + '%' : '--');
+          } else {
+            abvEl.textContent = '--';
+          }
+        }
+      });
+    }
+
+    async function pollLiveSnapshot() {
+      try {
+        const r = await fetch('/live_snapshot', { cache: 'no-cache' });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (!data) return;
+
+        if (data.live_tilts) updateTiltValues(data.live_tilts);
+        if (data.temp_control) updateTempControl(data.temp_control, data.live_tilts || {});
+      } catch (err) {
+        console.error('pollLiveSnapshot error', err);
+      }
+    }
+
+    function matchTempCardHeightToTilts() {
+      try {
+        const tempCard = document.getElementById('temp_control_card');
+        if (!tempCard) return;
+        const tilt = document.querySelector('.tiltcard-container .tilt-card:not(.temp-control)');
+        if (!tilt) return;
+        const h = tilt.offsetHeight;
+        // match the tilt card height exactly
+        tempCard.style.height = Math.max(180, h) + 'px';
+        tempCard.style.overflow = 'hidden';
+      } catch (e) { /* ignore */ }
+    }
+
+    function updateTempControl(tc, liveTilts) {
+      const highBox = document.getElementById('high_limit_val');
+      const curBox = document.getElementById('temp_control_current');
+      const lowBox = document.getElementById('low_limit_val');
+      const statusEl = document.getElementById('temp_control_status_top');
+      const nowAction = document.getElementById('now_action');
+      const lastEl = document.getElementById('temp_control_last');
+      const toggleSwitch = document.getElementById('temp_control_toggle');
+
+      if (highBox) highBox.textContent = (tc.high_limit !== undefined && tc.high_limit !== null) ? tc.high_limit : '--';
+      if (curBox) curBox.textContent = (tc.current_temp !== undefined && tc.current_temp !== null) ? tc.current_temp : '--';
+      if (lowBox) lowBox.textContent = (tc.low_limit !== undefined && tc.low_limit !== null) ? tc.low_limit : '--';
+      
+      // Update toggle switch state from server
+      if (toggleSwitch && tc.temp_control_active !== undefined) {
+        toggleSwitch.checked = tc.temp_control_active;
+      }
+
+      let tempToUse = null;
+      if (tc.current_temp != null && !isNaN(Number(tc.current_temp))) {
+        tempToUse = Number(tc.current_temp);
+      } else {
+        try {
+          const keys = Object.keys(liveTilts || {});
+          for (let k of keys) {
+            const t = liveTilts[k];
+            if (t && (t.temp_f !== undefined) && t.temp_f !== null && !isNaN(Number(t.temp_f))) {
+              tempToUse = Number(t.temp_f);
+              break;
+            }
+          }
+        } catch(e) { tempToUse = null; }
+      }
+
+      let statusText = tc.status || '';
+      let statusClass = '';
+      if (typeof tempToUse === 'number' && typeof tc.low_limit === 'number' && typeof tc.high_limit === 'number') {
+        if (tempToUse < tc.low_limit) { statusText = 'TEMP BELOW LOW LIMIT'; statusClass = 'status-below'; }
+        else if (tempToUse > tc.high_limit) { statusText = 'TEMP ABOVE HIGH LIMIT'; statusClass = 'status-above'; }
+        else { statusText = 'TEMP IN RANGE'; statusClass = 'status-inrange'; }
+      }
+
+      if (statusEl) {
+        statusEl.classList.remove('status-inrange','status-above','status-below');
+        if (statusClass) statusEl.classList.add(statusClass);
+        statusEl.textContent = statusText;
+      }
+
+      if (nowAction) {
+        nowAction.classList.remove('now-heating','now-cooling','pulse-heating','pulse-cooling');
+        // prefer cooler_on -> "COOLING ON", otherwise heater_on -> "HEATING ON"
+        if (tc.cooler_on) {
+          nowAction.textContent = 'COOLING ON';
+          nowAction.classList.add('now-cooling','pulse-cooling');
+        } else if (tc.heater_on) {
+          nowAction.textContent = 'HEATING ON';
+          nowAction.classList.add('now-heating','pulse-heating');
+        } else {
+          nowAction.textContent = '';
+        }
+      }
+
+      if (lastEl) lastEl.textContent = tc.notification_last_sent || '';
+
+      // make sure temp card height matches tilt cards (squeeze)
+      matchTempCardHeightToTilts();
+    }
+
+    (function startPolling() {
+      document.addEventListener('DOMContentLoaded', function() {
+        matchTempCardHeightToTilts();
+        
+        // Setup temp control toggle handler
+        const toggleSwitch = document.getElementById('temp_control_toggle');
+        if (toggleSwitch) {
+          // Helper to revert switch to opposite of failed state
+          const revertSwitchState = (attemptedState) => {
+            toggleSwitch.checked = !attemptedState;
+          };
+          
+          toggleSwitch.addEventListener('change', function() {
+            const isActive = this.checked;
+            fetch('/toggle_temp_control', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ active: isActive })
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (!data.success) {
+                console.error('Failed to toggle temp control:', data.error);
+                revertSwitchState(isActive);
+              }
+            })
+            .catch(error => {
+              console.error('Error toggling temp control:', error);
+              revertSwitchState(isActive);
+            });
+          });
+        }
+      });
+      
+      pollLiveSnapshot();
+      setInterval(pollLiveSnapshot, typeof refreshInterval === 'number' ? refreshInterval : 5000);
+      // also re-check size on window resize
+      window.addEventListener('resize', function(){ setTimeout(matchTempCardHeightToTilts, 120); });
+    })();
+  </script>
+</body>
+</html>

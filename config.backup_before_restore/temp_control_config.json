@@ -1,0 +1,10 @@
+{
+  "low_limit": 50,
+  "high_limit": 54,
+  "enable_heating": true,
+  "enable_cooling": false,
+  "tilt_color": "Black",
+  "heating_plug": "127.0.0.3",
+  "cooling_plug": "127.0.0.2",
+  "compressor_delay": 5
+}

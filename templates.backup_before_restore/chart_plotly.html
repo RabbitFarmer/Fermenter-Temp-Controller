@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fermenter Chart</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; background: #f6f6f6; }
+    #chart-container { max-width: 1200px; margin: auto; background: #ffffff; border-radius: 4px; padding: 16px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); }
+    #tempChart { height: 400px; }
+    .controls { text-align: center; margin: 12px 0; }
+    .controls input { width: 80px; margin-right: 12px; }
+    .back-button { margin-top: 16px; text-align: center; }
+    .back-button a { display: inline-block; padding: 10px 20px; text-decoration: none; color: white; background-color: green; border-radius: 5px; font-weight: bold; }
+    .back-button a:hover { background-color: darkgreen; }
+  </style>
+</head>
+<body>
+  <h2 style="text-align: center;">Fermenter Temperature & Gravity</h2>
+  <div class="controls">
+    <label for="limit">Points:</label>
+    <input id="limit" type="number" min="20" max="2000" value="1500" />
+    <button id="reload">Reload</button>
+    <span id="status"></span>
+  </div>
+  <div id="chart-container">
+    <div id="tempChart"></div>
+  </div>
+  <div class="back-button">
+    <a href="/">Return to Dashboard</a>
+  </div>
+
+  <script>
+    const tiltColor = "{{ tilt_color or '' }}";
+    {% if tilt_color == "Fermenter" %}
+    const beerName = "Temperature Control";
+    const batchName = "N/A";
+    const brewId = "N/A";
+    {% else %}
+    const beerName = "{{ tilt_cfg[tilt_color].beer_name or 'Unknown' }}";
+    const batchName = "{{ tilt_cfg[tilt_color].batch_name or 'Unknown' }}";
+    const brewId = "{{ tilt_cfg[tilt_color].brewid or 'Unknown' }}";
+    {% endif %}
+    
+    async function loadData(limit = 1500) {
+      document.getElementById('status').textContent = 'Loading data...';
+
+      const url = `/chart_data/${encodeURIComponent(tiltColor)}?limit=${limit}`;
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Failed to fetch data');
+
+        const json = await response.json();
+        const dataPoints = json.points || [];
+
+        const tempTrace = {
+          x: dataPoints.map((p) => p.timestamp),
+          y: dataPoints.map((p) => p.temp_f),
+          mode: 'lines',
+          name: 'Temperature (°F)',
+          line: { color: 'blue', shape: 'spline' },
+          yaxis: 'y1',
+        };
+
+        const gravityTrace = {
+          x: dataPoints.map((p) => p.timestamp),
+          y: dataPoints.map((p) => parseFloat(p.gravity).toFixed(3)), // Gravity precision
+          mode: 'lines',
+          name: 'Gravity',
+          line: { color: '#E69D00', shape: 'spline' }, // Darker, bolder yellow
+          yaxis: 'y2',
+        };
+
+        const layout = {
+          title: {
+            text: `Fermenter Readings | ${beerName} | Batch: ${batchName} | BrewId: ${brewId}`,
+            font: { size: 16 },
+          },
+          xaxis: {
+            title: 'Timestamp',
+            titlefont: { size: 12 },
+            gridcolor: '#eaf2f5',
+          },
+          yaxis: {
+            title: 'Temperature (°F)',
+            titlefont: { color: 'blue', size: 12 },
+            tickfont: { color: 'blue', size: 10 },
+            gridcolor: '#eaf2f5',
+          },
+          yaxis2: {
+            title: 'Gravity',
+            titlefont: { color: '#E69D00', size: 12 },
+            tickfont: { color: '#E69D00', size: 10 },
+            overlaying: 'y',
+            side: 'right',
+            gridcolor: '#ffffff',
+          },
+          showlegend: true,
+          legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
+          margin: { l: 50, r: 50, t: 50, b: 50 },
+        };
+
+        Plotly.newPlot('tempChart', [tempTrace, gravityTrace], layout);
+        document.getElementById('status').textContent = `Loaded ${dataPoints.length} points.`;
+      } catch (err) {
+        console.error(err);
+        document.getElementById('status').textContent = 'Failed to load data.';
+      }
+    }
+
+    document.getElementById('reload').addEventListener('click', () => {
+      const limit = Math.min(2000, Math.max(20, parseInt(document.getElementById('limit').value) || 1500));
+      loadData(limit);
+    });
+
+    loadData();
+  </script>
+</body>
+</html>
