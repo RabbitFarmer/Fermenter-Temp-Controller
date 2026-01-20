@@ -2050,7 +2050,7 @@ def export_temp_control_csv():
         if data_rows:
             with open(filepath, 'w', newline='') as csvfile:
                 # Define fieldnames from the data
-                fieldnames = ['timestamp', 'date', 'time', 'tilt_color', 'low_limit', 'current_temp', 'temp_f', 'gravity', 'high_limit', 'event']
+                fieldnames = ['timestamp', 'date', 'time', 'tilt_color', 'brewid', 'low_limit', 'current_temp', 'temp_f', 'gravity', 'high_limit', 'event']
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
                 writer.writeheader()
                 for row in data_rows:
