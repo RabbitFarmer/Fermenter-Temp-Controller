@@ -25,13 +25,13 @@ config.json (temp control section) → config/temp_control_config.json (split fr
 config.json (system section) → config/system_config.json (split from root)
 ```
 
-Additionally, example template files have been created for version control:
-- `config/tilt_config.json.example`
-- `config/temp_control_config.json.example`
-- `config/system_config.json.example`
-- `config/README.md` (setup instructions)
+The actual config files are committed to the repository with default values that users can customize:
+- `config/tilt_config.json` - Tilt hydrometer assignments and batch information
+- `config/temp_control_config.json` - Temperature control settings  
+- `config/system_config.json` - System settings
+- `config/README.md` - Setup instructions and field documentation
 
-**Note:** The actual config files are git-ignored for security. Users must copy the `.example` files and customize them.
+**Legacy files removed:** The old `config.json` and `batch_settings.json` files have been deleted from the root directory as they are no longer used by the application.
 
 #### Batch Files → `batches/` directory
 Batch history files are created at runtime in the format:
@@ -124,26 +124,28 @@ static/
     └── chart_plotly.v2.js ✓
 ```
 
-### Legacy Files Remaining (Unused)
-These files remain in the root but are not referenced in any code:
-- `config.json` - Old consolidated configuration format
-- `batch_settings.json` - Old batch settings format
+### Legacy Files Cleaned Up
+The following unused legacy files have been removed from the repository:
+- `config.json` - Old consolidated configuration format (replaced by separate config files)
+- `batch_settings.json` - Old batch settings format (replaced by `config/tilt_config.json`)
 
-These can be safely removed by the user if desired.
+These files were no longer referenced in the code and have been deleted to avoid confusion.
 
 ## Key Findings
 
 ### File Organization
-1. **Config files** are properly located in `config/` directory and gitignored
+1. **Config files** are properly located in `config/` directory and committed to the repository
 2. **Batch data files** are organized in `batches/` directory
 3. **Temperature control logs** are in `temp_control/` directory
 4. **HTML templates** are in `templates/` directory
 5. **Static assets** are in `static/` directory
 
 ### Security & Privacy
-- All config files in `config/` directory are gitignored via `config/*.json` pattern
-- This prevents committing sensitive data (emails, passwords, IP addresses)
-- The `load_json()` function handles missing files gracefully with fallback defaults
+- Batch data files in `batches/` directory are gitignored via `batches/*.json*` pattern
+- Temperature control logs in `temp_control/` directory are gitignored via `temp_control/*.jsonl` pattern
+- Log files in `logs/` directory are gitignored via `logs/*.log` pattern
+- This prevents committing user-specific fermentation data and logs
+- Config files are committed with safe default values that users can customize
 
 ### Backward Compatibility
 - Code handles multiple batch file naming formats for migration
