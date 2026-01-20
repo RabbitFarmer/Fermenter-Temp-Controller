@@ -17,22 +17,37 @@
 All files have been moved to their correct directories as specified by the code:
 
 #### Config Files → `config/` directory
+The application now uses three separate config files instead of the old consolidated `config.json`:
+
 ```
-tilt_config.json → config/tilt_config.json
-temp_control_config.json → config/temp_control_config.json
-system_config.json → config/system_config.json
+batch_settings.json → config/tilt_config.json (split from root)
+config.json (temp control section) → config/temp_control_config.json (split from root)
+config.json (system section) → config/system_config.json (split from root)
 ```
+
+Additionally, example template files have been created for version control:
+- `config/tilt_config.json.example`
+- `config/temp_control_config.json.example`
+- `config/system_config.json.example`
+- `config/README.md` (setup instructions)
+
+**Note:** The actual config files are git-ignored for security. Users must copy the `.example` files and customize them.
 
 #### Batch Files → `batches/` directory
+Batch history files are created at runtime in the format:
 ```
-batch_history_Black.json → batches/batch_history_Black.json
-batch_history_Blue.jsonl → batches/batch_history_Blue.jsonl
+batches/batch_history_{color}.json
 ```
 
+These are git-ignored and created by the application when batches are configured.
+
 #### Temperature Control Logs → `temp_control/` directory
+Temperature control logs are created at runtime:
 ```
-temp_control_log.jsonl → temp_control/temp_control_log.jsonl
+temp_control/temp_control_log.jsonl
 ```
+
+This file is git-ignored and created by the application during operation.
 
 ### 3. Verification Tools Created
 
