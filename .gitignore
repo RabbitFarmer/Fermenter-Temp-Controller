@@ -1,7 +1,7 @@
 __pycache__/
 venv/
 *.log
-.venv
+.venv/
 app.log
 logs/*.log
 
