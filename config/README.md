@@ -28,6 +28,7 @@ Contains Tilt hydrometer assignments and batch information for each color (Red, 
 - `recipe_fg`: Recipe final gravity
 - `recipe_abv`: Recipe ABV percentage
 - `actual_og`: Actual measured original gravity
+- `og_confirmed`: Whether the original gravity has been confirmed (true/false)
 - `brewid`: Auto-generated batch ID
 
 ### temp_control_config.json

@@ -7,6 +7,7 @@
     "recipe_fg": "",
     "recipe_abv": "",
     "actual_og": null,
+    "og_confirmed": false,
     "brewid": ""
   },
   "Green": {
@@ -17,6 +18,7 @@
     "recipe_fg": "",
     "recipe_abv": "",
     "actual_og": null,
+    "og_confirmed": false,
     "brewid": ""
   },
   "Black": {
@@ -27,6 +29,7 @@
     "recipe_fg": "",
     "recipe_abv": "",
     "actual_og": null,
+    "og_confirmed": false,
     "brewid": ""
   },
   "Purple": {
@@ -37,6 +40,7 @@
     "recipe_fg": "",
     "recipe_abv": "",
     "actual_og": null,
+    "og_confirmed": false,
     "brewid": ""
   },
   "Orange": {
@@ -47,6 +51,7 @@
     "recipe_fg": "",
     "recipe_abv": "",
     "actual_og": null,
+    "og_confirmed": false,
     "brewid": ""
   },
   "Blue": {
@@ -57,6 +62,7 @@
     "recipe_fg": "",
     "recipe_abv": "",
     "actual_og": null,
+    "og_confirmed": false,
     "brewid": ""
   },
   "Yellow": {
@@ -67,6 +73,7 @@
     "recipe_fg": "",
     "recipe_abv": "",
     "actual_og": null,
+    "og_confirmed": false,
     "brewid": ""
   },
   "Pink": {
@@ -77,6 +84,7 @@
     "recipe_fg": "",
     "recipe_abv": "",
     "actual_og": null,
+    "og_confirmed": false,
     "brewid": ""
   }
 }
