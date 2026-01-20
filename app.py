@@ -871,7 +871,8 @@ def send_sms(body):
     return _smtp_send(recipient, "Fermenter Notification", body)
 
 def attempt_send_notifications(subject, body):
-    mode = (system_cfg.get('warning_mode') or 'NONE').upper()
+    # Check temp_cfg first (temperature control settings), fall back to system_cfg
+    mode = (temp_cfg.get('warnings_mode') or system_cfg.get('warning_mode') or 'NONE').upper()
     success_any = False
     temp_cfg['notifications_trigger'] = True
     try:
@@ -1809,7 +1810,8 @@ def update_temp_config():
             "cooling_plug": data.get("cooling_plug", ""),
             "current_temp": float(data.get('current_temp', 0.0)) if data.get('current_temp') else None,
             "mode": data.get("mode", temp_cfg.get('mode','')),
-            "status": data.get("status", temp_cfg.get('status',''))
+            "status": data.get("status", temp_cfg.get('status','')),
+            "warnings_mode": data.get("warnings_mode", "NONE")
         })
     except Exception as e:
         print(f"[LOG] Error parsing temp config form: {e}")
