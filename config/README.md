@@ -2,20 +2,15 @@
 
 This directory contains the application configuration files.
 
-## Setup Instructions
-
-Before running the application for the first time, you need to create your configuration files:
-
-```bash
-cd config/
-cp tilt_config.json.example tilt_config.json
-cp temp_control_config.json.example temp_control_config.json
-cp system_config.json.example system_config.json
-```
-
-Then edit each file with your specific settings.
-
 ## Configuration Files
+
+The repository includes default configuration files that you should customize for your setup:
+
+- `tilt_config.json` - Tilt hydrometer assignments and batch information
+- `temp_control_config.json` - Temperature control settings
+- `system_config.json` - General system settings
+
+Simply edit these files directly with your specific settings before running the application.
 
 ### tilt_config.json
 Contains Tilt hydrometer assignments and batch information for each color (Red, Green, Black, Purple, Orange, Blue, Yellow, Pink).
@@ -53,13 +48,3 @@ General system settings.
 - `units`: Temperature units ("Fahrenheit" or "Celsius")
 
 Additional fields can be added through the web interface for notifications, logging, etc.
-
-## Security Note
-
-**Important:** These configuration files are git-ignored to prevent committing sensitive data such as:
-- Email addresses
-- SMTP passwords
-- IP addresses
-- Personal information
-
-Never commit your actual configuration files to version control. Only the `.example` files should be in the repository.

@@ -4,9 +4,6 @@ venv/
 app.log
 logs/*.log
 
-# Configuration files (structure preserved, data ignored)
-config/*.json
-
 # Batch data files
 batches/*.jsonl
 batches/*.json
