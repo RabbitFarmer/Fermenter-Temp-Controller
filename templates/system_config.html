@@ -466,7 +466,7 @@
         }
       })
       .catch(error => {
-        container.innerHTML = '<p style="color: red;">Error loading backups: ' + error.message + '</p>';
+        container.innerHTML = '<p style="color: red;">Error loading backups: ' + escapeHtml(error.message) + '</p>';
       });
     }
     
@@ -499,7 +499,7 @@
         }
       })
       .catch(error => {
-        container.innerHTML = '<p style="color: red;">✗ Error: ' + error.message + '</p>';
+        container.innerHTML = '<p style="color: red;">✗ Error: ' + escapeHtml(error.message) + '</p>';
       });
     }
   </script>
