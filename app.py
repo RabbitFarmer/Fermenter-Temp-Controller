@@ -2214,6 +2214,215 @@ def export_temp_csv_get():
     return redirect('/temp_config')
 
 
+@app.route('/backup_system', methods=['POST'])
+def backup_system():
+    """Create a backup of all system files to the specified USB device."""
+    import tarfile
+    import shutil
+    
+    backup_path = request.form.get('backup_path', '/media/usb')
+    
+    # Validate that the backup path exists
+    if not os.path.exists(backup_path):
+        return jsonify({
+            'success': False,
+            'message': f'Backup path does not exist: {backup_path}. Please ensure USB device is mounted.'
+        }), 400
+    
+    # Check if the path is writable
+    if not os.access(backup_path, os.W_OK):
+        return jsonify({
+            'success': False,
+            'message': f'Backup path is not writable: {backup_path}. Check permissions.'
+        }), 400
+    
+    try:
+        # Create timestamped backup filename
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_filename = f'fermenter_backup_{timestamp}.tar.gz'
+        backup_full_path = os.path.join(backup_path, backup_filename)
+        
+        # Files and directories to backup
+        items_to_backup = [
+            # Python program files
+            'app.py',
+            'kasa_worker.py',
+            'logger.py',
+            'batch_history.py',
+            'batch_storage.py',
+            'fermentation_monitor.py',
+            'tilt_static.py',
+            'archive_compact_logs.py',
+            'backfill_temp_control_jsonl.py',
+            # Configuration files
+            'config/',
+            # Data files
+            'batches/',
+            'temp_control/',
+            'temp_control_log.jsonl',
+            # Web interface
+            'templates/',
+            'static/',
+            # Documentation
+            'requirements.txt',
+            'start.sh',
+            'README.md',
+        ]
+        
+        # Create the tar.gz archive
+        with tarfile.open(backup_full_path, 'w:gz') as tar:
+            for item in items_to_backup:
+                if os.path.exists(item):
+                    tar.add(item)
+        
+        # Get the size of the backup file
+        backup_size = os.path.getsize(backup_full_path)
+        backup_size_mb = backup_size / (1024 * 1024)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Backup created successfully: {backup_filename}',
+            'filename': backup_filename,
+            'size_mb': f'{backup_size_mb:.2f}',
+            'path': backup_full_path
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Backup failed: {str(e)}'
+        }), 500
+
+
+@app.route('/restore_system', methods=['POST'])
+def restore_system():
+    """Restore system from a backup file."""
+    import tarfile
+    import shutil
+    
+    backup_path = request.form.get('backup_path', '/media/usb')
+    backup_filename = request.form.get('backup_filename', '')
+    
+    if not backup_filename:
+        return jsonify({
+            'success': False,
+            'message': 'No backup file specified.'
+        }), 400
+    
+    backup_full_path = os.path.join(backup_path, backup_filename)
+    
+    # Validate that the backup file exists
+    if not os.path.exists(backup_full_path):
+        return jsonify({
+            'success': False,
+            'message': f'Backup file does not exist: {backup_full_path}'
+        }), 400
+    
+    try:
+        # Create a temporary directory for extraction validation
+        temp_dir = '/tmp/fermenter_restore_temp'
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+        os.makedirs(temp_dir)
+        
+        # Extract the backup to temporary directory first
+        with tarfile.open(backup_full_path, 'r:gz') as tar:
+            # Security check: ensure no absolute paths or parent directory references
+            for member in tar.getmembers():
+                if member.name.startswith('/') or '..' in member.name:
+                    return jsonify({
+                        'success': False,
+                        'message': f'Invalid backup file: contains unsafe paths'
+                    }), 400
+            
+            # Extract to temp directory
+            tar.extractall(temp_dir)
+        
+        # Now copy files from temp to current directory
+        # This allows us to validate before overwriting
+        current_dir = os.getcwd()
+        
+        for item in os.listdir(temp_dir):
+            src = os.path.join(temp_dir, item)
+            dst = os.path.join(current_dir, item)
+            
+            # Backup existing files before overwriting
+            if os.path.exists(dst):
+                backup_old = f'{dst}.backup_before_restore'
+                if os.path.isdir(dst):
+                    if os.path.exists(backup_old):
+                        shutil.rmtree(backup_old)
+                    shutil.copytree(dst, backup_old)
+                else:
+                    shutil.copy2(dst, backup_old)
+            
+            # Copy from temp to current
+            if os.path.isdir(src):
+                if os.path.exists(dst):
+                    shutil.rmtree(dst)
+                shutil.copytree(src, dst)
+            else:
+                shutil.copy2(src, dst)
+        
+        # Cleanup temp directory
+        shutil.rmtree(temp_dir)
+        
+        return jsonify({
+            'success': True,
+            'message': f'System restored successfully from {backup_filename}. Please restart the application for changes to take effect.',
+            'restart_required': True
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Restore failed: {str(e)}'
+        }), 500
+
+
+@app.route('/list_backups', methods=['POST'])
+def list_backups():
+    """List available backup files in the specified directory."""
+    backup_path = request.form.get('backup_path', '/media/usb')
+    
+    if not os.path.exists(backup_path):
+        return jsonify({
+            'success': False,
+            'message': f'Backup path does not exist: {backup_path}',
+            'backups': []
+        })
+    
+    try:
+        # List all .tar.gz files in the backup directory
+        backups = []
+        if os.path.isdir(backup_path):
+            for filename in os.listdir(backup_path):
+                if filename.startswith('fermenter_backup_') and filename.endswith('.tar.gz'):
+                    full_path = os.path.join(backup_path, filename)
+                    file_stat = os.stat(full_path)
+                    backups.append({
+                        'filename': filename,
+                        'size_mb': f'{file_stat.st_size / (1024 * 1024):.2f}',
+                        'modified': datetime.fromtimestamp(file_stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                    })
+        
+        # Sort by filename (which includes timestamp) in reverse order
+        backups.sort(key=lambda x: x['filename'], reverse=True)
+        
+        return jsonify({
+            'success': True,
+            'backups': backups,
+            'path': backup_path
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Failed to list backups: {str(e)}',
+            'backups': []
+        })
+
+
 @app.route('/exit_system')
 def exit_system():
     return redirect('/')
