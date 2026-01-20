@@ -18,6 +18,7 @@ import asyncio
 import hashlib
 import json
 import os
+import shutil
 import smtplib
 import threading
 import time
@@ -187,6 +188,9 @@ ALLOWED_EVENTS = {
     "temp_control_mode_changed": "MODE_CHANGED",
     "temp_control_started": "TEMP CONTROL STARTED",
 }
+
+# Create a set of allowed event values for O(1) lookup performance
+ALLOWED_EVENT_VALUES = set(ALLOWED_EVENTS.values())
 
 def _format_control_log_entry(event_type, payload):
     ts = datetime.utcnow()
@@ -1895,7 +1899,6 @@ def toggle_temp_control():
                     archive_path = os.path.join(logs_dir, archive_name)
                     
                     # Move the existing log to archive
-                    import shutil
                     shutil.move(LOG_PATH, archive_path)
                     print(f"[LOG] Archived temp control log to {archive_path}")
             except Exception as e:
@@ -2040,7 +2043,7 @@ def export_temp_control_csv():
                     try:
                         obj = json.loads(line)
                         # Only include events that are in ALLOWED_EVENTS
-                        if obj.get('event') in ALLOWED_EVENTS.values():
+                        if obj.get('event') in ALLOWED_EVENT_VALUES:
                             data_rows.append(obj)
                     except Exception as e:
                         print(f"[LOG] Error parsing line in export: {e}")
@@ -2171,7 +2174,7 @@ def chart_data_for(tilt_color):
                             continue
                         # Include all temp control events
                         event = obj.get('event', '')
-                        if event not in ALLOWED_EVENTS.values():
+                        if event not in ALLOWED_EVENT_VALUES:
                             continue
                         
                         matched += 1
