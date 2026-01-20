@@ -1657,7 +1657,6 @@ def tilt_config():
         action = request.form.get('action')
         # --- PATCH: Capture quick OG/recipe/metadata changes as batch_metadata ----
         actual_og = request.form.get("actual_og")
-        og_confirmed = ('og_confirmed' in request.form) and (request.form.get('og_confirmed') not in (None, '', '0', 'false', 'False'))
         recipe_og = request.form.get("recipe_og")
         # update tilt_cfg fields from the form (for quick-edit path)
         changed = False
@@ -1671,8 +1670,9 @@ def tilt_config():
                 batch_entry['recipe_og'] = recipe_og
                 tilt_cfg[color]['recipe_og'] = recipe_og
                 changed = True
-            batch_entry['og_confirmed'] = og_confirmed
-            tilt_cfg[color]['og_confirmed'] = og_confirmed
+            # Keep og_confirmed in data structure for backward compatibility (always False)
+            batch_entry['og_confirmed'] = False
+            tilt_cfg[color]['og_confirmed'] = False
             batch_entry['brewid'] = tilt_cfg[color].get("brewid")
             if changed:
                 try:
@@ -1725,7 +1725,7 @@ def batch_settings():
             }
             save_json(TILT_CONFIG_FILE, tilt_cfg)
 
-        og_confirmed = ('og_confirmed' in data) and (data.get('og_confirmed') not in (None, '', '0', 'false', 'False'))
+        og_confirmed = False  # No longer using og_confirmed checkbox
 
         batch_entry = {
             "beer_name": beer_name,
@@ -1735,7 +1735,7 @@ def batch_settings():
             "recipe_fg": data.get('recipe_fg', '') or '',
             "recipe_abv": data.get('recipe_abv', '') or '',
             "actual_og": (data.get('actual_og', '') or None),
-            "og_confirmed": bool(og_confirmed),
+            "og_confirmed": False,  # Keep field for backward compatibility
             "brewid": brew_id
         }
 
