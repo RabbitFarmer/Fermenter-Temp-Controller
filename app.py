@@ -1637,6 +1637,7 @@ def update_system_config():
         'enable_loss_of_signal': 'enable_loss_of_signal' in data,
         'loss_of_signal_timeout_minutes': int(data.get('loss_of_signal_timeout_minutes', 30)),
         'enable_fermentation_starting': 'enable_fermentation_starting' in data,
+        'enable_fermentation_completion': 'enable_fermentation_completion' in data,
         'enable_daily_report': 'enable_daily_report' in data,
         'daily_report_time': data.get('daily_report_time', '09:00'),
     }
