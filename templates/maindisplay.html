@@ -11,6 +11,8 @@
       --status-red: #c91f1f;
       --now-cool-blue: #1e90ff;
       --card-width: 320px;
+      --error-orange: #FF8C00;
+      --kasa-yellow: #B8860B;
     }
 
     /* Temp card same width as tilt cards */
@@ -87,33 +89,21 @@
     
     .tc-notification-item.heating { color: var(--status-red); }
     .tc-notification-item.cooling { color: var(--now-cool-blue); }
-    .tc-notification-item.kasa-error { color: #B8860B; } /* dark yellow */
-    .tc-notification-item.sms-error { color: #FF8C00; } /* orange */
-    .tc-notification-item.email-error { color: #FF8C00; } /* orange */
+    .tc-notification-item.kasa-error { color: var(--kasa-yellow); }
+    .tc-notification-item.sms-error { color: var(--error-orange); }
+    .tc-notification-item.email-error { color: var(--error-orange); }
 
-    /* Blinking animations for notifications */
-    @keyframes blink-red {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-    @keyframes blink-blue {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-    @keyframes blink-yellow {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-    @keyframes blink-orange {
+    /* Blinking animation for notifications */
+    @keyframes blink {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.3; }
     }
     
-    .tc-notification-item.heating { animation: blink-red 1.0s ease-in-out infinite; }
-    .tc-notification-item.cooling { animation: blink-blue 1.0s ease-in-out infinite; }
-    .tc-notification-item.kasa-error { animation: blink-yellow 1.0s ease-in-out infinite; }
-    .tc-notification-item.sms-error { animation: blink-orange 1.0s ease-in-out infinite; }
-    .tc-notification-item.email-error { animation: blink-orange 1.0s ease-in-out infinite; }
+    .tc-notification-item.heating { animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.cooling { animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.kasa-error { animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.sms-error { animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.email-error { animation: blink 1.0s ease-in-out infinite; }
 
     /* Respect reduced motion */
     @media (prefers-reduced-motion: reduce) {
@@ -265,11 +255,11 @@
 
     /* Ensure notification animations work */
     .tc-notification-item { -webkit-animation: none; animation: none; }
-    .tc-notification-item.heating { -webkit-animation: blink-red 1.0s ease-in-out infinite; animation: blink-red 1.0s ease-in-out infinite; }
-    .tc-notification-item.cooling { -webkit-animation: blink-blue 1.0s ease-in-out infinite; animation: blink-blue 1.0s ease-in-out infinite; }
-    .tc-notification-item.kasa-error { -webkit-animation: blink-yellow 1.0s ease-in-out infinite; animation: blink-yellow 1.0s ease-in-out infinite; }
-    .tc-notification-item.sms-error { -webkit-animation: blink-orange 1.0s ease-in-out infinite; animation: blink-orange 1.0s ease-in-out infinite; }
-    .tc-notification-item.email-error { -webkit-animation: blink-orange 1.0s ease-in-out infinite; animation: blink-orange 1.0s ease-in-out infinite; }
+    .tc-notification-item.heating { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.cooling { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.kasa-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.sms-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.email-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
 
     /* Small responsive tweaks */
     @media (max-width:720px) {
