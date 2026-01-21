@@ -12,3 +12,7 @@ batches/*.json
 # Temperature control logs
 temp_control/*.jsonl
 temp_control/*.bak
+
+# Backup restore files
+*.backup_before_restore
+*.backup_before_restore/
