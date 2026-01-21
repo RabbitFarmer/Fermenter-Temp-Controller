@@ -43,6 +43,14 @@ This project is a Raspberry Pi-based fermentation monitor and temperature contro
    ```
 
 4. **Start the application:**
+   
+   **Option A: Using the convenience script (automatically opens browser):**
+   ```bash
+   ./start.sh
+   ```
+   This script will start the Flask app and automatically open `http://127.0.0.1:5000` in your default browser.
+   
+   **Option B: Manual start:**
    ```bash
    python3 app.py
    ```
@@ -57,6 +65,7 @@ This project is a Raspberry Pi-based fermentation monitor and temperature contro
 
 ### Core Application Files
 - `app.py` — Main web server and controller
+- `start.sh` — Convenience script to start the app and open browser
 - `tilt_static.py` — Tilt UUIDs and color maps
 - `kasa_worker.py` — Kasa plug interface
 - `logger.py` — Logging and notification system
