@@ -101,9 +101,14 @@ def log_to_batch_log(event_type, message, tilt_color):
     try:
         ensure_batches_dir()
         
-        # Get brewid from tilt_cfg
-        from app import tilt_cfg
-        brewid = tilt_cfg.get(tilt_color, {}).get("brewid", "unknown")
+        # Try to get brewid from tilt_cfg, fallback to tilt_color if not available
+        brewid = tilt_color  # Default to tilt_color
+        try:
+            from app import tilt_cfg
+            brewid = tilt_cfg.get(tilt_color, {}).get("brewid", tilt_color)
+        except (ImportError, AttributeError):
+            # If app is not available or tilt_cfg doesn't exist, use tilt_color as brewid
+            pass
         
         batch_file = f"{BATCHES_DIR}/{brewid}.jsonl"
         

@@ -569,11 +569,21 @@
       };
       
       if (smtpSettings[domain]) {
-        // Only update if current value is empty or the default
-        if (!smtpHost.value || smtpHost.value === 'smtp.gmail.com') {
+        const currentHost = smtpHost.value.trim();
+        const currentPort = smtpPort.value.trim();
+        
+        // List of known SMTP hosts - update if current value is empty or matches a known SMTP host
+        const knownHosts = Object.values(smtpSettings).map(s => s.host);
+        const shouldUpdateHost = !currentHost || knownHosts.includes(currentHost);
+        
+        // Update host if appropriate
+        if (shouldUpdateHost) {
           smtpHost.value = smtpSettings[domain].host;
         }
-        if (!smtpPort.value || smtpPort.value === '587') {
+        
+        // Update port if it's empty or a common SMTP port (25, 465, 587)
+        const commonPorts = ['25', '465', '587', ''];
+        if (commonPorts.includes(currentPort)) {
           smtpPort.value = smtpSettings[domain].port;
         }
       }
