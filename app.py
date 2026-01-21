@@ -330,6 +330,7 @@ def ensure_temp_defaults():
     temp_cfg.setdefault("last_logged_high_limit", temp_cfg.get("high_limit"))
     temp_cfg.setdefault("last_logged_enable_heating", temp_cfg.get("enable_heating"))
     temp_cfg.setdefault("last_logged_enable_cooling", temp_cfg.get("enable_cooling"))
+    temp_cfg.setdefault("warnings_mode", "NONE")
     # New flag to turn on/off the entire temp-control UI and behavior:
     temp_cfg.setdefault("temp_control_enabled", True)
     # New flag to control active monitoring/recording (user-controlled switch):
