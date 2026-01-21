@@ -16,7 +16,7 @@
     /* Temp card same width as tilt cards */
     .tilt-card.temp-control { width: var(--card-width); border-radius:8px; overflow:hidden; box-shadow:0 2px 6px rgba(0,0,0,0.06); background:#fff; display:flex; flex-direction:column; }
 
-    /* Banner */
+    /* Banner - uniform title font size */
     .temp-card-banner {
       background: var(--panel-brown);
       color: white;
@@ -24,19 +24,19 @@
       padding: 10px 12px;
       font-weight:900;
     }
-    .temp-card-banner .title-line-1 { font-size:18px; }
-    .temp-card-banner .title-line-2 { font-size:13px; margin-top:6px; font-weight:800; }
+    .temp-card-banner .title-line-1 { font-size:16px; }
+    .temp-card-banner .title-line-2 { font-size:14px; margin-top:4px; font-weight:800; }
 
     /* Reduced body padding to make card shorter */
-    .temp-card-body { padding: 8px 12px 6px 12px; flex: 1 1 auto; box-sizing:border-box; }
+    .temp-card-body { padding: 8px 12px 4px 12px; flex: 1 1 auto; box-sizing:border-box; }
     
-    /* Assigned tilt display above footer */
+    /* Assigned tilt display - reduced top whitespace */
     .temp-card-assigned-tilt {
       text-align: center;
       font-weight: 800;
       font-size: 14px;
       color: #222;
-      padding: 8px 12px;
+      padding: 4px 12px;
       background: #fff;
     }
 
@@ -105,11 +105,11 @@
       }
     }
 
-    /* Footer with brown bar */
+    /* Footer with brown bar - add more padding for chart button */
     .temp-card-footer {
       background: var(--panel-brown);
       color: white;
-      padding:10px 12px;
+      padding:12px 12px;
       display:flex;
       justify-content:space-between;
       align-items:center;
@@ -183,6 +183,63 @@
     }
     .slider.round:before {
       border-radius: 50%;
+    }
+
+    /* Modal for new/existing session selection */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.4);
+    }
+    .modal-content {
+      background-color: #fefefe;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      border-radius: 8px;
+      width: 80%;
+      max-width: 400px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .modal-header {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 15px;
+      color: var(--panel-brown);
+    }
+    .modal-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      justify-content: center;
+    }
+    .modal-button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .modal-button.primary {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .modal-button.primary:hover {
+      background-color: #45a049;
+    }
+    .modal-button.secondary {
+      background-color: #ddd;
+      color: #333;
+    }
+    .modal-button.secondary:hover {
+      background-color: #ccc;
     }
 
     /* Prevent any global rule from accidentally disabling only this animation */
@@ -350,6 +407,23 @@
         {% endfor %}
       </div>
     </section>
+  </div>
+
+  <!-- Modal for new/existing session selection -->
+  <div id="sessionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">Start Temperature Control</div>
+      <p>Would you like to start a new monitoring session or continue with the existing log?</p>
+      <ul style="text-align: left; margin: 15px 0; padding-left: 20px;">
+        <li><strong>New Session:</strong> Archives the current log and starts fresh</li>
+        <li><strong>Existing:</strong> Continues appending to the current log</li>
+      </ul>
+      <div class="modal-buttons">
+        <button class="modal-button primary" id="newSessionBtn">New Session</button>
+        <button class="modal-button secondary" id="existingSessionBtn">Existing</button>
+        <button class="modal-button secondary" id="cancelSessionBtn">Cancel</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -608,20 +682,25 @@
         
         // Setup temp control toggle handler
         const toggleSwitch = document.getElementById('temp_control_toggle');
+        const sessionModal = document.getElementById('sessionModal');
+        const newSessionBtn = document.getElementById('newSessionBtn');
+        const existingSessionBtn = document.getElementById('existingSessionBtn');
+        const cancelSessionBtn = document.getElementById('cancelSessionBtn');
+        
         if (toggleSwitch) {
           // Helper to revert switch to opposite of failed state
           const revertSwitchState = (attemptedState) => {
             toggleSwitch.checked = !attemptedState;
           };
           
-          toggleSwitch.addEventListener('change', function() {
-            const isActive = this.checked;
+          // Helper to send toggle request
+          const sendToggleRequest = (isActive, newSession = false) => {
             fetch('/toggle_temp_control', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ active: isActive })
+              body: JSON.stringify({ active: isActive, new_session: newSession })
             })
             .then(response => response.json())
             .then(data => {
@@ -634,7 +713,45 @@
               console.error('Error toggling temp control:', error);
               revertSwitchState(isActive);
             });
+          };
+          
+          toggleSwitch.addEventListener('change', function() {
+            const isActive = this.checked;
+            
+            // If turning ON, show modal to ask new vs existing
+            if (isActive) {
+              sessionModal.style.display = 'block';
+              
+              // Don't send request yet - wait for user choice
+            } else {
+              // Turning OFF - just send the request
+              sendToggleRequest(false);
+            }
           });
+          
+          // Modal button handlers
+          if (newSessionBtn) {
+            newSessionBtn.addEventListener('click', function() {
+              sessionModal.style.display = 'none';
+              sendToggleRequest(true, true);  // new_session = true
+            });
+          }
+          
+          if (existingSessionBtn) {
+            existingSessionBtn.addEventListener('click', function() {
+              sessionModal.style.display = 'none';
+              sendToggleRequest(true, false);  // new_session = false
+            });
+          }
+          
+          if (cancelSessionBtn) {
+            cancelSessionBtn.addEventListener('click', function() {
+              sessionModal.style.display = 'none';
+              toggleSwitch.checked = false;  // Revert the switch
+            });
+          }
+        } else {
+          console.warn('Session modal elements not found');
         }
       });
       
