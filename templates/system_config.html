@@ -95,14 +95,42 @@
           </tr>
           <tr>
             <td><label for="timezone"><b>Time Zone</b></label></td>
-            <td><input type="text" name="timezone" id="timezone" value="{{ system_settings.get('timezone','') }}"></td>
+            <td>
+              <select name="timezone" id="timezone">
+                <option value="">Select a timezone</option>
+                <option value="America/New_York" {% if system_settings.get('timezone','') == 'America/New_York' %}selected{% endif %}>Eastern (America/New_York)</option>
+                <option value="America/Chicago" {% if system_settings.get('timezone','') == 'America/Chicago' %}selected{% endif %}>Central (America/Chicago)</option>
+                <option value="America/Denver" {% if system_settings.get('timezone','') == 'America/Denver' %}selected{% endif %}>Mountain (America/Denver)</option>
+                <option value="America/Phoenix" {% if system_settings.get('timezone','') == 'America/Phoenix' %}selected{% endif %}>Arizona (America/Phoenix)</option>
+                <option value="America/Los_Angeles" {% if system_settings.get('timezone','') == 'America/Los_Angeles' %}selected{% endif %}>Pacific (America/Los_Angeles)</option>
+                <option value="America/Anchorage" {% if system_settings.get('timezone','') == 'America/Anchorage' %}selected{% endif %}>Alaska (America/Anchorage)</option>
+                <option value="Pacific/Honolulu" {% if system_settings.get('timezone','') == 'Pacific/Honolulu' %}selected{% endif %}>Hawaii (Pacific/Honolulu)</option>
+                <option value="UTC" {% if system_settings.get('timezone','') == 'UTC' %}selected{% endif %}>UTC</option>
+                <option value="Europe/London" {% if system_settings.get('timezone','') == 'Europe/London' %}selected{% endif %}>UK (Europe/London)</option>
+                <option value="Europe/Paris" {% if system_settings.get('timezone','') == 'Europe/Paris' %}selected{% endif %}>Central Europe (Europe/Paris)</option>
+                <option value="Asia/Tokyo" {% if system_settings.get('timezone','') == 'Asia/Tokyo' %}selected{% endif %}>Japan (Asia/Tokyo)</option>
+                <option value="Australia/Sydney" {% if system_settings.get('timezone','') == 'Australia/Sydney' %}selected{% endif %}>Australia East (Australia/Sydney)</option>
+              </select>
+            </td>
           </tr>
           <tr>
             <td><label for="timestamp_format"><b>Timestamp Format</b></label></td>
-            <td><input type="text" name="timestamp_format" id="timestamp_format" value="{{ system_settings.get('timestamp_format','') }}"></td>
+            <td>
+              <select name="timestamp_format" id="timestamp_format">
+                <option value="">Select a format</option>
+                <option value="%Y-%m-%d %H:%M:%S" {% if system_settings.get('timestamp_format','') == '%Y-%m-%d %H:%M:%S' %}selected{% endif %}>YYYY-MM-DD HH:MM:SS (2026-01-21 16:30:29)</option>
+                <option value="%m/%d/%Y %I:%M:%S %p" {% if system_settings.get('timestamp_format','') == '%m/%d/%Y %I:%M:%S %p' %}selected{% endif %}>MM/DD/YYYY HH:MM:SS AM/PM (01/21/2026 04:30:29 PM)</option>
+                <option value="%d/%m/%Y %H:%M:%S" {% if system_settings.get('timestamp_format','') == '%d/%m/%Y %H:%M:%S' %}selected{% endif %}>DD/MM/YYYY HH:MM:SS (21/01/2026 16:30:29)</option>
+                <option value="%Y-%m-%d %I:%M:%S %p" {% if system_settings.get('timestamp_format','') == '%Y-%m-%d %I:%M:%S %p' %}selected{% endif %}>YYYY-MM-DD HH:MM:SS AM/PM (2026-01-21 04:30:29 PM)</option>
+                <option value="%b %d, %Y %I:%M %p" {% if system_settings.get('timestamp_format','') == '%b %d, %Y %I:%M %p' %}selected{% endif %}>Mon DD, YYYY HH:MM AM/PM (Jan 21, 2026 04:30 PM)</option>
+              </select>
+            </td>
           </tr>
           <tr>
-            <td><label for="update_interval"><b>Update Interval (minutes between control loop checks)</b></label></td>
+            <td>
+              <label for="update_interval"><b>Update Interval (minutes)</b></label>
+              <div style="font-size:0.85em;color:#666;margin-top:4px;">Frequency of control loop checks for temperature adjustments and readings</div>
+            </td>
             <td><input type="number" name="update_interval" id="update_interval" value="{{ system_settings.get('update_interval','1') }}"></td>
           </tr>
           <tr>
@@ -115,7 +143,10 @@
           </tr>
 
           <tr>
-            <td><label for="kasa_rate_limit_seconds"><b>Kasa Rate Limit (seconds)</b></label></td>
+            <td>
+              <label for="kasa_rate_limit_seconds"><b>Kasa Rate Limit (seconds)</b></label>
+              <div style="font-size:0.85em;color:#666;margin-top:4px;">Minimum time between commands to Kasa smart plugs to prevent overload</div>
+            </td>
             <td><input type="number" name="kasa_rate_limit_seconds" id="kasa_rate_limit_seconds" value="{{ system_settings.get('kasa_rate_limit_seconds', 10) }}"></td>
           </tr>
         </table>
@@ -131,7 +162,9 @@
         <table class="config-table" style="width: 60%; margin: auto;">
           <tr>
             <td><label for="sending_email"><b>Sending Email Address</b></label></td>
-            <td><input type="email" name="sending_email" id="sending_email" value="{{ system_settings.get('sending_email','') }}"></td>
+            <td>
+              <input type="email" name="sending_email" id="sending_email" value="{{ system_settings.get('sending_email','') }}" onchange="updateSmtpSettings()">
+            </td>
           </tr>
           <tr>
             <td><label for="sending_email_password"><b>Sending Email Password</b></label></td>
@@ -146,7 +179,10 @@
             <td><input type="number" name="smtp_port" id="smtp_port" value="{{ system_settings.get('smtp_port', 587) }}"></td>
           </tr>
           <tr>
-            <td><label for="smtp_starttls"><b>Use STARTTLS</b></label></td>
+            <td>
+              <label for="smtp_starttls"><b>Use STARTTLS</b></label>
+              <div style="font-size:0.85em;color:#666;margin-top:4px;">Encrypts email communication for security. Keep checked for Gmail and most modern email services.</div>
+            </td>
             <td><input type="checkbox" name="smtp_starttls" id="smtp_starttls" {% if system_settings.get('smtp_starttls', True) %}checked{% endif %}></td>
           </tr>
           <tr>
@@ -191,19 +227,19 @@
           </tr>
           <tr>
             <td><label for="enable_heating_on"><b>Heating Turned On</b></label></td>
-            <td><input type="checkbox" name="enable_heating_on" id="enable_heating_on" {% if system_settings.get('temp_control_notifications', {}).get('enable_heating_on', False) %}checked{% endif %}></td>
+            <td><input type="checkbox" name="enable_heating_on" id="enable_heating_on" {% if system_settings.get('temp_control_notifications', {}).get('enable_heating_on', True) %}checked{% endif %}></td>
           </tr>
           <tr>
             <td><label for="enable_heating_off"><b>Heating Turned Off</b></label></td>
-            <td><input type="checkbox" name="enable_heating_off" id="enable_heating_off" {% if system_settings.get('temp_control_notifications', {}).get('enable_heating_off', False) %}checked{% endif %}></td>
+            <td><input type="checkbox" name="enable_heating_off" id="enable_heating_off" {% if system_settings.get('temp_control_notifications', {}).get('enable_heating_off', True) %}checked{% endif %}></td>
           </tr>
           <tr>
             <td><label for="enable_cooling_on"><b>Cooling Turned On</b></label></td>
-            <td><input type="checkbox" name="enable_cooling_on" id="enable_cooling_on" {% if system_settings.get('temp_control_notifications', {}).get('enable_cooling_on', False) %}checked{% endif %}></td>
+            <td><input type="checkbox" name="enable_cooling_on" id="enable_cooling_on" {% if system_settings.get('temp_control_notifications', {}).get('enable_cooling_on', True) %}checked{% endif %}></td>
           </tr>
           <tr>
             <td><label for="enable_cooling_off"><b>Cooling Turned Off</b></label></td>
-            <td><input type="checkbox" name="enable_cooling_off" id="enable_cooling_off" {% if system_settings.get('temp_control_notifications', {}).get('enable_cooling_off', False) %}checked{% endif %}></td>
+            <td><input type="checkbox" name="enable_cooling_off" id="enable_cooling_off" {% if system_settings.get('temp_control_notifications', {}).get('enable_cooling_off', True) %}checked{% endif %}></td>
           </tr>
         </table>
 
@@ -219,12 +255,19 @@
             <td><input type="checkbox" name="enable_loss_of_signal" id="enable_loss_of_signal" {% if system_settings.get('batch_notifications', {}).get('enable_loss_of_signal', True) %}checked{% endif %}></td>
           </tr>
           <tr>
-            <td><label for="loss_of_signal_timeout_minutes"><b>Loss of Signal Timeout (minutes)</b></label></td>
+            <td><label for="loss_of_signal_timeout_minutes"><b>Continuous Loss of Signal to Trigger Alert (Minutes)</b></label></td>
             <td><input type="number" name="loss_of_signal_timeout_minutes" id="loss_of_signal_timeout_minutes" value="{{ system_settings.get('batch_notifications', {}).get('loss_of_signal_timeout_minutes', 30) }}" min="1"></td>
           </tr>
           <tr>
             <td><label for="enable_fermentation_starting"><b>Fermentation Starting Alert</b></label></td>
             <td><input type="checkbox" name="enable_fermentation_starting" id="enable_fermentation_starting" {% if system_settings.get('batch_notifications', {}).get('enable_fermentation_starting', True) %}checked{% endif %}></td>
+          </tr>
+          <tr>
+            <td>
+              <label for="enable_fermentation_completion"><b>Fermentation Completion Alert</b></label>
+              <div style="font-size:0.85em;color:#666;margin-top:4px;">Triggers when gravity hasn't decreased in 24 hours after fermentation started</div>
+            </td>
+            <td><input type="checkbox" name="enable_fermentation_completion" id="enable_fermentation_completion" {% if system_settings.get('batch_notifications', {}).get('enable_fermentation_completion', True) %}checked{% endif %}></td>
           </tr>
           <tr>
             <td><label for="enable_daily_report"><b>Daily Progress Report</b></label></td>
@@ -501,6 +544,49 @@
       .catch(error => {
         container.innerHTML = '<p style="color: red;">✗ Error: ' + escapeHtml(error.message) + '</p>';
       });
+    }
+    
+    function updateSmtpSettings() {
+      const email = document.getElementById('sending_email').value;
+      const smtpHost = document.getElementById('smtp_host');
+      const smtpPort = document.getElementById('smtp_port');
+      
+      if (!email) return;
+      
+      // Extract domain from email
+      const domain = email.split('@')[1];
+      if (!domain) return;
+      
+      // Auto-detect common SMTP settings
+      const smtpSettings = {
+        'gmail.com': { host: 'smtp.gmail.com', port: 587 },
+        'outlook.com': { host: 'smtp-mail.outlook.com', port: 587 },
+        'hotmail.com': { host: 'smtp-mail.outlook.com', port: 587 },
+        'yahoo.com': { host: 'smtp.mail.yahoo.com', port: 587 },
+        'icloud.com': { host: 'smtp.mail.me.com', port: 587 },
+        'aol.com': { host: 'smtp.aol.com', port: 587 },
+        'zoho.com': { host: 'smtp.zoho.com', port: 587 }
+      };
+      
+      if (smtpSettings[domain]) {
+        const currentHost = smtpHost.value.trim();
+        const currentPort = smtpPort.value.trim();
+        
+        // List of known SMTP hosts - update if current value is empty or matches a known SMTP host
+        const knownHosts = Object.values(smtpSettings).map(s => s.host);
+        const shouldUpdateHost = !currentHost || knownHosts.includes(currentHost);
+        
+        // Update host if appropriate
+        if (shouldUpdateHost) {
+          smtpHost.value = smtpSettings[domain].host;
+        }
+        
+        // Update port if it's empty or a common SMTP port (25, 465, 587)
+        const commonPorts = ['25', '465', '587', ''];
+        if (commonPorts.includes(currentPort)) {
+          smtpPort.value = smtpSettings[domain].port;
+        }
+      }
     }
   </script>
 </body>
