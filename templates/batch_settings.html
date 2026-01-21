@@ -35,7 +35,9 @@
 
       <div class="color-list">
         {% for color in tilt_colors %}
-          <a class="color-pill" style="background-color: {{ color_map.get(color, '#e9eef0') }}; {% if color in ['Black', 'Purple', 'Blue', 'Green', 'Red'] %}color: #fff;{% endif %}" href="{{ url_for('batch_settings') }}?tilt_color={{ color|urlencode }}">{{ color }}</a>
+          <a class="color-pill" 
+             style="background-color: {{ color_map.get(color, '#e9eef0') }}; {% if color in ['Black', 'Purple', 'Blue', 'Green', 'Red'] %}color: #fff;{% endif %}" 
+             href="{{ url_for('batch_settings') }}?tilt_color={{ color|urlencode }}">{{ color }}</a>
         {% endfor %}
       </div>
       <div class="note">Pick any color to configure that Tilt (even if it's not reporting right now).</div>
