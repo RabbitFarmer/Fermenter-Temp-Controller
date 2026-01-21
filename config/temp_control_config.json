@@ -26,7 +26,7 @@
   "last_logged_enable_cooling": false,
   "warnings_mode": "NONE",
   "temp_control_enabled": true,
-  "temp_control_active": false,
+  "temp_control_active": true,
   "in_range_trigger_armed": true,
   "above_limit_trigger_armed": true,
   "below_limit_trigger_armed": true,

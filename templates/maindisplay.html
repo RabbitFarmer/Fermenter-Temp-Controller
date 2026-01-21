@@ -298,25 +298,25 @@
           <div class="temp-card-body">
             <div id="temp_control_status_top" class="tc-status" style="display: {% if temp_control.temp_control_active %}block{% else %}none{% endif %};">{{ temp_control.status or '' }}</div>
 
-            <div id="temp_control_readings" class="tc-grid" role="group" aria-label="Temperature limits" style="display: {% if temp_control.temp_control_active %}grid{% else %}none{% endif %};">
+            <div id="temp_control_readings" class="tc-grid" role="group" aria-label="Temperature limits">
               <div class="tc-label">HIGH LIMIT</div>
               <div style="text-align:right;">
                 <div id="high_limit_box" class="tc-value-box">
-                  <span id="high_limit_val">{{ temp_control.high_limit if temp_control.high_limit is not none else '--' }}</span><span class="tc-value-unit"> F</span>
+                  <span id="high_limit_val">{% if temp_control.temp_control_active %}{{ temp_control.high_limit if temp_control.high_limit is not none else '--' }}{% else %}--{% endif %}</span><span class="tc-value-unit"> F</span>
                 </div>
               </div>
 
               <div class="tc-label">CURRENT<br>TEMPERATURE</div>
               <div style="text-align:right;">
                 <div id="current_temp_box" class="tc-value-box tc-value-current">
-                  <span id="temp_control_current">{{ temp_control.current_temp if temp_control.current_temp is not none else '--' }}</span><span class="tc-value-unit"> F</span>
+                  <span id="temp_control_current">{% if temp_control.temp_control_active %}{{ temp_control.current_temp if temp_control.current_temp is not none else '--' }}{% else %}--{% endif %}</span><span class="tc-value-unit"> F</span>
                 </div>
               </div>
 
               <div class="tc-label">LOW LIMIT</div>
               <div style="text-align:right;">
                 <div id="low_limit_box" class="tc-value-box">
-                  <span id="low_limit_val">{{ temp_control.low_limit if temp_control.low_limit is not none else '--' }}</span><span class="tc-value-unit"> F</span>
+                  <span id="low_limit_val">{% if temp_control.temp_control_active %}{{ temp_control.low_limit if temp_control.low_limit is not none else '--' }}{% else %}--{% endif %}</span><span class="tc-value-unit"> F</span>
                 </div>
               </div>
             </div>
@@ -324,8 +324,8 @@
             <div id="tc_notifications" class="tc-notifications" style="display: {% if temp_control.temp_control_active %}flex{% else %}none{% endif %};" aria-live="polite" role="status"></div>
           </div>
 
-          <div class="temp-card-assigned-tilt" style="display: {% if temp_control.temp_control_active %}block{% else %}none{% endif %};">
-            ASSIGNED TILT — {{ (temp_control.tilt_color or '—') }}
+          <div class="temp-card-assigned-tilt">
+            ASSIGNED TILT — {% if temp_control.temp_control_active %}{{ (temp_control.tilt_color or '—') }}{% else %}—{% endif %}
           </div>
 
           <div class="temp-card-footer">
@@ -630,8 +630,7 @@
       const notificationsEl = document.getElementById('tc_notifications');
       const lastEl = document.getElementById('temp_control_last');
       const toggleSwitch = document.getElementById('temp_control_toggle');
-      const readingsEl = document.getElementById('temp_control_readings');
-      const assignedTiltEl = document.querySelector('.temp-card-assigned-tilt');
+      const assignedTiltText = document.querySelector('.temp-card-assigned-tilt');
 
       // Update toggle switch state from server
       const isActive = tc.temp_control_active || false;
@@ -639,17 +638,21 @@
         toggleSwitch.checked = isActive;
       }
 
-      // Show/hide elements based on monitor state
+      // Show/hide status and notifications based on monitor state
       if (statusEl) statusEl.style.display = isActive ? 'block' : 'none';
-      if (readingsEl) readingsEl.style.display = isActive ? 'grid' : 'none';
       if (notificationsEl) notificationsEl.style.display = isActive ? 'flex' : 'none';
-      if (assignedTiltEl) assignedTiltEl.style.display = isActive ? 'block' : 'none';
 
-      // Only update readings if monitor is active
+      // Always update readings - show values if active, blanks if not
       if (isActive) {
         if (highBox) highBox.textContent = (tc.high_limit !== undefined && tc.high_limit !== null) ? tc.high_limit : '--';
         if (curBox) curBox.textContent = (tc.current_temp !== undefined && tc.current_temp !== null) ? tc.current_temp : '--';
         if (lowBox) lowBox.textContent = (tc.low_limit !== undefined && tc.low_limit !== null) ? tc.low_limit : '--';
+        
+        // Update assigned tilt text
+        if (assignedTiltText) {
+          const tiltColor = tc.tilt_color || '—';
+          assignedTiltText.textContent = `ASSIGNED TILT — ${tiltColor}`;
+        }
 
         let tempToUse = null;
         if (tc.current_temp != null && !isNaN(Number(tc.current_temp))) {
@@ -703,6 +706,16 @@
           }
           
           notificationsEl.innerHTML = notifications.join('');
+        }
+      } else {
+        // Monitor is OFF - blank out all values
+        if (highBox) highBox.textContent = '--';
+        if (curBox) curBox.textContent = '--';
+        if (lowBox) lowBox.textContent = '--';
+        
+        // Blank assigned tilt
+        if (assignedTiltText) {
+          assignedTiltText.textContent = 'ASSIGNED TILT — —';
         }
       }
 
