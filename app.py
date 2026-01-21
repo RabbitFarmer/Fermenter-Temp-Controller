@@ -1805,7 +1805,8 @@ def temp_config():
         tilt_cfg=tilt_cfg,
         system_settings=system_cfg,
         batch_cfg=tilt_cfg,
-        report_colors=report_colors
+        report_colors=report_colors,
+        live_tilts=live_tilts
     )
 
 
@@ -1821,7 +1822,6 @@ def update_temp_config():
             "enable_cooling": 'enable_cooling' in data,
             "heating_plug": data.get("heating_plug", ""),
             "cooling_plug": data.get("cooling_plug", ""),
-            "current_temp": float(data.get('current_temp', 0.0)) if data.get('current_temp') else None,
             "mode": data.get("mode", temp_cfg.get('mode','')),
             "status": data.get("status", temp_cfg.get('status','')),
             "warnings_mode": data.get("warnings_mode", "NONE")
@@ -1846,17 +1846,6 @@ def update_temp_config():
 
     # Run control logic immediately (it will normalize mode/status and log selection change if any)
     temperature_control_logic()
-
-
-    # If immediate action required, call controls (they will be logged on confirmation)
-    try:
-        cur = temp_cfg.get("current_temp")
-        if temp_cfg.get("enable_heating") and cur is not None and cur < temp_cfg.get("low_limit", 0):
-            control_heating("on")
-        if temp_cfg.get("enable_cooling") and cur is not None and cur > temp_cfg.get("high_limit", 999):
-            control_cooling("on")
-    except Exception:
-        pass
 
 
     return redirect('/temp_config')

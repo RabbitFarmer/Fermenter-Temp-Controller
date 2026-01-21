@@ -14,15 +14,6 @@
       document.getElementById('resetLogsForm').submit();
       return true;
     }
-
-    function setCurrentTempToLive() {
-      // copy the displayed live temp into the "current_temp" input if a live temp exists
-      var live = document.getElementById('live_current_temp');
-      var cur = document.getElementById('current_temp');
-      if (live && cur && live.dataset.value) {
-        cur.value = live.dataset.value;
-      }
-    }
   </script>
 
   <style>
@@ -107,15 +98,6 @@
           </div>
 
           <div class="form-row">
-            <label for="current_temp">Override Current Temp:</label>
-            <input id="current_temp" name="current_temp" type="text" value="{{ temp_control.current_temp|default('') }}" placeholder="leave blank to use live tilt">
-            <button type="button" class="btn" onclick="setCurrentTempToLive()">Use Live</button>
-            <span id="live_current_temp" data-value="{{ temp_control.current_temp if temp_control.current_temp is not none else '' }}" class="small" style="margin-left:8px;">
-              Live: {% if temp_control.current_temp is not none %}{{ temp_control.current_temp }}°F{% else %}<em>no live temp</em>{% endif %}
-            </span>
-          </div>
-
-          <div class="form-row">
             <label for="tilt_logging_interval_minutes">Tilt Log Interval (min):</label>
             <input id="tilt_logging_interval_minutes" name="tilt_logging_interval_minutes" type="number" min="1" step="1" value="{{ system_settings.tilt_logging_interval_minutes|default(15) }}">
             <span class="small">How often tilt_reading entries are appended (per color)</span>
@@ -133,11 +115,21 @@
           </div>
 
           <div class="form-row" style="margin-top:12px;">
-            <button id="saveBtn" type="submit" class="btn">Save Settings</button>
-            <a class="btn secondary" href="/temp_report" style="margin-left:8px;">View Log</a>
-            <a class="btn secondary" href="/export_temp_csv" style="margin-left:8px;">Export</a>
+            <form action="/scan_kasa_plugs" method="get" style="display:inline; margin:0;">
+              <button type="submit" class="btn">Scan Kasa Plugs</button>
+            </form>
+            <a class="btn secondary" href="/temp_config" style="margin-left:8px;">Cancel</a>
+            <button id="saveBtn" type="submit" class="btn" style="margin-left:8px;">Save Settings</button>
           </div>
         </form>
+      </div>
+
+      <div class="section">
+        <h2>Temperature Control Logs</h2>
+        <div style="margin-top:8px;">
+          <a href="/temp_report" class="btn secondary">View Logs</a>
+          <a href="/export_temp_csv" class="btn secondary" style="margin-left:8px;">Export Logs</a>
+        </div>
       </div>
 
       <div class="section">
@@ -175,26 +167,6 @@
         {% else %}
           <p class="small">No live Tilt adverts seen yet.</p>
         {% endif %}
-      </div>
-
-      <div class="section">
-        <h2>Logs & Maintenance</h2>
-        <p class="small">You can archive or reset the historical temp log. Archiving moves tilt_reading entries into the <code>batches/</code> directory; resetting makes a timestamped backup and clears the main log.</p>
-
-        <div style="margin-top:8px;">
-          <form id="resetLogsForm" action="/reset_logs" method="post" style="display:inline;">
-            <!-- historically this endpoint was used to reset; using a confirm prevents accidental clears -->
-            <button type="button" class="btn warning" onclick="confirmReset()">Reset Logs (backup & clear)</button>
-          </form>
-          <a href="/temp_report" class="btn secondary" style="margin-left:8px;">View full temp log</a>
-        </div>
-
-        <div style="margin-top:12px;">
-          <form action="/scan_kasa_plugs" method="get" style="display:inline;">
-            <button type="submit" class="btn">Scan Kasa Plugs</button>
-          </form>
-          <span class="small" style="margin-left:8px;">Detect local Kasa smart plugs for heater/cooler control</span>
-        </div>
       </div>
 
       <footer style="margin-top:20px; color:#666; font-size:0.9em;">
