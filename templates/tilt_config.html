@@ -65,16 +65,13 @@
             {% endif %}
           </div>
 
-          <!-- Quick-edit small form to update Actual OG and confirmation -->
+          <!-- Quick-edit small form to update Actual OG -->
           <div style="padding:12px; background:#f6f9f6; border-radius:8px; margin-bottom:12px;">
             <form method="post" action="/batch_settings">
               <input type="hidden" name="tilt_color" value="{{ selected_tilt }}">
               <div class="form-group">
                 <label>Measured Original Gravity (Actual OG)</label>
                 <input type="text" name="actual_og" value="{{ selected_config.actual_og if selected_config.actual_og is not none else '' }}" placeholder="e.g. 1.055">
-              </div>
-              <div class="form-group">
-                <label><input type="checkbox" name="og_confirmed" value="1" {% if selected_config.og_confirmed %}checked{% endif %}> I confirm this OG measurement is correct</label>
               </div>
 
               <!-- Keep minimal recipe fields available here too -->
@@ -124,7 +121,6 @@
                   <li>
                     {{ b.ferm_start_date or '--' }} — {{ b.beer_name or '--' }} / {{ b.batch_name or '--' }}
                     {% if b.recipe_og %}(Recipe OG: {{ b.recipe_og }}){% elif b.actual_og %}(Measured OG: {{ b.actual_og }}){% endif %}
-                    {% if b.og_confirmed %} — (OG Confirmed){% endif %}
                   </li>
                 {% endfor %}
               </ul>
