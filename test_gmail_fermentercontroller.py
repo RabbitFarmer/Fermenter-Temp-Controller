@@ -33,6 +33,8 @@ def test_gmail_with_regular_password():
     print()
     print("Account: fermentercontroller@gmail.com")
     print("Password: Alpaca1968 (regular Gmail password)")
+    print("NOTE: This password is intentionally shown in this demo to illustrate the issue.")
+    print("      In production, App Passwords should be stored securely in config files.")
     print()
     print("Expected Result: FAILURE with helpful error message")
     print("=" * 80)

@@ -962,19 +962,21 @@ def _smtp_send(recipient, subject, body):
         server.quit()
         return True, "Success"
     except Exception as e:
-        error_msg = str(e)
-        print(f"[LOG] SMTP send failed: {error_msg}")
+        original_error = str(e)
+        print(f"[LOG] SMTP send failed: {original_error}")
         
         # Provide helpful error message for Gmail authentication issues
-        if "BadCredentials" in error_msg or ("535" in error_msg and "gmail" in cfg.get("smtp_host", "").lower()):
+        if "BadCredentials" in original_error or ("535" in original_error and "gmail" in cfg.get("smtp_host", "").lower()):
             error_msg = (
                 "Gmail authentication failed. Gmail requires an App Password when 2-Factor Authentication is enabled. "
                 "Regular Gmail passwords will not work. "
                 "To fix this: 1) Enable 2-Factor Authentication on your Google account, "
                 "2) Generate an App Password at https://myaccount.google.com/apppasswords, "
                 "3) Use the App Password (not your regular password) in the Fermenter Email Password field. "
-                f"Original error: {error_msg}"
+                f"Original error: {original_error}"
             )
+        else:
+            error_msg = original_error
         
         return False, error_msg
 

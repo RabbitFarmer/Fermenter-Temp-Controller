@@ -44,7 +44,7 @@ class TestGmailErrorMessages(unittest.TestCase):
         mock_server = MagicMock()
         mock_smtp.return_value = mock_server
         mock_server.login.side_effect = Exception(
-            "(535, b'5.7.8 Username and Password not accepted. For more information, go to\\n"
+            "(535, b'5.7.8 Username and Password not accepted. For more information, go to\n"
             "5.7.8 https://support.google.com/mail/?p=BadCredentials 00721157ae682-793c66f326bsm83413277b3.19 - gsmtp')"
         )
         
