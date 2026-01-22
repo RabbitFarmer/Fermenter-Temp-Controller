@@ -821,15 +821,58 @@ def forward_to_third_party_if_configured(payload):
             "send_json": bool(tc.get("external_json")) if ("external_json" in tc) else True
         })
     
-    # 2. Check system-wide configuration (external_url_0, external_url_1, external_url_2)
-    for i in range(3):
-        sys_url = system_cfg.get(f"external_url_{i}")
-        if sys_url:
+    # 2. Check system-wide configuration
+    # Support new format (external_urls array) and old format (external_url_0, etc.) for backwards compatibility
+    external_urls = system_cfg.get("external_urls", [])
+    
+    if external_urls and isinstance(external_urls, list):
+        # New format: per-URL configuration
+        for url_config in external_urls:
+            if not isinstance(url_config, dict):
+                continue
+            url = url_config.get("url", "").strip()
+            if not url:
+                continue
+            
+            # Get field map if specified
+            field_map_id = url_config.get("field_map_id", "default")
+            predefined_maps = get_predefined_field_maps()
+            field_map = predefined_maps.get(field_map_id, {}).get("map")
+            
+            # Handle custom field map JSON
+            if field_map_id == "custom" and url_config.get("custom_field_map"):
+                try:
+                    field_map = json.loads(url_config["custom_field_map"])
+                except:
+                    field_map = None
+            
             urls_to_forward.append({
-                "url": sys_url,
-                "method": system_cfg.get("external_method", "POST").upper(),
-                "send_json": (system_cfg.get("external_content_type", "form") == "json")
+                "url": url,
+                "method": url_config.get("method", "POST").upper(),
+                "send_json": (url_config.get("content_type", "form") == "json"),
+                "timeout": int(url_config.get("timeout_seconds", 8)),
+                "field_map": field_map
             })
+    else:
+        # Old format: external_url_0, external_url_1, external_url_2 with shared settings
+        for i in range(3):
+            sys_url = system_cfg.get(f"external_url_{i}")
+            if sys_url:
+                # Parse old external_field_map if present
+                field_map = None
+                if system_cfg.get("external_field_map"):
+                    try:
+                        field_map = json.loads(system_cfg["external_field_map"])
+                    except:
+                        pass
+                
+                urls_to_forward.append({
+                    "url": sys_url,
+                    "method": system_cfg.get("external_method", "POST").upper(),
+                    "send_json": (system_cfg.get("external_content_type", "form") == "json"),
+                    "timeout": int(system_cfg.get("external_timeout_seconds", 8)),
+                    "field_map": field_map
+                })
     
     if not urls_to_forward:
         return {"forwarded": False, "reason": "no external_url configured"}
@@ -840,8 +883,10 @@ def forward_to_third_party_if_configured(payload):
         url = config["url"]
         method = config["method"]
         send_json = config["send_json"]
+        timeout = config.get("timeout", 8)
+        field_map = config.get("field_map")
         
-        # Transform payload for Brewers Friend if needed
+        # Transform payload for Brewers Friend if needed (uses original payload)
         if "brewersfriend.com" in url.lower():
             # Brewers Friend expects a specific format with numeric values
             transformed_payload = {
@@ -856,13 +901,18 @@ def forward_to_third_party_if_configured(payload):
             forwarding_payload = transformed_payload
             # Brewers Friend always uses JSON
             send_json = True
+        elif field_map:
+            # Apply field map transformation if provided and not Brewers Friend
+            forwarding_payload = {}
+            for logical_field, remote_field in field_map.items():
+                if logical_field in payload:
+                    forwarding_payload[remote_field] = payload[logical_field]
         else:
-            # Use original payload for other services
+            # Use original payload if no transformation needed
             forwarding_payload = payload
         
         headers = {}
         try:
-            timeout = int(system_cfg.get("external_timeout_seconds", 8) or 8)
             if send_json:
                 headers["Content-Type"] = "application/json"
                 resp = requests.request(method, url, json=forwarding_payload, headers=headers, timeout=timeout)
@@ -1493,6 +1543,50 @@ def kasa_result_listener():
 threading.Thread(target=kasa_result_listener, daemon=True).start()
 
 # --- Offsite push helpers (kept, forwarding enabled) -----------------------
+def get_predefined_field_maps():
+    """
+    Returns a dictionary of predefined field map templates that users can select from.
+    These are common field mappings for popular services.
+    """
+    return {
+        "default": {
+            "name": "Default",
+            "description": "Standard field names",
+            "map": {
+                "timestamp": "timestamp",
+                "tilt_color": "tilt_color",
+                "gravity": "gravity",
+                "temp_f": "temp",
+                "brew_id": "brewid",
+                "device": "device"
+            }
+        },
+        "brewersfriend": {
+            "name": "Brewers Friend",
+            "description": "Optimized for Brewers Friend API",
+            "map": {
+                "timestamp": "timestamp",
+                "tilt_color": "name",
+                "gravity": "gravity",
+                "temp_f": "temp",
+                "brew_id": "beer",
+                "device": "device"
+            }
+        },
+        "custom": {
+            "name": "Custom",
+            "description": "User-defined field mapping",
+            "map": {
+                "timestamp": "timestamp",
+                "tilt_color": "tilt_color",
+                "gravity": "gravity",
+                "temp_f": "temp",
+                "brew_id": "brewid",
+                "device": "device"
+            }
+        }
+    }
+
 def build_offsite_payload(field_map=None):
     default_map = {
         'timestamp': 'timestamp',
@@ -1632,7 +1726,44 @@ def dashboard():
 
 @app.route('/system_config')
 def system_config():
-    return render_template('system_config.html', system_settings=system_cfg)
+    # Migrate old format to new format if needed
+    external_urls = system_cfg.get("external_urls", [])
+    
+    # If no external_urls but old format exists, migrate
+    if not external_urls:
+        for i in range(3):
+            name = system_cfg.get(f"external_name_{i}", "").strip()
+            url = system_cfg.get(f"external_url_{i}", "").strip()
+            if url:
+                url_config = {
+                    "name": name or f"Service {i + 1}",
+                    "url": url,
+                    "method": system_cfg.get("external_method", "POST"),
+                    "content_type": system_cfg.get("external_content_type", "form"),
+                    "timeout_seconds": int(system_cfg.get("external_timeout_seconds", 8)),
+                    "field_map_id": "default"
+                }
+                # If there's a custom field map, use it
+                if system_cfg.get("external_field_map"):
+                    url_config["field_map_id"] = "custom"
+                    url_config["custom_field_map"] = system_cfg.get("external_field_map")
+                external_urls.append(url_config)
+    
+    # Ensure we have exactly 3 slots (fill with empty ones if needed)
+    while len(external_urls) < 3:
+        external_urls.append({
+            "name": "",
+            "url": "",
+            "method": "POST",
+            "content_type": "form",
+            "timeout_seconds": 8,
+            "field_map_id": "default"
+        })
+    
+    return render_template('system_config.html', 
+                         system_settings=system_cfg,
+                         external_urls=external_urls,
+                         predefined_field_maps=get_predefined_field_maps())
 
 @app.route('/update_system_config', methods=['POST'])
 def update_system_config():
@@ -1644,6 +1775,30 @@ def update_system_config():
     if sending_email_password:
         # Store as smtp_password for SMTP authentication
         system_cfg["smtp_password"] = sending_email_password
+    
+    # Handle external URLs - support new per-URL configuration format
+    external_urls = []
+    for i in range(3):
+        name = data.get(f"external_name_{i}", "").strip()
+        url = data.get(f"external_url_{i}", "").strip()
+        
+        if url:  # Only add if URL is provided
+            url_config = {
+                "name": name or f"Service {i + 1}",
+                "url": url,
+                "method": data.get(f"external_method_{i}", "POST"),
+                "content_type": data.get(f"external_content_type_{i}", "form"),
+                "timeout_seconds": int(data.get(f"external_timeout_seconds_{i}", 8)),
+                "field_map_id": data.get(f"external_field_map_id_{i}", "default")
+            }
+            
+            # If custom field map is selected, store the custom JSON
+            if url_config["field_map_id"] == "custom":
+                custom_map = data.get(f"external_custom_field_map_{i}", "").strip()
+                if custom_map:
+                    url_config["custom_field_map"] = custom_map
+            
+            external_urls.append(url_config)
     
     system_cfg.update({
         "brewery_name": data.get("brewery_name", ""),
@@ -1658,25 +1813,31 @@ def update_system_config():
         "update_interval": data.get("update_interval", "1"),
         "temp_logging_interval": data.get("temp_logging_interval", system_cfg.get('temp_logging_interval', 10)),
         "external_refresh_rate": data.get("external_refresh_rate", "0"),
-        "external_name_0": data.get("external_name_0", system_cfg.get('external_name_0','')),
-        "external_url_0": data.get("external_url_0", system_cfg.get('external_url_0','')),
-        "external_name_1": data.get("external_name_1", system_cfg.get('external_name_1','')),
-        "external_url_1": data.get("external_url_1", system_cfg.get('external_url_1','')),
-        "external_name_2": data.get("external_name_2", system_cfg.get('external_name_2','')),
-        "external_url_2": data.get("external_url_2", system_cfg.get('external_url_2','')),
+        "external_urls": external_urls,  # New format
         "warning_mode": data.get("warning_mode", "NONE"),
         "sending_email": data.get("sending_email", system_cfg.get('sending_email','')),
         "smtp_host": data.get("smtp_host", system_cfg.get('smtp_host', 'smtp.gmail.com')),
         "smtp_port": int(data.get("smtp_port", system_cfg.get('smtp_port', 587))),
         "smtp_starttls": 'smtp_starttls' in data,
         "sms_gateway_domain": data.get("sms_gateway_domain", system_cfg.get('sms_gateway_domain','')),
-        "external_method": data.get("external_method", system_cfg.get('external_method','POST')),
-        "external_content_type": data.get("external_content_type", system_cfg.get('external_content_type','form')),
-        "external_timeout_seconds": data.get("external_timeout_seconds", system_cfg.get('external_timeout_seconds',8)),
-        "external_field_map": data.get("external_field_map", system_cfg.get('external_field_map','')),
         "kasa_rate_limit_seconds": data.get("kasa_rate_limit_seconds", system_cfg.get('kasa_rate_limit_seconds', 10)),
         "tilt_logging_interval_minutes": int(data.get("tilt_logging_interval_minutes", system_cfg.get("tilt_logging_interval_minutes", 15)))
     })
+    
+    # Preserve old format fields for backward compatibility (only if external_urls is empty)
+    if not external_urls:
+        system_cfg.update({
+            "external_name_0": data.get("external_name_0", system_cfg.get('external_name_0','')),
+            "external_url_0": data.get("external_url_0", system_cfg.get('external_url_0','')),
+            "external_name_1": data.get("external_name_1", system_cfg.get('external_name_1','')),
+            "external_url_1": data.get("external_url_1", system_cfg.get('external_url_1','')),
+            "external_name_2": data.get("external_name_2", system_cfg.get('external_name_2','')),
+            "external_url_2": data.get("external_url_2", system_cfg.get('external_url_2','')),
+            "external_method": data.get("external_method", system_cfg.get('external_method','POST')),
+            "external_content_type": data.get("external_content_type", system_cfg.get('external_content_type','form')),
+            "external_timeout_seconds": data.get("external_timeout_seconds", system_cfg.get('external_timeout_seconds',8)),
+            "external_field_map": data.get("external_field_map", system_cfg.get('external_field_map','')),
+        })
     
     # Update temperature control notifications settings
     temp_control_notif = {
