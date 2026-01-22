@@ -42,7 +42,7 @@ def save_json(path, data):
 def simulate_form_submission(system_cfg, form_data):
     """
     Simulate the update_system_config route behavior.
-    This mimics lines 1768-1864 in app.py
+    This mimics the password handling logic in app.py
     """
     # Handle password field - only update if provided
     sending_email_password = form_data.get("sending_email_password", "")
