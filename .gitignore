@@ -16,3 +16,8 @@ temp_control/*.bak
 # Backup restore files
 *.backup_before_restore
 *.backup_before_restore/
+
+# User configuration files (keep templates in git, ignore actual configs)
+config/system_config.json
+config/temp_control_config.json
+config/tilt_config.json

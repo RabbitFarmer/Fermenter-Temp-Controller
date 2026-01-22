@@ -79,6 +79,32 @@ MAX_CHART_LIMIT = 2000
 MAX_ALL_LIMIT = 10000
 MAX_FILENAME_LENGTH = 50
 
+# --- Initialize config files from templates if they don't exist -------------
+def ensure_config_files():
+    """
+    Ensure config files exist by copying from templates if needed.
+    This prevents rsync/git pull from overwriting user's configuration data.
+    """
+    config_files = [
+        ('config/system_config.json', 'config/system_config.json.template'),
+        ('config/temp_control_config.json', 'config/temp_control_config.json.template'),
+        ('config/tilt_config.json', 'config/tilt_config.json.template')
+    ]
+    
+    for config_file, template_file in config_files:
+        if not os.path.exists(config_file):
+            if os.path.exists(template_file):
+                try:
+                    import shutil
+                    shutil.copy2(template_file, config_file)
+                    print(f"[INIT] Created {config_file} from template")
+                except Exception as e:
+                    print(f"[INIT] Error creating {config_file} from template: {e}")
+            else:
+                print(f"[INIT] Warning: Neither {config_file} nor {template_file} exists")
+
+ensure_config_files()
+
 # --- Stop other app.py processes on startup --------------------------------
 def stop_other_app_py():
     current_pid = os.getpid()
@@ -150,10 +176,17 @@ def load_json(path, fallback):
 
 def save_json(path, data):
     try:
+        # Ensure the directory exists
+        directory = os.path.dirname(path)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory, exist_ok=True)
+        
         with open(path, 'w') as f:
             json.dump(data, f, indent=2)
+        return True
     except Exception as e:
         print(f"[LOG] Error saving JSON to {path}: {e}")
+        return False
 
 # --- New: Append batch metadata to batch jsonl ------------------------------
 def append_batch_metadata_to_batch_jsonl(color, batch_entry):
