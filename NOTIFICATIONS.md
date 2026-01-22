@@ -15,8 +15,8 @@ The system can send notifications via email and/or SMS for two main categories:
 Navigate to **System Settings → SMS/eMail** tab and configure:
 
 #### Email Configuration
-- **Sending Email Address**: The email account that will send notifications (e.g., `mybrewery@gmail.com`)
-- **Sending Email Password**: Password for the sending email account
+- **Sending Email Address**: The email account that will send notifications (e.g., `fermentercontroller@gmail.com`)
+- **Sending Email Password**: **For Gmail, use an App Password** (see Gmail Configuration Tips below), NOT your regular password
 - **SMTP Server Host**: Email server address (e.g., `smtp.gmail.com` for Gmail)
 - **SMTP Server Port**: Usually `587` for TLS or `465` for SSL
 - **Use STARTTLS**: Check this for secure connections (recommended)
@@ -151,12 +151,43 @@ Change since yesterday: 0.003
 
 ## Gmail Configuration Tips
 
-If using Gmail:
-1. Enable "Less secure app access" or use an App Password
-2. SMTP Settings:
+If using Gmail, you **must** use an App Password, not your regular Gmail password. Google has disabled "less secure app access" and requires App Passwords for third-party applications.
+
+### How to Set Up Gmail App Password:
+
+1. **Enable 2-Factor Authentication** (if not already enabled):
+   - Go to https://myaccount.google.com/security
+   - Click on "2-Step Verification" and follow the setup process
+
+2. **Generate an App Password**:
+   - Go to https://myaccount.google.com/apppasswords
+   - You may need to verify your identity
+   - Select "Mail" and "Other (Custom name)" 
+   - Enter a name like "Fermenter Controller"
+   - Click "Generate"
+   - Google will display a 16-character password (e.g., `abcd efgh ijkl mnop`)
+
+3. **Use the App Password in Fermenter Controller**:
+   - Copy the 16-character App Password (spaces don't matter)
+   - In the Fermenter Controller SMS/Email configuration page
+   - Enter your Gmail address (e.g., `yourname@gmail.com`) in "Fermenter Email Account Address"
+   - Enter the App Password in "Fermenter Email Password" field
+   - **Important**: Use the App Password, NOT your regular Gmail password
+
+4. **SMTP Settings for Gmail**:
    - Host: `smtp.gmail.com`
    - Port: `587`
-   - STARTTLS: Enabled
+   - STARTTLS: Enabled (checked)
+
+### Common Gmail Errors:
+
+**Error: "Username and Password not accepted" or "BadCredentials"**
+- This means you're using your regular Gmail password instead of an App Password
+- Solution: Generate and use an App Password as described above
+
+**Error: "Please log in via your web browser"**
+- Gmail detected unusual activity or you haven't enabled 2FA
+- Solution: Enable 2-Factor Authentication and generate an App Password
 
 ## Troubleshooting
 
