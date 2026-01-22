@@ -95,7 +95,6 @@ def ensure_config_files():
         if not os.path.exists(config_file):
             if os.path.exists(template_file):
                 try:
-                    import shutil
                     shutil.copy2(template_file, config_file)
                     print(f"[INIT] Created {config_file} from template")
                 except Exception as e:
