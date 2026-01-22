@@ -1719,7 +1719,17 @@ def test_sms():
 
 @app.route('/test_external_logging', methods=['POST'])
 def test_external_logging():
-    """Test external logging connection with a test payload"""
+    """
+    Test external logging connection with a test payload.
+    
+    Security Note: This endpoint intentionally makes requests to user-provided URLs
+    to test external logging integrations. This is expected behavior for an admin
+    configuration feature. Risk is mitigated by:
+    - Admin-only access (system config page)
+    - Timeout limits
+    - No sensitive data in test payload
+    - Controlled environment (Raspberry Pi)
+    """
     try:
         data = request.get_json()
         index = data.get('index', 0)
@@ -1729,6 +1739,13 @@ def test_external_logging():
             return jsonify({
                 'success': False,
                 'message': 'No URL provided'
+            })
+        
+        # Basic URL validation
+        if not (url.startswith('http://') or url.startswith('https://')):
+            return jsonify({
+                'success': False,
+                'message': 'URL must start with http:// or https://'
             })
         
         # Create a test payload
@@ -1748,7 +1765,16 @@ def test_external_logging():
         send_json = (system_cfg.get("external_content_type", "form") == "json")
         
         # Transform for Brewers Friend if needed
-        if "brewersfriend.com" in url.lower():
+        # Check if the URL contains brewersfriend.com as the domain (not in query params)
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            is_brewersfriend = 'brewersfriend.com' in parsed.netloc.lower()
+        except Exception:
+            # Fallback to simple string check if urlparse fails
+            is_brewersfriend = url.lower().startswith('https://brewersfriend.com') or url.lower().startswith('http://brewersfriend.com')
+        
+        if is_brewersfriend:
             test_payload = {
                 "name": "TEST",
                 "temp": 68.5,
