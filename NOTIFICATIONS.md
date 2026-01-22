@@ -15,8 +15,8 @@ The system can send notifications via email and/or SMS for two main categories:
 Navigate to **System Settings → SMS/eMail** tab and configure:
 
 #### Email Configuration
-- **Sending Email Address**: The email account that will send notifications (e.g., `mybrewery@gmail.com`)
-- **Sending Email Password**: Password for the sending email account
+- **Sending Email Address**: The email account that will send notifications (e.g., `fermentercontroller@gmail.com`)
+- **Sending Email Password**: **For Gmail, use an App Password** (see Gmail Configuration Tips below), NOT your regular password
 - **SMTP Server Host**: Email server address (e.g., `smtp.gmail.com` for Gmail)
 - **SMTP Server Port**: Usually `587` for TLS or `465` for SSL
 - **Use STARTTLS**: Check this for secure connections (recommended)
