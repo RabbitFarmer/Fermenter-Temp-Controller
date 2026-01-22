@@ -96,9 +96,9 @@ def ensure_config_files():
             if os.path.exists(template_file):
                 try:
                     shutil.copy2(template_file, config_file)
-                    print(f"[INIT] Created {config_file} from template")
+                    print(f"[INIT] Created {config_file} from {template_file}")
                 except Exception as e:
-                    print(f"[INIT] Error creating {config_file} from template: {e}")
+                    print(f"[INIT] Error copying {template_file} to {config_file}: {e}")
             else:
                 print(f"[INIT] Warning: Neither {config_file} nor {template_file} exists")
 
@@ -174,6 +174,18 @@ def load_json(path, fallback):
         return fallback
 
 def save_json(path, data):
+    """
+    Save data to a JSON file with pretty formatting.
+    
+    Creates parent directories if they don't exist.
+    
+    Args:
+        path (str): Path to the JSON file
+        data: Data to serialize to JSON
+        
+    Returns:
+        bool: True if save succeeded, False if there was an error
+    """
     try:
         # Ensure the directory exists
         directory = os.path.dirname(path)
