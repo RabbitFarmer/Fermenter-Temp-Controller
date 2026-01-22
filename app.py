@@ -1776,7 +1776,11 @@ def test_external_logging():
                 resp = requests.request(method, url, json=test_payload, headers=headers, timeout=timeout)
             else:
                 headers["Content-Type"] = "application/x-www-form-urlencoded"
-                formdata = {k: ("" if v is None else v) for k, v in test_payload.items() if isinstance(v, (str, int, float, bool)) or v is None}
+                # Build form data, converting None to empty string and filtering to simple types
+                formdata = {}
+                for k, v in test_payload.items():
+                    if isinstance(v, (str, int, float, bool)) or v is None:
+                        formdata[k] = "" if v is None else v
                 resp = requests.request(method, url, data=formdata, headers=headers, timeout=timeout)
             
             # Check response
@@ -1786,30 +1790,31 @@ def test_external_logging():
                     'message': f'Connection successful! Status: {resp.status_code}'
                 })
             else:
+                # Don't expose response content in error messages for security
                 return jsonify({
                     'success': False,
-                    'message': f'Connection failed with status {resp.status_code}: {resp.text[:200]}'
+                    'message': f'Connection failed with HTTP status {resp.status_code}'
                 })
         except requests.exceptions.Timeout:
             return jsonify({
                 'success': False,
                 'message': f'Connection timeout after {timeout} seconds'
             })
-        except requests.exceptions.ConnectionError as e:
+        except requests.exceptions.ConnectionError:
             return jsonify({
                 'success': False,
-                'message': f'Connection error: {str(e)[:200]}'
+                'message': 'Unable to connect to the specified URL. Please check the URL and network connection.'
             })
-        except Exception as e:
+        except Exception:
             return jsonify({
                 'success': False,
-                'message': f'Request failed: {str(e)[:200]}'
+                'message': 'Request failed. Please check the URL and try again.'
             })
             
-    except Exception as e:
+    except Exception:
         return jsonify({
             'success': False,
-            'message': f'Error: {str(e)}'
+            'message': 'An error occurred while testing the connection. Please verify your settings and try again.'
         })
 
 @app.route('/tilt_config', methods=['GET', 'POST'])
