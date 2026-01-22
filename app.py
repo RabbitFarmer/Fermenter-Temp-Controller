@@ -26,6 +26,7 @@ from collections import deque, defaultdict
 from datetime import datetime
 from math import ceil
 from multiprocessing import Process, Queue
+from urllib.parse import urlparse
 import subprocess
 import signal
 
@@ -1767,12 +1768,12 @@ def test_external_logging():
         # Transform for Brewers Friend if needed
         # Check if the URL contains brewersfriend.com as the domain (not in query params)
         try:
-            from urllib.parse import urlparse
             parsed = urlparse(url)
             is_brewersfriend = 'brewersfriend.com' in parsed.netloc.lower()
         except Exception:
             # Fallback to simple string check if urlparse fails
-            is_brewersfriend = url.lower().startswith('https://brewersfriend.com') or url.lower().startswith('http://brewersfriend.com')
+            url_lower = url.lower()
+            is_brewersfriend = url_lower.startswith('https://brewersfriend.com') or url_lower.startswith('http://brewersfriend.com')
         
         if is_brewersfriend:
             test_payload = {
