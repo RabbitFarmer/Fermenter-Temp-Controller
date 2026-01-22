@@ -89,23 +89,6 @@
             <input id="cooling_plug" name="cooling_plug" type="text" value="{{ temp_control.cooling_plug|default('') }}" placeholder="kasa device host or id">
           </div>
 
-          <div class="form-row">
-            <label for="tilt_logging_interval_minutes">Tilt Log Interval (min):</label>
-            <input id="tilt_logging_interval_minutes" name="tilt_logging_interval_minutes" type="number" min="1" step="1" value="{{ system_settings.tilt_logging_interval_minutes|default(15) }}">
-            <span class="small">How often tilt_reading entries are appended (per color)</span>
-          </div>
-
-          <div class="form-row">
-            <label for="warnings_mode">Notifications:</label>
-            <select id="warnings_mode" name="warnings_mode">
-              <option value="NONE" {% if temp_control.warnings_mode == 'NONE' %}selected{% endif %}>Disabled</option>
-              <option value="EMAIL" {% if temp_control.warnings_mode == 'EMAIL' %}selected{% endif %}>Email</option>
-              <option value="SMS" {% if temp_control.warnings_mode == 'SMS' %}selected{% endif %}>SMS</option>
-              <option value="BOTH" {% if temp_control.warnings_mode == 'BOTH' %}selected{% endif %}>Email + SMS</option>
-            </select>
-            <span class="small">Configured contact details live in System Settings</span>
-          </div>
-
           <div class="form-row" style="margin-top:12px;">
             <a href="/scan_kasa_plugs" class="btn">Scan Kasa Plugs</a>
             <a class="btn secondary" href="/temp_config" style="margin-left:8px;">Cancel</a>
@@ -128,7 +111,6 @@
         <div class="form-row"><label>Status:</label> <strong>{{ temp_control.status|default('Unknown') }}</strong></div>
         <div class="form-row"><label>Heater On:</label> <span>{{ 'Yes' if temp_control.heater_on else 'No' }}</span></div>
         <div class="form-row"><label>Cooler On:</label> <span>{{ 'Yes' if temp_control.cooler_on else 'No' }}</span></div>
-        <div class="form-row"><label>Notifications:</label> <span>{{ temp_control.warnings_mode|default('NONE') }}</span></div>
         <div class="form-row"><label>Last Notification:</label> <span>{{ temp_control.notification_last_sent|default('never') }}</span></div>
       </div>
 
