@@ -279,6 +279,20 @@
           </tr>
         </table>
 
+        <h3 style="text-align: center; margin-top: 30px;">Manual Test Buttons</h3>
+        <div style="text-align: center; margin-top: 20px;">
+          <p style="font-style: italic; color: #666; margin-bottom: 15px;">
+            Use these buttons to test your notification settings
+          </p>
+          <button type="button" class="btn-action" onclick="testEmail()" style="margin-right: 10px;">
+            Test Email
+          </button>
+          <button type="button" class="btn-action" onclick="testSMS()">
+            Test SMS
+          </button>
+          <div id="test-result" style="margin-top: 15px; font-weight: bold;"></div>
+        </div>
+
         <div style="text-align:center; margin-top:20px;">
           <button type="submit" class="btn-primary">Save</button>
           <button type="button" onclick="window.location='/system_config'" class="btn-secondary" style="margin-left:16px;">Cancel</button>
@@ -302,6 +316,10 @@
             <td>
               <input type="text" name="external_name_{{ i }}" id="external_name_{{ i }}" value="{{ system_settings.get('external_name_' ~ i, '') }}"><br>
               <input type="text" name="external_url_{{ i }}" id="external_url_{{ i }}" value="{{ system_settings.get('external_url_' ~ i, '') }}">
+              <button type="button" class="btn-action" onclick="testExternalLogging({{ i }})" style="margin-top: 5px; font-size: 12px; padding: 5px 10px;">
+                Test Connection {{ i + 1 }}
+              </button>
+              <div id="external-test-result-{{ i }}" style="margin-top: 5px; font-size: 0.9em;"></div>
             </td>
           </tr>
           {% endfor %}
@@ -587,6 +605,87 @@
           smtpPort.value = smtpSettings[domain].port;
         }
       }
+    }
+
+    // Test Email notification
+    function testEmail() {
+      const resultDiv = document.getElementById('test-result');
+      resultDiv.innerHTML = '<span style="color: blue;">Sending test email...</span>';
+      
+      fetch('/test_email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          resultDiv.innerHTML = '<span style="color: green;">✓ ' + escapeHtml(data.message) + '</span>';
+        } else {
+          resultDiv.innerHTML = '<span style="color: red;">✗ ' + escapeHtml(data.message) + '</span>';
+        }
+      })
+      .catch(error => {
+        resultDiv.innerHTML = '<span style="color: red;">✗ Error: ' + escapeHtml(error.message) + '</span>';
+      });
+    }
+
+    // Test SMS notification
+    function testSMS() {
+      const resultDiv = document.getElementById('test-result');
+      resultDiv.innerHTML = '<span style="color: blue;">Sending test SMS...</span>';
+      
+      fetch('/test_sms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          resultDiv.innerHTML = '<span style="color: green;">✓ ' + escapeHtml(data.message) + '</span>';
+        } else {
+          resultDiv.innerHTML = '<span style="color: red;">✗ ' + escapeHtml(data.message) + '</span>';
+        }
+      })
+      .catch(error => {
+        resultDiv.innerHTML = '<span style="color: red;">✗ Error: ' + escapeHtml(error.message) + '</span>';
+      });
+    }
+
+    // Test External Logging connection
+    function testExternalLogging(index) {
+      const resultDiv = document.getElementById('external-test-result-' + index);
+      const urlField = document.getElementById('external_url_' + index);
+      const url = urlField.value.trim();
+      
+      if (!url) {
+        resultDiv.innerHTML = '<span style="color: orange;">⚠ Please enter a URL before testing</span>';
+        return;
+      }
+      
+      resultDiv.innerHTML = '<span style="color: blue;">Testing connection...</span>';
+      
+      fetch('/test_external_logging', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ index: index, url: url })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          resultDiv.innerHTML = '<span style="color: green;">✓ ' + escapeHtml(data.message) + '</span>';
+        } else {
+          resultDiv.innerHTML = '<span style="color: red;">✗ ' + escapeHtml(data.message) + '</span>';
+        }
+      })
+      .catch(error => {
+        resultDiv.innerHTML = '<span style="color: red;">✗ Error: ' + escapeHtml(error.message) + '</span>';
+      });
     }
   </script>
 </body>

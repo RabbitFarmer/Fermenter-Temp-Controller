@@ -1668,6 +1668,150 @@ def update_system_config():
 
     return redirect('/system_config')
 
+@app.route('/test_email', methods=['POST'])
+def test_email():
+    """Test email notification with current settings"""
+    try:
+        subject = "Fermenter Test Email"
+        body = "This is a test email from your Fermenter Temperature Controller.\n\nIf you received this, your email settings are configured correctly!"
+        
+        success = send_email(subject, body)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Test email sent successfully! Check your inbox.'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to send test email. Please check your email settings and password.'
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error sending test email: {str(e)}'
+        })
+
+@app.route('/test_sms', methods=['POST'])
+def test_sms():
+    """Test SMS notification with current settings"""
+    try:
+        body = "This is a test SMS from your Fermenter Temperature Controller. If you received this, your SMS settings are configured correctly!"
+        
+        success = send_sms(body)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Test SMS sent successfully! Check your phone.'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to send test SMS. Please check your mobile number and SMS gateway settings.'
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error sending test SMS: {str(e)}'
+        })
+
+@app.route('/test_external_logging', methods=['POST'])
+def test_external_logging():
+    """Test external logging connection with a test payload"""
+    try:
+        data = request.get_json()
+        index = data.get('index', 0)
+        url = data.get('url', '').strip()
+        
+        if not url:
+            return jsonify({
+                'success': False,
+                'message': 'No URL provided'
+            })
+        
+        # Create a test payload
+        test_payload = {
+            "tilt_color": "TEST",
+            "temp_f": 68.5,
+            "gravity": 1.050,
+            "brewid": "test_batch",
+            "batch_name": "Test Connection",
+            "beer_name": "Test Beer",
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "test": True
+        }
+        
+        # Get external method and content type from system config
+        method = system_cfg.get("external_method", "POST").upper()
+        send_json = (system_cfg.get("external_content_type", "form") == "json")
+        
+        # Transform for Brewers Friend if needed
+        if "brewersfriend.com" in url.lower():
+            test_payload = {
+                "name": "TEST",
+                "temp": 68.5,
+                "temp_unit": "F",
+                "gravity": 1.050,
+                "gravity_unit": "G",
+                "beer": "Test Connection",
+                "comment": "Test from Fermenter Controller"
+            }
+            send_json = True
+        
+        # Attempt to send test data
+        if requests is None:
+            return jsonify({
+                'success': False,
+                'message': 'Requests library not available'
+            })
+        
+        timeout = int(system_cfg.get("external_timeout_seconds", 8) or 8)
+        headers = {}
+        
+        try:
+            if send_json:
+                headers["Content-Type"] = "application/json"
+                resp = requests.request(method, url, json=test_payload, headers=headers, timeout=timeout)
+            else:
+                headers["Content-Type"] = "application/x-www-form-urlencoded"
+                formdata = {k: ("" if v is None else v) for k, v in test_payload.items() if isinstance(v, (str, int, float, bool)) or v is None}
+                resp = requests.request(method, url, data=formdata, headers=headers, timeout=timeout)
+            
+            # Check response
+            if resp.status_code >= 200 and resp.status_code < 300:
+                return jsonify({
+                    'success': True,
+                    'message': f'Connection successful! Status: {resp.status_code}'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': f'Connection failed with status {resp.status_code}: {resp.text[:200]}'
+                })
+        except requests.exceptions.Timeout:
+            return jsonify({
+                'success': False,
+                'message': f'Connection timeout after {timeout} seconds'
+            })
+        except requests.exceptions.ConnectionError as e:
+            return jsonify({
+                'success': False,
+                'message': f'Connection error: {str(e)[:200]}'
+            })
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'message': f'Request failed: {str(e)[:200]}'
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        })
+
 @app.route('/tilt_config', methods=['GET', 'POST'])
 def tilt_config():
     selected = request.args.get('tilt_color') or request.form.get('tilt_color')
