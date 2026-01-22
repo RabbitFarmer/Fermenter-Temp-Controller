@@ -943,7 +943,7 @@ def _smtp_send(recipient, subject, body):
     cfg = system_cfg
     sending_email = cfg.get("sending_email") or cfg.get("email")
     if not (isinstance(cfg, dict) and sending_email):
-        error_msg = "SMTP not configured: no sender email in system_cfg"
+        error_msg = "SMTP configuration incomplete: sender email not configured"
         print(f"[LOG] {error_msg}")
         return False, error_msg
     try:

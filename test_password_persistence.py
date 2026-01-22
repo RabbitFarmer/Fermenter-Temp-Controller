@@ -168,7 +168,7 @@ def test_password_persistence():
         
         password_retrievable = smtp_password is not None and len(smtp_password) > 0
         print(f"   ✓ Password retrievable for SMTP: {password_retrievable}")
-        print(f"   ✓ Password value: {'***' + smtp_password[-3:] if smtp_password else 'None'}")
+        print(f"   ✓ Password value: {'Hidden' if smtp_password else 'None'}")
         
         if not password_retrievable:
             print("   ✗ ERROR: Password not retrievable for SMTP authentication!")
