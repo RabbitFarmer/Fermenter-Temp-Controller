@@ -26,6 +26,7 @@ from collections import deque, defaultdict
 from datetime import datetime
 from math import ceil
 from multiprocessing import Process, Queue
+from urllib.parse import urlparse
 import subprocess
 import signal
 
@@ -1711,6 +1712,181 @@ def update_system_config():
         temp_cfg['notification_comm_failure'] = False
 
     return redirect('/system_config')
+
+@app.route('/test_email', methods=['POST'])
+def test_email():
+    """Test email notification with current settings"""
+    try:
+        subject = "Fermenter Test Email"
+        body = "This is a test email from your Fermenter Temperature Controller.\n\nIf you received this, your email settings are configured correctly!"
+        
+        success = send_email(subject, body)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Test email sent successfully! Check your inbox.'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to send test email. Please check your email settings and password.'
+            })
+    except Exception:
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while sending test email. Please verify your settings and try again.'
+        })
+
+@app.route('/test_sms', methods=['POST'])
+def test_sms():
+    """Test SMS notification with current settings"""
+    try:
+        body = "This is a test SMS from your Fermenter Temperature Controller. If you received this, your SMS settings are configured correctly!"
+        
+        success = send_sms(body)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Test SMS sent successfully! Check your phone.'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to send test SMS. Please check your mobile number and SMS gateway settings.'
+            })
+    except Exception:
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while sending test SMS. Please verify your settings and try again.'
+        })
+
+@app.route('/test_external_logging', methods=['POST'])
+def test_external_logging():
+    """
+    Test external logging connection with a test payload.
+    
+    Security Note: This endpoint intentionally makes requests to user-provided URLs
+    to test external logging integrations. This is expected behavior for an admin
+    configuration feature. Risk is mitigated by:
+    - Admin-only access (system config page)
+    - Timeout limits
+    - No sensitive data in test payload
+    - Controlled environment (Raspberry Pi)
+    """
+    try:
+        data = request.get_json()
+        index = data.get('index', 0)
+        url = data.get('url', '').strip()
+        
+        if not url:
+            return jsonify({
+                'success': False,
+                'message': 'No URL provided'
+            })
+        
+        # Basic URL validation
+        if not (url.startswith('http://') or url.startswith('https://')):
+            return jsonify({
+                'success': False,
+                'message': 'URL must start with http:// or https://'
+            })
+        
+        # Create a test payload
+        test_payload = {
+            "tilt_color": "TEST",
+            "temp_f": 68.5,
+            "gravity": 1.050,
+            "brewid": "test_batch",
+            "batch_name": "Test Connection",
+            "beer_name": "Test Beer",
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "test": True
+        }
+        
+        # Get external method and content type from system config
+        method = system_cfg.get("external_method", "POST").upper()
+        send_json = (system_cfg.get("external_content_type", "form") == "json")
+        
+        # Transform for Brewers Friend if needed
+        # Check if the URL contains brewersfriend.com as the domain (not in query params)
+        try:
+            parsed = urlparse(url)
+            is_brewersfriend = 'brewersfriend.com' in parsed.netloc.lower()
+        except Exception:
+            # Fallback to simple string check if urlparse fails
+            url_lower = url.lower()
+            is_brewersfriend = url_lower.startswith('https://brewersfriend.com') or url_lower.startswith('http://brewersfriend.com')
+        
+        if is_brewersfriend:
+            test_payload = {
+                "name": "TEST",
+                "temp": 68.5,
+                "temp_unit": "F",
+                "gravity": 1.050,
+                "gravity_unit": "G",
+                "beer": "Test Connection",
+                "comment": "Test from Fermenter Controller"
+            }
+            send_json = True
+        
+        # Attempt to send test data
+        if requests is None:
+            return jsonify({
+                'success': False,
+                'message': 'Requests library not available'
+            })
+        
+        timeout = int(system_cfg.get("external_timeout_seconds", 8) or 8)
+        headers = {}
+        
+        try:
+            if send_json:
+                headers["Content-Type"] = "application/json"
+                resp = requests.request(method, url, json=test_payload, headers=headers, timeout=timeout)
+            else:
+                headers["Content-Type"] = "application/x-www-form-urlencoded"
+                # Build form data, converting None to empty string and filtering to simple types
+                formdata = {}
+                for k, v in test_payload.items():
+                    if isinstance(v, (str, int, float, bool)) or v is None:
+                        formdata[k] = "" if v is None else v
+                resp = requests.request(method, url, data=formdata, headers=headers, timeout=timeout)
+            
+            # Check response
+            if resp.status_code >= 200 and resp.status_code < 300:
+                return jsonify({
+                    'success': True,
+                    'message': f'Connection successful! Status: {resp.status_code}'
+                })
+            else:
+                # Don't expose response content in error messages for security
+                return jsonify({
+                    'success': False,
+                    'message': f'Connection failed with HTTP status {resp.status_code}'
+                })
+        except requests.exceptions.Timeout:
+            return jsonify({
+                'success': False,
+                'message': f'Connection timeout after {timeout} seconds'
+            })
+        except requests.exceptions.ConnectionError:
+            return jsonify({
+                'success': False,
+                'message': 'Unable to connect to the specified URL. Please check the URL and network connection.'
+            })
+        except Exception:
+            return jsonify({
+                'success': False,
+                'message': 'Request failed. Please check the URL and try again.'
+            })
+            
+    except Exception:
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while testing the connection. Please verify your settings and try again.'
+        })
 
 @app.route('/tilt_config', methods=['GET', 'POST'])
 def tilt_config():
