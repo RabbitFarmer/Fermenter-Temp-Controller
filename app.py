@@ -1687,10 +1687,10 @@ def test_email():
                 'success': False,
                 'message': 'Failed to send test email. Please check your email settings and password.'
             })
-    except Exception as e:
+    except Exception:
         return jsonify({
             'success': False,
-            'message': f'Error sending test email: {str(e)}'
+            'message': 'An error occurred while sending test email. Please verify your settings and try again.'
         })
 
 @app.route('/test_sms', methods=['POST'])
@@ -1711,10 +1711,10 @@ def test_sms():
                 'success': False,
                 'message': 'Failed to send test SMS. Please check your mobile number and SMS gateway settings.'
             })
-    except Exception as e:
+    except Exception:
         return jsonify({
             'success': False,
-            'message': f'Error sending test SMS: {str(e)}'
+            'message': 'An error occurred while sending test SMS. Please verify your settings and try again.'
         })
 
 @app.route('/test_external_logging', methods=['POST'])
