@@ -168,7 +168,12 @@
           </tr>
           <tr>
             <td><label for="sending_email_password"><b>Sending Email Password</b></label></td>
-            <td><input type="password" name="sending_email_password" id="sending_email_password" placeholder="Enter password"></td>
+            <td>
+              <input type="password" name="sending_email_password" id="sending_email_password" placeholder="{% if system_settings.get('smtp_password') %}Leave blank to keep existing password{% else %}Enter password{% endif %}">
+              {% if system_settings.get('smtp_password') %}
+              <span style="color: green; font-size: 0.9em; margin-left: 8px;">✓ Password saved</span>
+              {% endif %}
+            </td>
           </tr>
           <tr>
             <td><label for="smtp_host"><b>SMTP Server Host</b></label></td>
