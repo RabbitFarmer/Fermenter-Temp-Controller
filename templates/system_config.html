@@ -380,24 +380,22 @@
         </div>
 
         <script>
-        (function() {
-          // Scoped functions for external logging configuration
-          window.toggleUrlSettings = function(index) {
-            var urlInput = document.getElementById('external_url_' + index);
-            var settingsDiv = document.getElementById('url_settings_' + index);
-            if (urlInput && settingsDiv) {
-              settingsDiv.style.display = urlInput.value.trim() ? 'block' : 'none';
-            }
-          };
+        // Functions for external logging configuration
+        function toggleUrlSettings(index) {
+          var urlInput = document.getElementById('external_url_' + index);
+          var settingsDiv = document.getElementById('url_settings_' + index);
+          if (urlInput && settingsDiv) {
+            settingsDiv.style.display = urlInput.value.trim() ? 'block' : 'none';
+          }
+        }
 
-          window.toggleCustomFieldMap = function(index) {
-            var selectBox = document.getElementById('external_field_map_id_' + index);
-            var customDiv = document.getElementById('custom_field_map_' + index);
-            if (selectBox && customDiv) {
-              customDiv.style.display = (selectBox.value === 'custom') ? 'block' : 'none';
-            }
-          };
-        })();
+        function toggleCustomFieldMap(index) {
+          var selectBox = document.getElementById('external_field_map_id_' + index);
+          var customDiv = document.getElementById('custom_field_map_' + index);
+          if (selectBox && customDiv) {
+            customDiv.style.display = (selectBox.value === 'custom') ? 'block' : 'none';
+          }
+        }
         </script>
       </div>
 

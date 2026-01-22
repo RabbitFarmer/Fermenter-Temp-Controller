@@ -843,7 +843,7 @@ def forward_to_third_party_if_configured(payload):
             if field_map_id == "custom" and url_config.get("custom_field_map"):
                 try:
                     field_map = json.loads(url_config["custom_field_map"])
-                except:
+                except (json.JSONDecodeError, ValueError, TypeError):
                     field_map = None
             
             urls_to_forward.append({
@@ -863,7 +863,7 @@ def forward_to_third_party_if_configured(payload):
                 if system_cfg.get("external_field_map"):
                     try:
                         field_map = json.loads(system_cfg["external_field_map"])
-                    except:
+                    except (json.JSONDecodeError, ValueError, TypeError):
                         pass
                 
                 urls_to_forward.append({
