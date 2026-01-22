@@ -11,6 +11,8 @@
       --status-red: #c91f1f;
       --now-cool-blue: #1e90ff;
       --card-width: 320px;
+      --error-orange: #FF8C00;
+      --kasa-yellow: #B8860B;
     }
 
     /* Temp card same width as tilt cards */
@@ -67,40 +69,49 @@
     }
     .tc-value-current { font-size:24px; padding:6px 10px; }
 
-    /* NOW action single-line and visible */
-    .tc-now-action {
-      margin-top:10px;
-      text-align:center;
-      font-weight:900;
-      font-size:18px;
-      padding:4px 6px;
-      min-height:28px;
-      white-space: nowrap;     /* force single line */
-      line-height:1;
-      overflow:visible;
-      background: transparent; /* ensure no blocking background */
+    /* Notification area - between Low Limit and Assigned Tilt */
+    .tc-notifications {
+      margin-top: 10px;
+      text-align: center;
+      font-weight: 900;
+      font-size: 16px;
+      padding: 4px 6px;
+      min-height: 28px;
+      line-height: 1.2;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
-    .tc-now-action.now-heating { color: var(--status-red); }
-    .tc-now-action.now-cooling { color: var(--now-cool-blue); }
+    
+    .tc-notification-item {
+      white-space: nowrap;
+    }
+    
+    .tc-notification-item.heating { color: var(--status-red); }
+    .tc-notification-item.cooling { color: var(--now-cool-blue); }
+    .tc-notification-item.kasa-error { color: var(--kasa-yellow); }
+    .tc-notification-item.sms-error { color: var(--error-orange); }
+    .tc-notification-item.email-error { color: var(--error-orange); }
 
-    /* Visible pulsing: animate opacity + subtle scale + glow */
-    @keyframes pulse-red {
-      0% { opacity: 0.9; transform: scale(1); text-shadow: 0 0 0 rgba(201,31,31,0); }
-      40% { opacity: 1; transform: scale(1.03); text-shadow: 0 0 12px rgba(201,31,31,0.35); }
-      100% { opacity: 0.95; transform: scale(1); text-shadow: 0 0 0 rgba(201,31,31,0); }
+    /* Blinking animation for notifications */
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
     }
-    @keyframes pulse-blue {
-      0% { opacity: 0.9; transform: scale(1); text-shadow: 0 0 0 rgba(30,144,255,0); }
-      40% { opacity: 1; transform: scale(1.03); text-shadow: 0 0 12px rgba(30,144,255,0.35); }
-      100% { opacity: 0.95; transform: scale(1); text-shadow: 0 0 0 rgba(30,144,255,0); }
-    }
-    .tc-now-action.pulse-heating { animation: pulse-red 1.0s ease-in-out infinite; }
-    .tc-now-action.pulse-cooling { animation: pulse-blue 1.0s ease-in-out infinite; }
+    
+    .tc-notification-item.heating { animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.cooling { animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.kasa-error { animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.sms-error { animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.email-error { animation: blink 1.0s ease-in-out infinite; }
 
     /* Respect reduced motion */
     @media (prefers-reduced-motion: reduce) {
-      .tc-now-action.pulse-heating,
-      .tc-now-action.pulse-cooling {
+      .tc-notification-item.heating,
+      .tc-notification-item.cooling,
+      .tc-notification-item.kasa-error,
+      .tc-notification-item.sms-error,
+      .tc-notification-item.email-error {
         animation: none;
       }
     }
@@ -133,11 +144,11 @@
     .chart-pill {
       background: white;
       color: var(--panel-brown);
-      border-radius: 8px;
-      padding:8px 12px;
-      font-weight:800;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-weight: 800;
       box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-      text-decoration:none;
+      text-decoration: none;
     }
 
     /* Toggle switch styles */
@@ -242,10 +253,13 @@
       background-color: #ccc;
     }
 
-    /* Prevent any global rule from accidentally disabling only this animation */
-    .tc-now-action { -webkit-animation: none; animation: none; } /* reset then reapply below */
-    .tc-now-action.pulse-heating { -webkit-animation: pulse-red 1.0s ease-in-out infinite; animation: pulse-red 1.0s ease-in-out infinite; }
-    .tc-now-action.pulse-cooling { -webkit-animation: pulse-blue 1.0s ease-in-out infinite; animation: pulse-blue 1.0s ease-in-out infinite; }
+    /* Ensure notification animations work */
+    .tc-notification-item { -webkit-animation: none; animation: none; }
+    .tc-notification-item.heating { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.cooling { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.kasa-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.sms-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.email-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
 
     /* Small responsive tweaks */
     @media (max-width:720px) {
@@ -282,36 +296,36 @@
           </div>
 
           <div class="temp-card-body">
-            <div id="temp_control_status_top" class="tc-status">{{ temp_control.status or '' }}</div>
+            <div id="temp_control_status_top" class="tc-status" style="display: {% if temp_control.temp_control_active %}block{% else %}none{% endif %};">{{ temp_control.status or '' }}</div>
 
-            <div class="tc-grid" role="group" aria-label="Temperature limits">
+            <div id="temp_control_readings" class="tc-grid" role="group" aria-label="Temperature limits">
               <div class="tc-label">HIGH LIMIT</div>
               <div style="text-align:right;">
                 <div id="high_limit_box" class="tc-value-box">
-                  <span id="high_limit_val">{{ temp_control.high_limit if temp_control.high_limit is not none else '--' }}</span><span class="tc-value-unit"> F</span>
+                  <span id="high_limit_val">{% if temp_control.temp_control_active %}{{ temp_control.high_limit if temp_control.high_limit is not none else '--' }}{% else %}--{% endif %}</span><span class="tc-value-unit"> F</span>
                 </div>
               </div>
 
               <div class="tc-label">CURRENT<br>TEMPERATURE</div>
               <div style="text-align:right;">
                 <div id="current_temp_box" class="tc-value-box tc-value-current">
-                  <span id="temp_control_current">{{ temp_control.current_temp if temp_control.current_temp is not none else '--' }}</span><span class="tc-value-unit"> F</span>
+                  <span id="temp_control_current">{% if temp_control.temp_control_active %}{{ temp_control.current_temp if temp_control.current_temp is not none else '--' }}{% else %}--{% endif %}</span><span class="tc-value-unit"> F</span>
                 </div>
               </div>
 
               <div class="tc-label">LOW LIMIT</div>
               <div style="text-align:right;">
                 <div id="low_limit_box" class="tc-value-box">
-                  <span id="low_limit_val">{{ temp_control.low_limit if temp_control.low_limit is not none else '--' }}</span><span class="tc-value-unit"> F</span>
+                  <span id="low_limit_val">{% if temp_control.temp_control_active %}{{ temp_control.low_limit if temp_control.low_limit is not none else '--' }}{% else %}--{% endif %}</span><span class="tc-value-unit"> F</span>
                 </div>
               </div>
             </div>
 
-            <div id="now_action" class="tc-now-action" aria-live="polite" role="status"></div>
+            <div id="tc_notifications" class="tc-notifications" style="display: {% if temp_control.temp_control_active %}flex{% else %}none{% endif %};" aria-live="polite" role="status"></div>
           </div>
 
           <div class="temp-card-assigned-tilt">
-            ASSIGNED TILT — {{ (temp_control.tilt_color or '—') }}
+            ASSIGNED TILT — {% if temp_control.temp_control_active %}{{ (temp_control.tilt_color or '—') }}{% else %}—{% endif %}
           </div>
 
           <div class="temp-card-footer">
@@ -325,7 +339,7 @@
 
             <div class="footer-left" id="temp_control_last">{{ temp_control.notification_last_sent or '' }}</div>
 
-            <a class="chart-pill" href="/chart_plotly/Fermenter?brew=">Chart</a>
+            <a class="chart-pill" href="/chart_plotly/Fermenter?brew=">CHART</a>
           </div>
         </article>
         {% endif %}
@@ -613,60 +627,95 @@
       const curBox = document.getElementById('temp_control_current');
       const lowBox = document.getElementById('low_limit_val');
       const statusEl = document.getElementById('temp_control_status_top');
-      const nowAction = document.getElementById('now_action');
+      const notificationsEl = document.getElementById('tc_notifications');
       const lastEl = document.getElementById('temp_control_last');
       const toggleSwitch = document.getElementById('temp_control_toggle');
+      const assignedTiltText = document.querySelector('.temp-card-assigned-tilt');
 
-      if (highBox) highBox.textContent = (tc.high_limit !== undefined && tc.high_limit !== null) ? tc.high_limit : '--';
-      if (curBox) curBox.textContent = (tc.current_temp !== undefined && tc.current_temp !== null) ? tc.current_temp : '--';
-      if (lowBox) lowBox.textContent = (tc.low_limit !== undefined && tc.low_limit !== null) ? tc.low_limit : '--';
-      
       // Update toggle switch state from server
+      const isActive = tc.temp_control_active || false;
       if (toggleSwitch && tc.temp_control_active !== undefined) {
-        toggleSwitch.checked = tc.temp_control_active;
+        toggleSwitch.checked = isActive;
       }
 
-      let tempToUse = null;
-      if (tc.current_temp != null && !isNaN(Number(tc.current_temp))) {
-        tempToUse = Number(tc.current_temp);
-      } else {
-        try {
-          const keys = Object.keys(liveTilts || {});
-          for (let k of keys) {
-            const t = liveTilts[k];
-            if (t && (t.temp_f !== undefined) && t.temp_f !== null && !isNaN(Number(t.temp_f))) {
-              tempToUse = Number(t.temp_f);
-              break;
-            }
-          }
-        } catch(e) { tempToUse = null; }
-      }
+      // Show/hide status and notifications based on monitor state
+      if (statusEl) statusEl.style.display = isActive ? 'block' : 'none';
+      if (notificationsEl) notificationsEl.style.display = isActive ? 'flex' : 'none';
 
-      let statusText = tc.status || '';
-      let statusClass = '';
-      if (typeof tempToUse === 'number' && typeof tc.low_limit === 'number' && typeof tc.high_limit === 'number') {
-        if (tempToUse < tc.low_limit) { statusText = 'TEMP BELOW LOW LIMIT'; statusClass = 'status-below'; }
-        else if (tempToUse > tc.high_limit) { statusText = 'TEMP ABOVE HIGH LIMIT'; statusClass = 'status-above'; }
-        else { statusText = 'TEMP IN RANGE'; statusClass = 'status-inrange'; }
-      }
+      // Always update readings - show values if active, blanks if not
+      if (isActive) {
+        if (highBox) highBox.textContent = (tc.high_limit !== undefined && tc.high_limit !== null) ? tc.high_limit : '--';
+        if (curBox) curBox.textContent = (tc.current_temp !== undefined && tc.current_temp !== null) ? tc.current_temp : '--';
+        if (lowBox) lowBox.textContent = (tc.low_limit !== undefined && tc.low_limit !== null) ? tc.low_limit : '--';
+        
+        // Update assigned tilt text
+        if (assignedTiltText) {
+          const tiltColor = tc.tilt_color || '—';
+          assignedTiltText.textContent = `ASSIGNED TILT — ${tiltColor}`;
+        }
 
-      if (statusEl) {
-        statusEl.classList.remove('status-inrange','status-above','status-below');
-        if (statusClass) statusEl.classList.add(statusClass);
-        statusEl.textContent = statusText;
-      }
-
-      if (nowAction) {
-        nowAction.classList.remove('now-heating','now-cooling','pulse-heating','pulse-cooling');
-        // prefer cooler_on -> "COOLING ON", otherwise heater_on -> "HEATING ON"
-        if (tc.cooler_on) {
-          nowAction.textContent = 'COOLING ON';
-          nowAction.classList.add('now-cooling','pulse-cooling');
-        } else if (tc.heater_on) {
-          nowAction.textContent = 'HEATING ON';
-          nowAction.classList.add('now-heating','pulse-heating');
+        let tempToUse = null;
+        if (tc.current_temp != null && !isNaN(Number(tc.current_temp))) {
+          tempToUse = Number(tc.current_temp);
         } else {
-          nowAction.textContent = '';
+          try {
+            const keys = Object.keys(liveTilts || {});
+            for (let k of keys) {
+              const t = liveTilts[k];
+              if (t && (t.temp_f !== undefined) && t.temp_f !== null && !isNaN(Number(t.temp_f))) {
+                tempToUse = Number(t.temp_f);
+                break;
+              }
+            }
+          } catch(e) { tempToUse = null; }
+        }
+
+        let statusText = tc.status || '';
+        let statusClass = '';
+        if (typeof tempToUse === 'number' && typeof tc.low_limit === 'number' && typeof tc.high_limit === 'number') {
+          if (tempToUse < tc.low_limit) { statusText = 'TEMP BELOW LOW LIMIT'; statusClass = 'status-below'; }
+          else if (tempToUse > tc.high_limit) { statusText = 'TEMP ABOVE HIGH LIMIT'; statusClass = 'status-above'; }
+          else { statusText = 'TEMP IN RANGE'; statusClass = 'status-inrange'; }
+        }
+
+        if (statusEl) {
+          statusEl.classList.remove('status-inrange','status-above','status-below');
+          if (statusClass) statusEl.classList.add(statusClass);
+          statusEl.textContent = statusText;
+        }
+
+        // Update notifications area
+        if (notificationsEl) {
+          const notifications = [];
+          
+          // Add notifications based on state
+          if (tc.heater_on) {
+            notifications.push('<div class="tc-notification-item heating">Heating ON</div>');
+          }
+          if (tc.cooler_on) {
+            notifications.push('<div class="tc-notification-item cooling">Cooling ON</div>');
+          }
+          if (tc.heating_error || tc.cooling_error) {
+            notifications.push('<div class="tc-notification-item kasa-error">Kasa Connection Lost</div>');
+          }
+          if (tc.sms_error) {
+            notifications.push('<div class="tc-notification-item sms-error">SMS Error</div>');
+          }
+          if (tc.email_error) {
+            notifications.push('<div class="tc-notification-item email-error">eMail Error</div>');
+          }
+          
+          notificationsEl.innerHTML = notifications.join('');
+        }
+      } else {
+        // Monitor is OFF - blank out all values
+        if (highBox) highBox.textContent = '--';
+        if (curBox) curBox.textContent = '--';
+        if (lowBox) lowBox.textContent = '--';
+        
+        // Blank assigned tilt
+        if (assignedTiltText) {
+          assignedTiltText.textContent = 'ASSIGNED TILT — —';
         }
       }
 

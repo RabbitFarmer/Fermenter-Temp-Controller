@@ -325,6 +325,8 @@ def ensure_temp_defaults():
     temp_cfg.setdefault("notifications_trigger", False)
     temp_cfg.setdefault("notification_last_sent", None)
     temp_cfg.setdefault("notification_comm_failure", False)
+    temp_cfg.setdefault("sms_error", False)
+    temp_cfg.setdefault("email_error", False)
     temp_cfg.setdefault("control_initialized", False)
     temp_cfg.setdefault("last_logged_low_limit", temp_cfg.get("low_limit"))
     temp_cfg.setdefault("last_logged_high_limit", temp_cfg.get("high_limit"))
@@ -872,23 +874,34 @@ def send_email(subject, body):
     recipient = system_cfg.get("email")
     if not recipient:
         print("[LOG] No recipient email configured")
+        temp_cfg["email_error"] = True
         return False
-    return _smtp_send(recipient, subject, body)
+    result = _smtp_send(recipient, subject, body)
+    temp_cfg["email_error"] = not result
+    return result
 
 def send_sms(body):
     mobile = system_cfg.get("mobile")
     gateway = system_cfg.get("sms_gateway_domain")
     if not mobile or not gateway:
         print("[LOG] SMS gateway not configured (mobile or sms_gateway_domain missing)")
+        temp_cfg["sms_error"] = True
         return False
     recipient = f"{mobile}@{gateway}"
-    return _smtp_send(recipient, "Fermenter Notification", body)
+    result = _smtp_send(recipient, "Fermenter Notification", body)
+    temp_cfg["sms_error"] = not result
+    return result
 
 def attempt_send_notifications(subject, body):
     # Check temp_cfg first (temperature control settings), fall back to system_cfg
     mode = (temp_cfg.get('warnings_mode') or system_cfg.get('warning_mode') or 'NONE').upper()
     success_any = False
     temp_cfg['notifications_trigger'] = True
+    
+    # Reset error flags before attempting
+    temp_cfg['sms_error'] = False
+    temp_cfg['email_error'] = False
+    
     try:
         if mode == 'EMAIL':
             success_any = send_email(subject, body)
@@ -2090,7 +2103,11 @@ def live_snapshot():
             "warning_mode": system_cfg.get('warning_mode'),
             "notifications_trigger": temp_cfg.get('notifications_trigger'),
             "notification_comm_failure": temp_cfg.get('notification_comm_failure'),
-            "temp_control_active": temp_cfg.get('temp_control_active', False)
+            "temp_control_active": temp_cfg.get('temp_control_active', False),
+            "heating_error": temp_cfg.get('heating_error', False),
+            "cooling_error": temp_cfg.get('cooling_error', False),
+            "sms_error": temp_cfg.get('sms_error', False),
+            "email_error": temp_cfg.get('email_error', False)
         }
     }
     for color, info in live_tilts.items():
