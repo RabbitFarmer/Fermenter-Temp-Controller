@@ -1000,16 +1000,25 @@ def attempt_send_notifications(subject, body):
     
     try:
         if mode == 'EMAIL':
-            success_any, _ = send_email(subject, body)
+            success_any, error_msg = send_email(subject, body)
+            if not success_any:
+                print(f"[LOG] Email notification failed: {error_msg}")
         elif mode == 'SMS':
-            success_any, _ = send_sms(body)
+            success_any, error_msg = send_sms(body)
+            if not success_any:
+                print(f"[LOG] SMS notification failed: {error_msg}")
         elif mode == 'BOTH':
-            e, _ = send_email(subject, body)
-            s, _ = send_sms(body)
+            e, email_error = send_email(subject, body)
+            s, sms_error = send_sms(body)
+            if not e:
+                print(f"[LOG] Email notification failed: {email_error}")
+            if not s:
+                print(f"[LOG] SMS notification failed: {sms_error}")
             success_any = e or s
         else:
             success_any = False
-    except Exception:
+    except Exception as e:
+        print(f"[LOG] Notification attempt exception: {e}")
         success_any = False
 
     temp_cfg['notifications_trigger'] = False

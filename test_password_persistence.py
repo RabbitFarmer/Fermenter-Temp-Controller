@@ -3,8 +3,8 @@
 Test to verify SMS/Email password persistence issue.
 
 This test simulates the reported bug:
-"I noticed when returning to the screen that the sending password 
-was blank after having been set earlier."
+"I noticed when returning to the screen that the sending password was blank 
+after having been set earlier."
 
 It tests:
 1. Password is saved when entered
