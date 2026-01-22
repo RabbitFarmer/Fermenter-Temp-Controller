@@ -841,15 +841,7 @@ def forward_to_third_party_if_configured(payload):
         timeout = config.get("timeout", 8)
         field_map = config.get("field_map")
         
-        # Apply field map transformation if provided
-        forwarding_payload = payload
-        if field_map:
-            forwarding_payload = {}
-            for logical_field, remote_field in field_map.items():
-                if logical_field in payload:
-                    forwarding_payload[remote_field] = payload[logical_field]
-        
-        # Transform payload for Brewers Friend if needed
+        # Transform payload for Brewers Friend if needed (uses original payload)
         if "brewersfriend.com" in url.lower():
             # Brewers Friend expects a specific format with numeric values
             transformed_payload = {
@@ -864,6 +856,15 @@ def forward_to_third_party_if_configured(payload):
             forwarding_payload = transformed_payload
             # Brewers Friend always uses JSON
             send_json = True
+        elif field_map:
+            # Apply field map transformation if provided and not Brewers Friend
+            forwarding_payload = {}
+            for logical_field, remote_field in field_map.items():
+                if logical_field in payload:
+                    forwarding_payload[remote_field] = payload[logical_field]
+        else:
+            # Use original payload if no transformation needed
+            forwarding_payload = payload
         
         headers = {}
         try:
