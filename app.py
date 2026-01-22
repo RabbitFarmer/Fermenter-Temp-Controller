@@ -943,8 +943,9 @@ def _smtp_send(recipient, subject, body):
     cfg = system_cfg
     sending_email = cfg.get("sending_email") or cfg.get("email")
     if not (isinstance(cfg, dict) and sending_email):
-        print("[LOG] SMTP not configured: no sender email in system_cfg")
-        return False
+        error_msg = "SMTP not configured: no sender email in system_cfg"
+        print(f"[LOG] {error_msg}")
+        return False, error_msg
     try:
         msg = MIMEText(body)
         msg["Subject"] = subject
@@ -959,20 +960,21 @@ def _smtp_send(recipient, subject, body):
             server.login(sending_email, smtp_password)
         server.sendmail(sending_email, [recipient], msg.as_string())
         server.quit()
-        return True
+        return True, "Success"
     except Exception as e:
-        print(f"[LOG] SMTP send failed: {e}")
-        return False
+        error_msg = str(e)
+        print(f"[LOG] SMTP send failed: {error_msg}")
+        return False, error_msg
 
 def send_email(subject, body):
     recipient = system_cfg.get("email")
     if not recipient:
         print("[LOG] No recipient email configured")
         temp_cfg["email_error"] = True
-        return False
-    result = _smtp_send(recipient, subject, body)
-    temp_cfg["email_error"] = not result
-    return result
+        return False, "No recipient email configured"
+    success, error_msg = _smtp_send(recipient, subject, body)
+    temp_cfg["email_error"] = not success
+    return success, error_msg
 
 def send_sms(body):
     mobile = system_cfg.get("mobile")
@@ -980,11 +982,11 @@ def send_sms(body):
     if not mobile or not gateway:
         print("[LOG] SMS gateway not configured (mobile or sms_gateway_domain missing)")
         temp_cfg["sms_error"] = True
-        return False
+        return False, "SMS gateway not configured (mobile or sms_gateway_domain missing)"
     recipient = f"{mobile}@{gateway}"
-    result = _smtp_send(recipient, "Fermenter Notification", body)
-    temp_cfg["sms_error"] = not result
-    return result
+    success, error_msg = _smtp_send(recipient, "Fermenter Notification", body)
+    temp_cfg["sms_error"] = not success
+    return success, error_msg
 
 def attempt_send_notifications(subject, body):
     # Use system_cfg for notification mode
@@ -998,12 +1000,12 @@ def attempt_send_notifications(subject, body):
     
     try:
         if mode == 'EMAIL':
-            success_any = send_email(subject, body)
+            success_any, _ = send_email(subject, body)
         elif mode == 'SMS':
-            success_any = send_sms(body)
+            success_any, _ = send_sms(body)
         elif mode == 'BOTH':
-            e = send_email(subject, body)
-            s = send_sms(body)
+            e, _ = send_email(subject, body)
+            s, _ = send_sms(body)
             success_any = e or s
         else:
             success_any = False
@@ -1881,7 +1883,7 @@ def test_email():
         subject = "Fermenter Test Email"
         body = "This is a test email from your Fermenter Temperature Controller.\n\nIf you received this, your email settings are configured correctly!"
         
-        success = send_email(subject, body)
+        success, error_msg = send_email(subject, body)
         
         if success:
             return jsonify({
@@ -1891,12 +1893,12 @@ def test_email():
         else:
             return jsonify({
                 'success': False,
-                'message': 'Failed to send test email. Please check your email settings and password.'
+                'message': f'Failed to send test email: {error_msg}'
             })
-    except Exception:
+    except Exception as e:
         return jsonify({
             'success': False,
-            'message': 'An error occurred while sending test email. Please verify your settings and try again.'
+            'message': f'An error occurred while sending test email: {str(e)}'
         })
 
 @app.route('/test_sms', methods=['POST'])
@@ -1905,7 +1907,7 @@ def test_sms():
     try:
         body = "This is a test SMS from your Fermenter Temperature Controller. If you received this, your SMS settings are configured correctly!"
         
-        success = send_sms(body)
+        success, error_msg = send_sms(body)
         
         if success:
             return jsonify({
@@ -1915,12 +1917,12 @@ def test_sms():
         else:
             return jsonify({
                 'success': False,
-                'message': 'Failed to send test SMS. Please check your mobile number and SMS gateway settings.'
+                'message': f'Failed to send test SMS: {error_msg}'
             })
-    except Exception:
+    except Exception as e:
         return jsonify({
             'success': False,
-            'message': 'An error occurred while sending test SMS. Please verify your settings and try again.'
+            'message': f'An error occurred while sending test SMS: {str(e)}'
         })
 
 @app.route('/test_external_logging', methods=['POST'])
