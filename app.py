@@ -332,7 +332,6 @@ def ensure_temp_defaults():
     temp_cfg.setdefault("last_logged_high_limit", temp_cfg.get("high_limit"))
     temp_cfg.setdefault("last_logged_enable_heating", temp_cfg.get("enable_heating"))
     temp_cfg.setdefault("last_logged_enable_cooling", temp_cfg.get("enable_cooling"))
-    temp_cfg.setdefault("warnings_mode", "NONE")
     # New flag to turn on/off the entire temp-control UI and behavior:
     temp_cfg.setdefault("temp_control_enabled", True)
     # New flag to control active monitoring/recording (user-controlled switch):
@@ -893,8 +892,8 @@ def send_sms(body):
     return result
 
 def attempt_send_notifications(subject, body):
-    # Check temp_cfg first (temperature control settings), fall back to system_cfg
-    mode = (temp_cfg.get('warnings_mode') or system_cfg.get('warning_mode') or 'NONE').upper()
+    # Use system_cfg for notification mode
+    mode = (system_cfg.get('warning_mode') or 'NONE').upper()
     success_any = False
     temp_cfg['notifications_trigger'] = True
     
@@ -1612,7 +1611,6 @@ def update_system_config():
         "timezone": data.get("timezone", ""),
         "timestamp_format": data.get("timestamp_format", ""),
         "update_interval": data.get("update_interval", "1"),
-        "tilt_reading_interval": data.get("tilt_reading_interval", system_cfg.get('tilt_reading_interval', 15)),
         "temp_logging_interval": data.get("temp_logging_interval", system_cfg.get('temp_logging_interval', 10)),
         "external_refresh_rate": data.get("external_refresh_rate", "0"),
         "external_name_0": data.get("external_name_0", system_cfg.get('external_name_0','')),
@@ -1838,8 +1836,7 @@ def update_temp_config():
             "heating_plug": data.get("heating_plug", ""),
             "cooling_plug": data.get("cooling_plug", ""),
             "mode": data.get("mode", temp_cfg.get('mode','')),
-            "status": data.get("status", temp_cfg.get('status','')),
-            "warnings_mode": data.get("warnings_mode", "NONE")
+            "status": data.get("status", temp_cfg.get('status',''))
         })
     except Exception as e:
         print(f"[LOG] Error parsing temp config form: {e}")
@@ -1847,16 +1844,6 @@ def update_temp_config():
         save_json(TEMP_CFG_FILE, temp_cfg)
     except Exception as e:
         print(f"[LOG] Error saving config in update_temp_config: {e}")
-
-
-    # Persist tilt logging interval if provided in temp config UI
-    try:
-        tilt_interval_min = data.get('tilt_logging_interval_minutes')
-        if tilt_interval_min:
-            system_cfg['tilt_logging_interval_minutes'] = int(tilt_interval_min)
-            save_json(SYSTEM_CFG_FILE, system_cfg)
-    except Exception:
-        pass
 
 
     # Run control logic immediately (it will normalize mode/status and log selection change if any)
