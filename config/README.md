@@ -2,15 +2,51 @@
 
 This directory contains the application configuration files.
 
+## Important: Configuration File Management
+
+**Your configuration files will NOT be overwritten** when you update the application via git pull or rsync.
+
+- **Template files** (`.json.template`) are tracked in git and contain default values
+- **Actual config files** (`.json`) are NOT tracked in git and contain YOUR settings
+- On first run, the application automatically copies templates to create your config files
+- Your settings persist across application updates
+
 ## Configuration Files
 
-The repository includes default configuration files that you should customize for your setup:
+The application uses three configuration files that you can customize:
 
-- `tilt_config.json` - Tilt hydrometer assignments and batch information
-- `temp_control_config.json` - Temperature control settings
-- `system_config.json` - General system settings
+- `system_config.json` - General system settings (automatically created from template)
+- `temp_control_config.json` - Temperature control settings (automatically created from template)
+- `tilt_config.json` - Tilt hydrometer assignments and batch information (automatically created from template)
 
-Simply edit these files directly with your specific settings before running the application.
+**You can edit these files directly OR use the web interface** (recommended for most users).
+
+## Template Files
+
+Template files provide safe defaults and are used to initialize your configuration:
+
+- `system_config.json.template` - Template for system settings
+- `temp_control_config.json.template` - Template for temperature control
+- `tilt_config.json.template` - Template for Tilt configurations
+
+**Do not edit template files directly** - they will be overwritten by git updates.
+
+## Deployment Workflow
+
+When updating the application:
+
+```bash
+# On your local machine
+git pull origin main
+
+# Sync to Raspberry Pi (rsync will NOT overwrite your .json files)
+rsync -av --exclude='*.json' /path/to/repo/ pi@raspberrypi:/path/to/app/
+
+# Or if you sync .json files, your settings are preserved because 
+# actual config files are not in git (only templates are)
+```
+
+The application will automatically create config files from templates if they don't exist.
 
 ### tilt_config.json
 Contains Tilt hydrometer assignments and batch information for each color (Red, Green, Black, Purple, Orange, Blue, Yellow, Pink).
