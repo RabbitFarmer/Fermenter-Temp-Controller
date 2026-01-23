@@ -377,7 +377,7 @@ def ensure_temp_defaults():
     temp_cfg.setdefault("notifications_trigger", False)
     temp_cfg.setdefault("notification_last_sent", None)
     temp_cfg.setdefault("notification_comm_failure", False)
-    temp_cfg.setdefault("sms_error", False)
+    temp_cfg.setdefault("push_error", False)
     temp_cfg.setdefault("email_error", False)
     temp_cfg.setdefault("control_initialized", False)
     temp_cfg.setdefault("last_logged_low_limit", temp_cfg.get("low_limit"))
@@ -2646,7 +2646,7 @@ def live_snapshot():
             "temp_control_active": temp_cfg.get('temp_control_active', False),
             "heating_error": temp_cfg.get('heating_error', False),
             "cooling_error": temp_cfg.get('cooling_error', False),
-            "sms_error": temp_cfg.get('sms_error', False),
+            "push_error": temp_cfg.get('push_error', False),
             "email_error": temp_cfg.get('email_error', False)
         }
     }
