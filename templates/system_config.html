@@ -152,8 +152,9 @@
         </table>
 
         <div style="text-align:center; margin-top:20px;">
-          <button type="submit" class="btn-primary">Save System Settings</button>
-          <button type="button" onclick="window.location='/'" class="btn-secondary" style="margin-left:16px;">Cancel Changes</button>
+          <button type="button" onclick="window.location='/'" class="btn-action">Dashboard</button>
+          <button type="submit" class="btn-primary" style="margin-left:16px;">Save</button>
+          <button type="button" onclick="window.location='/system_config'" class="btn-secondary" style="margin-left:16px;">Cancel</button>
         </div>
       </div>
 
@@ -375,7 +376,9 @@
         </div>
 
         <div style="text-align:center; margin-top:20px;">
-          <button type="submit" class="btn-primary">Save</button>
+          <button type="button" onclick="window.location='/'" class="btn-action">Dashboard</button>
+          <button type="button" onclick="switchToTab('main-settings')" class="btn-action" style="margin-left:16px;">Back</button>
+          <button type="submit" class="btn-primary" style="margin-left:16px;">Save</button>
           <button type="button" onclick="window.location='/system_config'" class="btn-secondary" style="margin-left:16px;">Cancel</button>
         </div>
       </div>
@@ -385,7 +388,7 @@
         <table class="config-table" style="width: 80%; margin: auto;">
           <tr>
             <td><label for="external_refresh_rate"><b>External Post Interval (minutes)</b></label></td>
-            <td><input type="number" name="external_refresh_rate" id="external_refresh_rate" value="{{ system_settings.get('external_refresh_rate','0') }}"></td>
+            <td><input type="number" name="external_refresh_rate" id="external_refresh_rate" value="{{ system_settings.get('external_refresh_rate','15') }}"></td>
           </tr>
         </table>
 
@@ -435,7 +438,10 @@
               </tr>
               <tr>
                 <td><label for="external_timeout_seconds_{{ i }}"><b>Request Timeout (seconds)</b></label></td>
-                <td><input type="number" name="external_timeout_seconds_{{ i }}" id="external_timeout_seconds_{{ i }}" value="{{ external_urls[i].get('timeout_seconds', 8) }}" min="1" max="60"></td>
+                <td>
+                  <input type="number" name="external_timeout_seconds_{{ i }}" id="external_timeout_seconds_{{ i }}" value="{{ external_urls[i].get('timeout_seconds', 8) }}" min="1" max="60">
+                  <div style="font-size:0.85em;color:#666;margin-top:4px;">Maximum time to wait for a response from the external service before timing out.</div>
+                </td>
               </tr>
               <tr>
                 <td><label for="external_field_map_id_{{ i }}"><b>Field Map Template</b></label></td>
@@ -464,7 +470,9 @@
         {% endfor %}
 
         <div style="text-align:center; margin-top:20px;">
-          <button type="submit" class="btn-primary">Save</button>
+          <button type="button" onclick="window.location='/'" class="btn-action">Dashboard</button>
+          <button type="button" onclick="switchToTab('main-settings')" class="btn-action" style="margin-left:16px;">Back</button>
+          <button type="submit" class="btn-primary" style="margin-left:16px;">Save</button>
           <button type="button" onclick="window.location='/system_config'" class="btn-secondary" style="margin-left:16px;">Cancel</button>
         </div>
 
@@ -530,17 +538,13 @@
         </table>
         
         <div style="text-align:center; margin-top:20px;">
-          <button type="button" onclick="window.location='/system_config'" class="btn-secondary">Back to Settings</button>
+          <button type="button" onclick="window.location='/'" class="btn-action">Dashboard</button>
+          <button type="button" onclick="switchToTab('main-settings')" class="btn-action" style="margin-left:16px;">Back</button>
+          <button type="button" onclick="window.location='/system_config'" class="btn-secondary" style="margin-left:16px;">Cancel</button>
         </div>
       </div>
 
     </form>
-
-    <div style="text-align:center; margin-top:12px;">
-      <form action="/" method="get" style="display:inline;">
-        <button type="submit" class="btn-action cancel">Return to Dashboard</button>
-      </form>
-    </div>
   </div>
 
   <script>
@@ -572,6 +576,35 @@
       // Show the selected tab and mark button as active
       document.getElementById(tabName).classList.add("active");
       evt.currentTarget.classList.add("active");
+    }
+    
+    // Helper function to switch to a tab programmatically (for Back buttons)
+    function switchToTab(tabName) {
+      // Hide all tab contents
+      var tabContents = document.getElementsByClassName("tab-content");
+      for (var i = 0; i < tabContents.length; i++) {
+        tabContents[i].classList.remove("active");
+      }
+      
+      // Remove active class from all tab buttons
+      var tabButtons = document.getElementsByClassName("tab-button");
+      for (var i = 0; i < tabButtons.length; i++) {
+        tabButtons[i].classList.remove("active");
+      }
+      
+      // Show the selected tab
+      document.getElementById(tabName).classList.add("active");
+      
+      // Activate the corresponding button
+      var targetButton = null;
+      if (tabName === 'main-settings') targetButton = tabButtons[0];
+      else if (tabName === 'push-email') targetButton = tabButtons[1];
+      else if (tabName === 'logging-integrations') targetButton = tabButtons[2];
+      else if (tabName === 'backup-restore') targetButton = tabButtons[3];
+      
+      if (targetButton) {
+        targetButton.classList.add("active");
+      }
     }
     
     function createBackup() {

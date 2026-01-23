@@ -24,9 +24,6 @@
 <body>
   <div class="page-container">
     <header class="site-header">
-      <nav class="config-ribbon" role="navigation">
-        <a href="/">Return to Dashboard</a>
-      </nav>
       <h1 class="dashboard-title">BATCH SETTINGS</h1>
     </header>
 
@@ -41,6 +38,11 @@
         {% endfor %}
       </div>
       <div class="note">Pick any color to configure that Tilt (even if it's not reporting right now).</div>
+      
+      <!-- Dashboard button when no color selected -->
+      <div style="text-align:center; margin-top:20px;">
+        <button type="button" onclick="window.location='/'" class="btn-action" style="padding:10px 20px; background-color:#8B4513; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px;">Dashboard</button>
+      </div>
     </div>
 
     {% if selected_tilt %}
@@ -102,9 +104,10 @@
             <div class="small-note muted">The dashboard will use this measured OG value when calculating live ABV for this batch.</div>
           </div>
 
-          <div style="display:flex; gap:8px; margin-top:12px;">
-            <button type="submit">Save Batch</button>
-            <a href="/batch_settings" style="align-self:center; margin-left:8px; text-decoration:none;">Back to selection</a>
+          <div style="text-align:center; margin-top:20px;">
+            <button type="button" onclick="window.location='/'" class="btn-action" style="padding:10px 20px; background-color:#8B4513; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; margin-right:16px;">Dashboard</button>
+            <button type="submit" style="padding:10px 20px; background-color:#4CAF50; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; margin-right:16px;">Save</button>
+            <button type="button" onclick="window.location='/batch_settings'" style="padding:10px 20px; background-color:#ddd; color:#333; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px;">Cancel</button>
           </div>
         </form>
 
