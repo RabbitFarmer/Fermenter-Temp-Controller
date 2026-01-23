@@ -990,7 +990,7 @@ def send_email(subject, body):
     temp_cfg["email_error"] = not success
     return success, error_msg
 
-def send_sms(body):
+def send_sms(body, subject="Fermenter Notification"):
     mobile = system_cfg.get("mobile")
     gateway = system_cfg.get("sms_gateway_domain")
     if not mobile or not gateway:
@@ -998,7 +998,7 @@ def send_sms(body):
         temp_cfg["sms_error"] = True
         return False, "SMS gateway not configured (mobile or sms_gateway_domain missing)"
     recipient = f"{mobile}@{gateway}"
-    success, error_msg = _smtp_send(recipient, "Fermenter Notification", body)
+    success, error_msg = _smtp_send(recipient, subject, body)
     temp_cfg["sms_error"] = not success
     return success, error_msg
 
@@ -1903,8 +1903,8 @@ def update_system_config():
 def test_email():
     """Test email notification with current settings"""
     try:
-        subject = "Fermenter Test Email"
-        body = "This is a test email from your Fermenter Temperature Controller.\n\nIf you received this, your email settings are configured correctly!"
+        subject = "TEST - Fermenter Controller"
+        body = "*** TEST MESSAGE ***\n\nThis is a TEST email from your Fermenter Temperature Controller.\n\nIf you received this, your email settings are configured correctly!\n\n*** TEST MESSAGE ***"
         
         success, error_msg = send_email(subject, body)
         
@@ -1928,9 +1928,9 @@ def test_email():
 def test_sms():
     """Test SMS notification with current settings"""
     try:
-        body = "This is a test SMS from your Fermenter Temperature Controller. If you received this, your SMS settings are configured correctly!"
+        body = "*** TEST MESSAGE *** This is a TEST SMS from your Fermenter Temperature Controller. If you received this, your SMS settings are configured correctly! *** TEST MESSAGE ***"
         
-        success, error_msg = send_sms(body)
+        success, error_msg = send_sms(body, subject="TEST - Fermenter Controller")
         
         if success:
             return jsonify({
