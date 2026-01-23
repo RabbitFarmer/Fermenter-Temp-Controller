@@ -19,6 +19,10 @@
     input[type="date"] { padding:8px; border:1px solid #ddd; border-radius:6px; max-width:200px; }
     .small-note { font-size:0.9em; color:#555; margin-top:6px; }
     .muted { color:#777; font-size:0.9em; }
+    /* Action button styles */
+    .btn-action { padding:10px 20px; background-color:#8B4513; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; text-decoration:none; display:inline-block; }
+    .btn-primary { padding:10px 20px; background-color:#4CAF50; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; }
+    .btn-secondary { padding:10px 20px; background-color:#ddd; color:#333; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; }
   </style>
 </head>
 <body>
@@ -41,7 +45,7 @@
       
       <!-- Dashboard button when no color selected -->
       <div style="text-align:center; margin-top:20px;">
-        <button type="button" onclick="window.location='/'" class="btn-action" style="padding:10px 20px; background-color:#8B4513; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px;">Dashboard</button>
+        <button type="button" onclick="window.location='/'" class="btn-action">Dashboard</button>
       </div>
     </div>
 
@@ -105,9 +109,9 @@
           </div>
 
           <div style="text-align:center; margin-top:20px;">
-            <button type="button" onclick="window.location='/'" class="btn-action" style="padding:10px 20px; background-color:#8B4513; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; margin-right:16px;">Dashboard</button>
-            <button type="submit" style="padding:10px 20px; background-color:#4CAF50; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; margin-right:16px;">Save</button>
-            <button type="button" onclick="window.location='/batch_settings'" style="padding:10px 20px; background-color:#ddd; color:#333; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px;">Cancel</button>
+            <button type="button" onclick="window.location='/'" class="btn-action" style="margin-right:16px;">Dashboard</button>
+            <button type="submit" class="btn-primary" style="margin-right:16px;">Save</button>
+            <button type="button" onclick="window.location='/batch_settings'" class="btn-secondary">Cancel</button>
           </div>
         </form>
 
