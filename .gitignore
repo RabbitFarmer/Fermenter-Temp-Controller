@@ -21,3 +21,8 @@ temp_control/*.bak
 config/system_config.json
 config/temp_control_config.json
 config/tilt_config.json
+# Root-level config files (should be in config/ directory)
+/batch_settings.json
+/system_config.json
+/temp_control_config.json
+/tilt_config.json
