@@ -2064,7 +2064,6 @@ def test_email():
             'message': f'An error occurred while sending test email: {str(e)}'
         })
 
-@app.route('/test_sms', methods=['POST'])
 @app.route('/test_push', methods=['POST'])
 def test_push():
     """Test push notification with current settings"""

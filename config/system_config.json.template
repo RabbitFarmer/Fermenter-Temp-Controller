@@ -4,9 +4,5 @@
   "units": "Fahrenheit",
   "push_provider": "pushover",
   "pushover_user_key": "",
-  "pushover_api_token": "",
-  "pushover_device": "",
-  "ntfy_server": "https://ntfy.sh",
-  "ntfy_topic": "",
-  "ntfy_auth_token": ""
+  "pushover_api_token": ""
 }
