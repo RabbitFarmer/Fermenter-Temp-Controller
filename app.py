@@ -1255,6 +1255,57 @@ Tilt Color: {tilt_color}
     
     attempt_send_notifications(subject, body)
 
+def save_notification_state_to_config(color, brewid):
+    """
+    Save notification state flags to tilt_config.json for persistence across restarts.
+    Only saves the notification flags, not transient data like gravity_history.
+    Signal loss is NOT persisted - it resets on restart as requested.
+    """
+    if brewid not in batch_notification_state:
+        return
+    
+    if not color:
+        print(f"[LOG] save_notification_state_to_config: No color provided for brewid {brewid}")
+        return
+    
+    state = batch_notification_state[brewid]
+    if color not in tilt_cfg:
+        print(f"[LOG] save_notification_state_to_config: Color {color} not in tilt_cfg")
+        return
+    
+    # Only persist notification timestamps, not signal loss (resets on restart)
+    tilt_cfg[color]['notification_state'] = {
+        'fermentation_start_datetime': state.get('fermentation_start_datetime'),
+        'fermentation_completion_datetime': state.get('fermentation_completion_datetime'),
+        'last_daily_report': state.get('last_daily_report')
+    }
+    
+    try:
+        save_json(TILT_CONFIG_FILE, tilt_cfg)
+    except Exception as e:
+        print(f"[LOG] Could not save notification state for {color}: {e}")
+
+def load_notification_state_from_config(color, brewid, cfg):
+    """
+    Load persisted notification state from tilt_config.json.
+    Returns a dict with notification state flags.
+    Signal loss flags are NOT loaded - they always start fresh on restart.
+    """
+    persisted_state = cfg.get('notification_state', {})
+    
+    # Load persisted datetime values for fermentation start/completion
+    # Signal loss flags are intentionally NOT persisted (reset on restart)
+    return {
+        'last_reading_time': datetime.utcnow(),
+        'signal_lost': False,  # Always start fresh on restart
+        'signal_loss_notified': False,  # Always start fresh on restart
+        'fermentation_started': bool(persisted_state.get('fermentation_start_datetime')),
+        'fermentation_start_datetime': persisted_state.get('fermentation_start_datetime'),
+        'fermentation_completion_datetime': persisted_state.get('fermentation_completion_datetime'),
+        'gravity_history': [],
+        'last_daily_report': persisted_state.get('last_daily_report')
+    }
+
 def check_batch_notifications(color, gravity, temp_f, brewid, cfg):
     """
     Check and trigger batch-specific notifications:
@@ -1270,15 +1321,8 @@ def check_batch_notifications(color, gravity, temp_f, brewid, cfg):
     
     # Initialize state for this brewid if needed
     if brewid not in batch_notification_state:
-        batch_notification_state[brewid] = {
-            'last_reading_time': datetime.utcnow(),
-            'signal_lost': False,
-            'signal_loss_notified': False,
-            'fermentation_started': False,
-            'fermentation_start_notified': False,
-            'gravity_history': [],
-            'last_daily_report': None
-        }
+        # Load persisted state from config file
+        batch_notification_state[brewid] = load_notification_state_from_config(color, brewid, cfg)
     
     state = batch_notification_state[brewid]
     state['last_reading_time'] = datetime.utcnow()
@@ -1287,6 +1331,7 @@ def check_batch_notifications(color, gravity, temp_f, brewid, cfg):
     if state['signal_lost']:
         state['signal_lost'] = False
         state['signal_loss_notified'] = False
+        # Note: Signal loss is NOT persisted, so no save needed here
     
     # Track gravity history for fermentation start detection
     if gravity is not None:
@@ -1301,12 +1346,18 @@ def check_batch_notifications(color, gravity, temp_f, brewid, cfg):
     # Check fermentation starting condition
     if notif_cfg.get('enable_fermentation_starting', True):
         check_fermentation_starting(color, brewid, cfg, state)
+    
+    # Check fermentation completion condition
+    if notif_cfg.get('enable_fermentation_completion', True):
+        check_fermentation_completion(color, brewid, cfg, state)
 
 def check_fermentation_starting(color, brewid, cfg, state):
     """
     Detect fermentation start: 3 consecutive readings at least 0.010 below starting gravity.
+    Saves the datetime when fermentation start notification is sent.
     """
-    if state.get('fermentation_start_notified'):
+    # Check if notification already sent (datetime will be present)
+    if state.get('fermentation_start_datetime'):
         return
     
     actual_og = cfg.get('actual_og')
@@ -1334,19 +1385,95 @@ def check_fermentation_starting(color, brewid, cfg, state):
         brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
         beer_name = cfg.get('beer_name', 'Unknown Beer')
         
+        # Get current datetime for the notification
+        notification_time = datetime.utcnow()
+        
         subject = f"{brewery_name} - Fermentation Started"
         body = f"""Brewery Name: {brewery_name}
 Tilt Color: {color}
 Brew Name: {beer_name}
-Date/Time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}
+Date/Time: {notification_time.strftime('%Y-%m-%d %H:%M:%S')}
 
 Fermentation has started.
 Gravity at start: {starting_gravity:.3f}
 Gravity now: {current_gravity:.3f}"""
         
         if attempt_send_notifications(subject, body):
-            state['fermentation_start_notified'] = True
+            # Save the datetime when notification was sent (not just a boolean)
+            state['fermentation_start_datetime'] = notification_time.isoformat()
             state['fermentation_started'] = True
+            save_notification_state_to_config(color, brewid)
+
+def check_fermentation_completion(color, brewid, cfg, state):
+    """
+    Detect fermentation completion: gravity stable for 24 hours after fermentation started.
+    Saves the datetime when fermentation completion notification is sent.
+    """
+    # Check if notification already sent (datetime will be present)
+    if state.get('fermentation_completion_datetime'):
+        return
+    
+    # Only check for completion if fermentation has started
+    if not state.get('fermentation_started'):
+        return
+    
+    history = state.get('gravity_history', [])
+    if len(history) < 2:
+        return
+    
+    # Check if gravity has been stable for 24 hours
+    # Look at last reading and compare with readings from 24 hours ago
+    current_time = datetime.utcnow()
+    current_gravity = history[-1]['gravity']
+    
+    # Find readings from approximately 24 hours ago
+    stable_for_24h = True
+    readings_24h_ago = []
+    
+    for reading in history:
+        time_diff = (current_time - reading['timestamp']).total_seconds() / 3600.0
+        
+        # Check readings between 23-25 hours ago
+        if 23 <= time_diff <= 25:
+            readings_24h_ago.append(reading)
+            # If gravity has changed by more than 0.002, not stable
+            if abs(reading['gravity'] - current_gravity) > 0.002:
+                stable_for_24h = False
+                break
+    
+    # Need at least one reading from 24 hours ago to confirm stability
+    if not readings_24h_ago or not stable_for_24h:
+        return
+    
+    # Fermentation completion detected - send notification
+    brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
+    beer_name = cfg.get('beer_name', 'Unknown Beer')
+    actual_og = cfg.get('actual_og')
+    
+    notification_time = datetime.utcnow()
+    
+    subject = f"{brewery_name} - Fermentation Completion"
+    body = f"""Brewery Name: {brewery_name}
+Tilt Color: {color}
+Brew Name: {beer_name}
+Date/Time: {notification_time.strftime('%Y-%m-%d %H:%M:%S')}
+
+Fermentation completion detected.
+Gravity has been stable for 24 hours: {current_gravity:.3f}"""
+    
+    if actual_og:
+        try:
+            starting_gravity = float(actual_og)
+            attenuation = ((starting_gravity - current_gravity) / (starting_gravity - 1.0)) * 100
+            body += f"\nStarting Gravity: {starting_gravity:.3f}"
+            body += f"\nApparent Attenuation: {attenuation:.1f}%"
+        except (ValueError, TypeError):
+            pass
+    
+    if attempt_send_notifications(subject, body):
+        # Save the datetime when notification was sent
+        state['fermentation_completion_datetime'] = notification_time.isoformat()
+        save_notification_state_to_config(color, brewid)
 
 def check_signal_loss():
     """
@@ -1395,6 +1522,7 @@ Loss of Signal -- Receiving no tilt readings"""
                 if attempt_send_notifications(subject, body):
                     state['signal_lost'] = True
                     state['signal_loss_notified'] = True
+                    # Note: Signal loss is NOT persisted - resets on restart
 
 def send_daily_report():
     """
@@ -1479,6 +1607,7 @@ Change since yesterday: {change_since_yesterday:.3f}"""
         
         if attempt_send_notifications(subject, body):
             state['last_daily_report'] = datetime.utcnow().isoformat()
+            save_notification_state_to_config(color, brewid)
 
 # --- Kasa command dedupe & rate limit -------------------------------------
 _last_kasa_command = {}
@@ -2323,7 +2452,12 @@ def batch_settings():
                 "recipe_abv": "",
                 "actual_og": None,
                 "brewid": "",
-                "og_confirmed": False
+                "og_confirmed": False,
+                "notification_state": {
+                    "fermentation_start_datetime": None,
+                    "fermentation_completion_datetime": None,
+                    "last_daily_report": None
+                }
             }
             save_json(TILT_CONFIG_FILE, tilt_cfg)
 
@@ -2340,6 +2474,18 @@ def batch_settings():
             "og_confirmed": False,  # Keep field for backward compatibility
             "brewid": brew_id
         }
+        
+        # Preserve existing notification_state when editing a batch
+        if color in tilt_cfg and 'notification_state' in tilt_cfg[color]:
+            # Create a copy to avoid modifying the original
+            batch_entry['notification_state'] = dict(tilt_cfg[color]['notification_state'])
+        else:
+            # Initialize notification_state for new batches
+            batch_entry['notification_state'] = {
+                "fermentation_start_datetime": None,
+                "fermentation_completion_datetime": None,
+                "last_daily_report": None
+            }
 
         try:
             with open(f'batches/batch_history_{color}.json', 'r') as f:

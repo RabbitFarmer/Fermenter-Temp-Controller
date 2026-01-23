@@ -8,7 +8,12 @@
     "recipe_abv": "",
     "actual_og": null,
     "brewid": "",
-    "og_confirmed": false
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
   },
   "Green": {
     "beer_name": "",
@@ -19,7 +24,12 @@
     "recipe_abv": "",
     "actual_og": null,
     "brewid": "",
-    "og_confirmed": false
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
   },
   "Black": {
     "beer_name": "",
@@ -30,7 +40,12 @@
     "recipe_abv": "",
     "actual_og": null,
     "brewid": "",
-    "og_confirmed": false
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
   },
   "Purple": {
     "beer_name": "",
@@ -41,7 +56,12 @@
     "recipe_abv": "",
     "actual_og": null,
     "brewid": "",
-    "og_confirmed": false
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
   },
   "Orange": {
     "beer_name": "",
@@ -52,7 +72,12 @@
     "recipe_abv": "",
     "actual_og": null,
     "brewid": "",
-    "og_confirmed": false
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
   },
   "Blue": {
     "beer_name": "",
@@ -63,7 +88,12 @@
     "recipe_abv": "",
     "actual_og": null,
     "brewid": "",
-    "og_confirmed": false
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
   },
   "Yellow": {
     "beer_name": "",
@@ -74,7 +104,12 @@
     "recipe_abv": "",
     "actual_og": null,
     "brewid": "",
-    "og_confirmed": false
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
   },
   "Pink": {
     "beer_name": "",
@@ -85,6 +120,11 @@
     "recipe_abv": "",
     "actual_og": null,
     "brewid": "",
-    "og_confirmed": false
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
   }
 }
