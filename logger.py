@@ -62,7 +62,7 @@ def log_event(event_type, message, tilt_color=None):
     - Batch events go to batches/{brewid}.jsonl
     - Other events go to /logs/{event_type}.log
     
-    Also triggers notifications (email/SMS/both) as per system config.
+    Also triggers notifications (email/PUSH/both) as per system config.
     """
     # Route to appropriate log based on event type
     if event_type in TEMP_CONTROL_EVENTS:
@@ -140,7 +140,7 @@ def log_to_generic_log(event_type, message, tilt_color=None):
 
 def send_notification(event_type, message, tilt_color=None):
     """
-    Send notifications (email/SMS/both) according to system_cfg["warning_mode"].
+    Send notifications (email/PUSH/both) according to system_cfg["warning_mode"].
     Only sends if the specific notification type is enabled in system_cfg.
     """
     # Import system_cfg and notification functions from app.py
@@ -174,7 +174,7 @@ def send_notification(event_type, message, tilt_color=None):
     
     # Send notification
     mode = system_cfg.get("warning_mode", "none").upper()
-    if mode in ("EMAIL", "SMS", "BOTH"):
+    if mode in ("EMAIL", "PUSH", "BOTH"):
         subject = f"{event_type.replace('_', ' ').title()} Notification"
         body = message
         if tilt_color:

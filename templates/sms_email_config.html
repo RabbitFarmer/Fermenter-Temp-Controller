@@ -2,17 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>SMS/Email Configuration</title>
+  <title>PUSH/Email Configuration</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body class="page-bg">
   <div class="temp-config-setup-ribbon">
     <div class="temp-header">
-      <div class="temp-title">SMS/EMAIL CONFIGURATION</div>
+      <div class="temp-title">PUSH/EMAIL CONFIGURATION</div>
       <div class="temp-subtitle">Configure notification settings</div>
     </div>
 
-    <form action="/update_sms_email_config" method="post" class="temp-config-form">
+    <form action="/update_system_config" method="post" class="temp-config-form">
       <table class="config-table" style="width: 60%; margin: auto;">
         <tr>
           <td><label for="warning_mode"><b>Notification Selector</b></label></td>
@@ -20,7 +20,7 @@
             <select name="warning_mode" id="warning_mode">
               <option value="none" {% if system_settings.warning_mode == "none" %}selected{% endif %}>None</option>
               <option value="email" {% if system_settings.warning_mode == "email" %}selected{% endif %}>Email</option>
-              <option value="sms" {% if system_settings.warning_mode == "sms" %}selected{% endif %}>SMS</option>
+              <option value="push" {% if system_settings.warning_mode == "push" %}selected{% endif %}>Push</option>
               <option value="both" {% if system_settings.warning_mode == "both" %}selected{% endif %}>Both</option>
             </select>
           </td>
@@ -39,32 +39,76 @@
             </div>
           </td>
         </tr>
+        
+        <!-- Push Notification Settings -->
         <tr>
-          <td><label for="send_to_name"><b>Send to Name</b></label></td>
-          <td><input type="text" name="send_to_name" id="send_to_name" value="{{ system_settings.send_to_name }}"></td>
+          <td colspan="2" style="padding-top: 20px;"><hr><h3>Push Notification Settings</h3></td>
         </tr>
         <tr>
-          <td><label for="send_to_email"><b>Send to Email Address</b></label></td>
-          <td><input type="email" name="send_to_email" id="send_to_email" value="{{ system_settings.send_to_email }}"></td>
-        </tr>
-        <tr>
-          <td><label for="send_to_phone"><b>Send to Cell Phone Number</b></label></td>
-          <td><input type="tel" name="send_to_phone" id="send_to_phone" value="{{ system_settings.send_to_phone }}"></td>
-        </tr>
-        <tr>
-          <td><label for="send_to_carrier"><b>Send to Cell Phone Carrier</b></label></td>
+          <td><label for="push_provider"><b>Push Provider</b></label></td>
           <td>
-            <select name="send_to_carrier" id="send_to_carrier">
-              <option value="" {% if not system_settings.send_to_carrier %}selected{% endif %}>Select Carrier</option>
-              <option value="att" {% if system_settings.send_to_carrier == "att" %}selected{% endif %}>AT&T</option>
-              <option value="tmobile" {% if system_settings.send_to_carrier == "tmobile" %}selected{% endif %}>T-Mobile</option>
-              <option value="verizon" {% if system_settings.send_to_carrier == "verizon" %}selected{% endif %}>Verizon</option>
-              <option value="sprint" {% if system_settings.send_to_carrier == "sprint" %}selected{% endif %}>Sprint</option>
-              <option value="uscellular" {% if system_settings.send_to_carrier == "uscellular" %}selected{% endif %}>US Cellular</option>
-              <option value="boost" {% if system_settings.send_to_carrier == "boost" %}selected{% endif %}>Boost Mobile</option>
-              <option value="cricket" {% if system_settings.send_to_carrier == "cricket" %}selected{% endif %}>Cricket</option>
-              <option value="metro" {% if system_settings.send_to_carrier == "metro" %}selected{% endif %}>Metro PCS</option>
+            <select name="push_provider" id="push_provider" onchange="togglePushProvider()">
+              <option value="pushover" {% if system_settings.get('push_provider', 'pushover') == "pushover" %}selected{% endif %}>Pushover (Recommended - $5 one-time)</option>
+              <option value="ntfy" {% if system_settings.get('push_provider') == "ntfy" %}selected{% endif %}>ntfy (Free - Open Source)</option>
             </select>
+          </td>
+        </tr>
+        
+        <!-- Pushover Settings -->
+        <tr class="pushover-settings">
+          <td><label for="pushover_user_key"><b>Pushover User Key</b></label></td>
+          <td>
+            <input type="text" name="pushover_user_key" id="pushover_user_key" value="{{ system_settings.get('pushover_user_key', '') }}" placeholder="Your 30-character user key">
+            <div style="font-size: 11px; color: #666; margin-top: 4px;">
+              Sign up at <a href="https://pushover.net" target="_blank" rel="noopener noreferrer">pushover.net</a> to get your user key
+            </div>
+          </td>
+        </tr>
+        <tr class="pushover-settings">
+          <td><label for="pushover_api_token"><b>Pushover API Token</b></label></td>
+          <td>
+            <input type="password" name="pushover_api_token" id="pushover_api_token" placeholder="Enter API token (kept if left blank)">
+            <div style="font-size: 11px; color: #666; margin-top: 4px;">
+              Create an application at <a href="https://pushover.net/apps/build" target="_blank" rel="noopener noreferrer">pushover.net/apps/build</a> to get an API token
+            </div>
+          </td>
+        </tr>
+        <tr class="pushover-settings">
+          <td><label for="pushover_device"><b>Pushover Device (Optional)</b></label></td>
+          <td>
+            <input type="text" name="pushover_device" id="pushover_device" value="{{ system_settings.get('pushover_device', '') }}" placeholder="Leave blank for all devices">
+            <div style="font-size: 11px; color: #666; margin-top: 4px;">
+              Specify a device name to send only to that device
+            </div>
+          </td>
+        </tr>
+        
+        <!-- ntfy Settings -->
+        <tr class="ntfy-settings" style="display: none;">
+          <td><label for="ntfy_server"><b>ntfy Server URL</b></label></td>
+          <td>
+            <input type="text" name="ntfy_server" id="ntfy_server" value="{{ system_settings.get('ntfy_server', 'https://ntfy.sh') }}" placeholder="https://ntfy.sh">
+            <div style="font-size: 11px; color: #666; margin-top: 4px;">
+              Use public server (https://ntfy.sh) or your self-hosted server
+            </div>
+          </td>
+        </tr>
+        <tr class="ntfy-settings" style="display: none;">
+          <td><label for="ntfy_topic"><b>ntfy Topic</b></label></td>
+          <td>
+            <input type="text" name="ntfy_topic" id="ntfy_topic" value="{{ system_settings.get('ntfy_topic', '') }}" placeholder="my_unique_fermenter_topic">
+            <div style="font-size: 11px; color: #666; margin-top: 4px;">
+              Choose a unique topic name. Subscribe to this topic in the ntfy app on your phone.
+            </div>
+          </td>
+        </tr>
+        <tr class="ntfy-settings" style="display: none;">
+          <td><label for="ntfy_auth_token"><b>ntfy Auth Token (Optional)</b></label></td>
+          <td>
+            <input type="password" name="ntfy_auth_token" id="ntfy_auth_token" placeholder="Enter token (kept if left blank)">
+            <div style="font-size: 11px; color: #666; margin-top: 4px;">
+              Only needed if your ntfy server requires authentication
+            </div>
           </td>
         </tr>
       </table>
@@ -72,6 +116,7 @@
       <div style="text-align:center; margin-top:20px;">
         <button type="submit" class="btn-primary">Save</button>
         <button type="button" class="btn-secondary" style="margin-left:16px;" onclick="window.location.href='/system_config'">Cancel</button>
+        <button type="button" class="btn-action" style="margin-left:16px;" onclick="testPush()">Test Push Notification</button>
       </div>
     </form>
 
@@ -81,5 +126,42 @@
       </form>
     </div>
   </div>
+  
+  <script>
+    function togglePushProvider() {
+      const provider = document.getElementById('push_provider').value;
+      const pushoverSettings = document.querySelectorAll('.pushover-settings');
+      const ntfySettings = document.querySelectorAll('.ntfy-settings');
+      
+      if (provider === 'pushover') {
+        pushoverSettings.forEach(el => el.style.display = '');
+        ntfySettings.forEach(el => el.style.display = 'none');
+      } else {
+        pushoverSettings.forEach(el => el.style.display = 'none');
+        ntfySettings.forEach(el => el.style.display = '');
+      }
+    }
+    
+    function testPush() {
+      fetch('/test_push', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('✓ ' + data.message);
+        } else {
+          alert('✗ ' + data.message);
+        }
+      })
+      .catch(error => {
+        alert('Error: ' + error);
+      });
+    }
+    
+    // Initialize visibility on page load
+    togglePushProvider();
+  </script>
 </body>
 </html>
