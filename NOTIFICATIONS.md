@@ -22,19 +22,68 @@ Navigate to **System Settings → SMS/eMail** tab and configure:
 - **Use STARTTLS**: Check this for secure connections (recommended)
 - **Recipient eMail Address**: Where notifications should be sent
 
-#### SMS Configuration (Twilio API)
+#### SMS Configuration
 
-> **📱 SMS Now Uses Twilio API**
+> **📱 Two SMS Options Available**
 >
-> Major U.S. carriers discontinued their free email-to-SMS gateways in 2024-2025. SMS notifications now use **Twilio**, a professional SMS API service.
+> Major U.S. carriers discontinued their free email-to-SMS gateways in 2024-2025. 
+> You now have **two options** for SMS notifications:
 >
-> **Why Twilio?**
-> - Industry-standard, reliable SMS delivery
-> - Free trial includes $15 credit (~2000 SMS messages)
-> - Pay-as-you-go: ~$0.0075 per SMS after trial
-> - Simple setup, no monthly fees (except $1/month for phone number)
+> 1. **Android SMS Gateway (FREE!)** - Perfect for homebrewers
+> 2. **Twilio API (Paid)** - Professional SMS service
 
-**Twilio Setup Steps:**
+##### Option 1: Android SMS Gateway (100% FREE!) ⭐ Recommended for Hobbyists
+
+**Why Android SMS Gateway?**
+- **Zero cost** - Uses your phone's existing SMS plan
+- **No signup required** - No accounts, no credit cards
+- **Privacy** - Messages stay on your network
+- **Perfect for hobbyists** - Ideal for homebrewing use
+
+**Setup Steps:**
+
+1. **Find an old Android phone** (Android 5.0 or newer):
+   - Dust off that old phone sitting in a drawer
+   - Needs WiFi connectivity
+   - Doesn't need a data plan (just SMS)
+
+2. **Install SMS Gateway app**:
+   - Open Google Play Store
+   - Search for "SMS Gateway" (popular apps: "SMS Gateway", "WaSMS", "SMS Gateway API")
+   - Install and open the app
+
+3. **Start the gateway service**:
+   - Open the app
+   - Click "Start Service" or similar
+   - Note the URL displayed (e.g., `http://192.168.1.100:8080`)
+   - Keep the app running (can run in background)
+
+4. **Configure in Fermenter Controller**:
+   - Navigate to **System Settings → SMS/eMail** tab
+   - **SMS Provider**: Select "Android SMS Gateway (FREE)"
+   - **Recipient Cell Phone Number**: Your mobile number (e.g., `5551234567`)
+   - **Android Gateway URL**: The URL from the app (e.g., `http://192.168.1.100:8080/api/send`)
+   - **API Key**: Leave blank unless your app requires one
+   - Click **Save**
+
+5. **Test it**:
+   - Click the **Test SMS** button
+   - You should receive a test message within seconds
+
+**Tips:**
+- Keep the Android phone plugged in and connected to WiFi
+- The phone should be on the same network as your Raspberry Pi (or configure port forwarding)
+- Most apps have a web interface to monitor messages sent
+
+##### Option 2: Twilio API (Professional Service)
+
+**Why Twilio?**
+- Industry-standard, reliable SMS delivery
+- Free trial includes $15 credit (~2000 SMS messages)
+- Pay-as-you-go: ~$0.0075 per SMS after trial
+- Works anywhere, no local device needed
+
+**Setup Steps:**
 
 1. **Sign up for Twilio** (free trial available):
    - Visit [twilio.com/try-twilio](https://www.twilio.com/try-twilio)
@@ -52,6 +101,7 @@ Navigate to **System Settings → SMS/eMail** tab and configure:
 
 4. **Configure in Fermenter Controller**:
    - Navigate to **System Settings → SMS/eMail** tab
+   - **SMS Provider**: Select "Twilio (Paid - Reliable)"
    - **Recipient Cell Phone Number**: Your mobile number (e.g., `+15551234567` or `5551234567`)
    - **Twilio Account SID**: Paste your Account SID
    - **Twilio Auth Token**: Paste your Auth Token
@@ -71,7 +121,7 @@ Navigate to **System Settings → SMS/eMail** tab and configure:
 Select how you want to receive notifications:
 - **None**: Notifications disabled
 - **eMail**: Email only
-- **SMS**: SMS only (requires Twilio configuration)
+- **SMS**: SMS only (requires Android Gateway or Twilio)
 - **Both**: Both email and SMS
 
 ### Step 2: Configure Temperature Control Notifications
@@ -238,7 +288,34 @@ If using Gmail, you **must** use an App Password, not your regular Gmail passwor
 
 ### SMS Not Working
 
-**Using Twilio SMS:**
+**Which SMS provider are you using?**
+
+#### Using Android SMS Gateway (Free):
+
+1. **Check Android phone**:
+   - Is the phone powered on and connected to WiFi?
+   - Is the SMS Gateway app running?
+   - Can you see the gateway URL in the app?
+
+2. **Check network connectivity**:
+   - Is the Raspberry Pi on the same network as the Android phone?
+   - Can you ping the phone's IP from the Pi? `ping 192.168.1.100`
+   - Try opening the gateway URL in a browser from the Pi
+
+3. **Check gateway URL**:
+   - Verify the URL format matches the app's requirements
+   - Common formats: `http://IP:PORT/api/send` or `http://IP:PORT/send`
+   - Some apps use different endpoints - check the app's documentation
+
+4. **Test directly**:
+   - Most apps have a web interface - try sending a test SMS from there
+   - If that works, the issue is in the Fermenter Controller configuration
+
+5. **Check API key**:
+   - If the app requires an API key, make sure it's entered correctly
+   - Try without an API key first if the app allows it
+
+#### Using Twilio (Paid):
 
 1. **Check Twilio Configuration**:
    - Verify Account SID and Auth Token are correct
@@ -266,14 +343,15 @@ If using Gmail, you **must** use an App Password, not your regular Gmail passwor
    - Then try the Fermenter Controller Test SMS button
 
 **Still Having Issues?**
-- Ensure Twilio library is installed: `pip install twilio`
-- Check the console output for "[LOG] Twilio SMS..." messages
+- Check the console output for "[LOG] SMS..." messages
 - Try Email mode instead while troubleshooting
+- For Android Gateway: Ensure `requests` library is installed (`pip install requests`)
+- For Twilio: Ensure `twilio` library is installed (`pip install twilio`)
 
-**Need Help with Carrier Gateways?**
-- Carrier email-to-SMS gateways (AT&T, Verizon, T-Mobile) were **permanently discontinued** in 2024-2025
+**What about carrier email-to-SMS gateways?**
+- Carrier gateways (AT&T, Verizon, T-Mobile) were **permanently discontinued** in 2024-2025
 - They will not work and cannot be restored
-- You must use Twilio or switch to Email notifications
+- You must use Android SMS Gateway (free) or Twilio, or switch to Email notifications
 
 ### Fermentation Starting Not Triggering
 
