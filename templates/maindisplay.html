@@ -756,6 +756,9 @@
               if (!data.success) {
                 console.error('Failed to toggle temp control:', data.error);
                 revertSwitchState(isActive);
+              } else if (data.redirect) {
+                // Redirect to the specified URL (e.g., /temp_config for new session)
+                window.location.href = data.redirect;
               }
             })
             .catch(error => {
