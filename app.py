@@ -1260,11 +1260,16 @@ def save_notification_state_to_config(color, brewid):
     Save notification state flags to tilt_config.json for persistence across restarts.
     Only saves the notification flags, not transient data like gravity_history.
     """
-    if brewid not in batch_notification_state or not color:
+    if brewid not in batch_notification_state:
+        return
+    
+    if not color:
+        print(f"[LOG] save_notification_state_to_config: No color provided for brewid {brewid}")
         return
     
     state = batch_notification_state[brewid]
     if color not in tilt_cfg:
+        print(f"[LOG] save_notification_state_to_config: Color {color} not in tilt_cfg")
         return
     
     # Only persist notification flags, not transient runtime data
@@ -1286,6 +1291,8 @@ def load_notification_state_from_config(color, brewid, cfg):
     """
     persisted_state = cfg.get('notification_state', {})
     
+    # Note: fermentation_started and fermentation_start_notified are redundant
+    # but both are kept for backward compatibility with existing code
     return {
         'last_reading_time': datetime.utcnow(),
         'signal_lost': False,
@@ -2386,7 +2393,8 @@ def batch_settings():
         
         # Preserve existing notification_state when editing a batch
         if color in tilt_cfg and 'notification_state' in tilt_cfg[color]:
-            batch_entry['notification_state'] = tilt_cfg[color]['notification_state']
+            # Create a copy to avoid modifying the original
+            batch_entry['notification_state'] = dict(tilt_cfg[color]['notification_state'])
         else:
             # Initialize notification_state for new batches
             batch_entry['notification_state'] = {
