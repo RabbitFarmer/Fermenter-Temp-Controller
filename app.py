@@ -1255,6 +1255,47 @@ Tilt Color: {tilt_color}
     
     attempt_send_notifications(subject, body)
 
+def save_notification_state_to_config(color, brewid):
+    """
+    Save notification state flags to tilt_config.json for persistence across restarts.
+    Only saves the notification flags, not transient data like gravity_history.
+    """
+    if brewid not in batch_notification_state or not color:
+        return
+    
+    state = batch_notification_state[brewid]
+    if color not in tilt_cfg:
+        return
+    
+    # Only persist notification flags, not transient runtime data
+    tilt_cfg[color]['notification_state'] = {
+        'fermentation_start_notified': state.get('fermentation_start_notified', False),
+        'signal_loss_notified': state.get('signal_loss_notified', False),
+        'last_daily_report': state.get('last_daily_report')
+    }
+    
+    try:
+        save_json(TILT_CONFIG_FILE, tilt_cfg)
+    except Exception as e:
+        print(f"[LOG] Could not save notification state for {color}: {e}")
+
+def load_notification_state_from_config(color, brewid, cfg):
+    """
+    Load persisted notification state from tilt_config.json.
+    Returns a dict with notification state flags.
+    """
+    persisted_state = cfg.get('notification_state', {})
+    
+    return {
+        'last_reading_time': datetime.utcnow(),
+        'signal_lost': False,
+        'signal_loss_notified': persisted_state.get('signal_loss_notified', False),
+        'fermentation_started': persisted_state.get('fermentation_start_notified', False),
+        'fermentation_start_notified': persisted_state.get('fermentation_start_notified', False),
+        'gravity_history': [],
+        'last_daily_report': persisted_state.get('last_daily_report')
+    }
+
 def check_batch_notifications(color, gravity, temp_f, brewid, cfg):
     """
     Check and trigger batch-specific notifications:
@@ -1270,15 +1311,8 @@ def check_batch_notifications(color, gravity, temp_f, brewid, cfg):
     
     # Initialize state for this brewid if needed
     if brewid not in batch_notification_state:
-        batch_notification_state[brewid] = {
-            'last_reading_time': datetime.utcnow(),
-            'signal_lost': False,
-            'signal_loss_notified': False,
-            'fermentation_started': False,
-            'fermentation_start_notified': False,
-            'gravity_history': [],
-            'last_daily_report': None
-        }
+        # Load persisted state from config file
+        batch_notification_state[brewid] = load_notification_state_from_config(color, brewid, cfg)
     
     state = batch_notification_state[brewid]
     state['last_reading_time'] = datetime.utcnow()
@@ -1287,6 +1321,7 @@ def check_batch_notifications(color, gravity, temp_f, brewid, cfg):
     if state['signal_lost']:
         state['signal_lost'] = False
         state['signal_loss_notified'] = False
+        save_notification_state_to_config(color, brewid)
     
     # Track gravity history for fermentation start detection
     if gravity is not None:
@@ -1347,6 +1382,7 @@ Gravity now: {current_gravity:.3f}"""
         if attempt_send_notifications(subject, body):
             state['fermentation_start_notified'] = True
             state['fermentation_started'] = True
+            save_notification_state_to_config(color, brewid)
 
 def check_signal_loss():
     """
@@ -1395,6 +1431,7 @@ Loss of Signal -- Receiving no tilt readings"""
                 if attempt_send_notifications(subject, body):
                     state['signal_lost'] = True
                     state['signal_loss_notified'] = True
+                    save_notification_state_to_config(color, brewid)
 
 def send_daily_report():
     """
@@ -1479,6 +1516,7 @@ Change since yesterday: {change_since_yesterday:.3f}"""
         
         if attempt_send_notifications(subject, body):
             state['last_daily_report'] = datetime.utcnow().isoformat()
+            save_notification_state_to_config(color, brewid)
 
 # --- Kasa command dedupe & rate limit -------------------------------------
 _last_kasa_command = {}
@@ -2323,7 +2361,12 @@ def batch_settings():
                 "recipe_abv": "",
                 "actual_og": None,
                 "brewid": "",
-                "og_confirmed": False
+                "og_confirmed": False,
+                "notification_state": {
+                    "fermentation_start_notified": False,
+                    "signal_loss_notified": False,
+                    "last_daily_report": None
+                }
             }
             save_json(TILT_CONFIG_FILE, tilt_cfg)
 
@@ -2340,6 +2383,17 @@ def batch_settings():
             "og_confirmed": False,  # Keep field for backward compatibility
             "brewid": brew_id
         }
+        
+        # Preserve existing notification_state when editing a batch
+        if color in tilt_cfg and 'notification_state' in tilt_cfg[color]:
+            batch_entry['notification_state'] = tilt_cfg[color]['notification_state']
+        else:
+            # Initialize notification_state for new batches
+            batch_entry['notification_state'] = {
+                "fermentation_start_notified": False,
+                "signal_loss_notified": False,
+                "last_daily_report": None
+            }
 
         try:
             with open(f'batches/batch_history_{color}.json', 'r') as f:
