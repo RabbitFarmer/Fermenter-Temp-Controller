@@ -62,6 +62,12 @@ try:
 except Exception:
     psutil = None
 
+# Optional Twilio for SMS
+try:
+    from twilio.rest import Client as TwilioClient
+except Exception:
+    TwilioClient = None
+
 app = Flask(__name__)
 
 # --- Files and global constants ---------------------------------------------
@@ -991,37 +997,81 @@ def send_email(subject, body):
     return success, error_msg
 
 def send_sms(body, subject="Fermenter Notification"):
-    mobile = system_cfg.get("mobile")
-    gateway = system_cfg.get("sms_gateway_domain")
-    if not mobile or not gateway:
-        print("[LOG] SMS gateway not configured (mobile or sms_gateway_domain missing)")
-        temp_cfg["sms_error"] = True
-        return False, "SMS gateway not configured (mobile or sms_gateway_domain missing)"
+    """
+    Send SMS notification using Twilio API.
     
-    # Check for discontinued carrier gateways
-    discontinued_gateways = {
-        'txt.att.net': 'AT&T (discontinued June 2025)',
-        'mms.att.net': 'AT&T MMS (discontinued June 2025)',
-        'vtext.com': 'Verizon (discontinued late 2024)',
-        'vzwpix.com': 'Verizon MMS (discontinued late 2024)',
-        'tmomail.net': 'T-Mobile (discontinued late 2024)',
-        'messaging.sprintpcs.com': 'Sprint (merged with T-Mobile, discontinued)',
-    }
-    
-    gateway_lower = gateway.lower()
-    if gateway_lower in discontinued_gateways:
-        error_msg = (
-            f"SMS gateway {discontinued_gateways[gateway_lower]} is no longer supported. "
-            f"Major carriers discontinued email-to-SMS services in 2024-2025. "
-            f"To receive SMS notifications, you must use an SMS API service like Twilio, TextP2P, "
-            f"SignalWire, or Notifyre. See documentation for alternatives."
-        )
+    Note: Legacy carrier email-to-SMS gateways (AT&T, Verizon, T-Mobile) were discontinued in 2024-2025.
+    This function now requires Twilio configuration.
+    """
+    if not TwilioClient:
+        error_msg = "Twilio library not installed. Run: pip install twilio"
         print(f"[LOG] {error_msg}")
         temp_cfg["sms_error"] = True
         return False, error_msg
     
-    recipient = f"{mobile}@{gateway}"
-    success, error_msg = _smtp_send(recipient, subject, body)
+    # Get Twilio credentials from config
+    account_sid = system_cfg.get("twilio_account_sid", "").strip()
+    auth_token = system_cfg.get("twilio_auth_token", "").strip()
+    from_number = system_cfg.get("twilio_from_number", "").strip()
+    to_number = system_cfg.get("mobile", "").strip()
+    
+    # Validate configuration
+    if not account_sid or not auth_token:
+        error_msg = "Twilio Account SID and Auth Token must be configured in System Settings. Get free credentials at https://www.twilio.com/try-twilio"
+        print(f"[LOG] {error_msg}")
+        temp_cfg["sms_error"] = True
+        return False, error_msg
+    
+    if not from_number:
+        error_msg = "Twilio From Number must be configured in System Settings"
+        print(f"[LOG] {error_msg}")
+        temp_cfg["sms_error"] = True
+        return False, error_msg
+    
+    if not to_number:
+        error_msg = "Recipient mobile number must be configured in System Settings"
+        print(f"[LOG] {error_msg}")
+        temp_cfg["sms_error"] = True
+        return False, error_msg
+    
+    # Format phone numbers (Twilio requires E.164 format: +1XXXXXXXXXX)
+    if not to_number.startswith('+'):
+        # Assume US number if no country code
+        to_number = f"+1{to_number.replace('-', '').replace(' ', '').replace('(', '').replace(')', '')}"
+    
+    if not from_number.startswith('+'):
+        from_number = f"+1{from_number.replace('-', '').replace(' ', '').replace('(', '').replace(')', '')}"
+    
+    try:
+        client = TwilioClient(account_sid, auth_token)
+        
+        # Combine subject and body for SMS (keep it concise)
+        if subject and subject != "Fermenter Notification":
+            sms_body = f"{subject}\n{body}"
+        else:
+            sms_body = body
+        
+        # SMS has 160 char limit for single message, 1600 for concatenated
+        # Truncate if needed but warn
+        if len(sms_body) > 1600:
+            sms_body = sms_body[:1597] + "..."
+            print("[LOG] SMS body truncated to 1600 characters")
+        
+        message = client.messages.create(
+            body=sms_body,
+            from_=from_number,
+            to=to_number
+        )
+        
+        print(f"[LOG] Twilio SMS sent successfully. Message SID: {message.sid}")
+        temp_cfg["sms_error"] = False
+        return True, "Success"
+        
+    except Exception as e:
+        error_msg = f"Twilio SMS failed: {str(e)}"
+        print(f"[LOG] {error_msg}")
+        temp_cfg["sms_error"] = True
+        return False, error_msg
     temp_cfg["sms_error"] = not success
     return success, error_msg
 
@@ -1949,40 +1999,16 @@ def test_email():
 
 @app.route('/test_sms', methods=['POST'])
 def test_sms():
-    """Test SMS notification with current settings"""
+    """Test SMS notification with current Twilio settings"""
     try:
-        # Check if gateway is configured
-        gateway = system_cfg.get("sms_gateway_domain", "").lower()
-        
-        # Warn about discontinued gateways before attempting send
-        discontinued_gateways = {
-            'txt.att.net': 'AT&T',
-            'mms.att.net': 'AT&T MMS',
-            'vtext.com': 'Verizon',
-            'vzwpix.com': 'Verizon MMS',
-            'tmomail.net': 'T-Mobile',
-            'messaging.sprintpcs.com': 'Sprint',
-        }
-        
-        if gateway in discontinued_gateways:
-            return jsonify({
-                'success': False,
-                'message': (
-                    f'{discontinued_gateways[gateway]} email-to-SMS gateway is no longer supported. '
-                    f'Major carriers discontinued these services in 2024-2025 due to spam/security concerns. '
-                    f'To receive SMS notifications, use an SMS API service like Twilio, TextP2P, SignalWire, or Notifyre. '
-                    f'Email notifications still work - consider using "Email" or "Both" mode until you set up an SMS API.'
-                )
-            })
-        
-        body = "*** TEST MESSAGE *** This is a TEST SMS from your Fermenter Temperature Controller. If you received this, your SMS settings are configured correctly! *** TEST MESSAGE ***"
+        body = "*** TEST MESSAGE *** This is a TEST SMS from your Fermenter Temperature Controller. If you received this, your Twilio SMS settings are configured correctly! *** TEST MESSAGE ***"
         
         success, error_msg = send_sms(body, subject="TEST - Fermenter Controller")
         
         if success:
             return jsonify({
                 'success': True,
-                'message': 'Test SMS sent successfully! Check your phone. Note: If using a carrier gateway (AT&T, Verizon, T-Mobile), these were discontinued in 2024-2025 and messages will not be delivered.'
+                'message': 'Test SMS sent successfully via Twilio! Check your phone.'
             })
         else:
             return jsonify({

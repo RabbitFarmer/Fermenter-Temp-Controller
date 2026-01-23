@@ -205,33 +205,45 @@
             <td><label for="email"><b>Recipient eMail Address</b></label></td>
             <td><input type="email" name="email" id="email" value="{{ system_settings.get('email','') }}"></td>
           </tr>
+          
+          <!-- SMS Configuration via Twilio -->
           <tr>
-            <td><label for="mobile"><b>Recipient Cell Phone Number</b></label></td>
-            <td><input type="text" name="mobile" id="mobile" value="{{ system_settings.get('mobile','') }}"></td>
+            <td colspan="2" style="padding-top: 20px;">
+              <h4 style="margin: 0;">SMS Configuration (Twilio API)</h4>
+              <p style="margin: 5px 0; font-size: 0.9em; color: #666;">
+                Note: Carrier email-to-SMS gateways were discontinued in 2024-2025. SMS now requires Twilio.
+              </p>
+            </td>
           </tr>
           <tr>
-            <td><label for="sms_gateway_domain"><b>SMS Gateway Domain</b></label></td>
-            <td><input type="text" name="sms_gateway_domain" id="sms_gateway_domain" value="{{ system_settings.get('sms_gateway_domain','') }}" placeholder="e.g., txt.att.net"></td>
+            <td><label for="mobile"><b>Recipient Cell Phone Number</b></label></td>
+            <td><input type="text" name="mobile" id="mobile" value="{{ system_settings.get('mobile','') }}" placeholder="e.g., +15551234567 or 5551234567"></td>
+          </tr>
+          <tr>
+            <td><label for="twilio_account_sid"><b>Twilio Account SID</b></label></td>
+            <td><input type="text" name="twilio_account_sid" id="twilio_account_sid" value="{{ system_settings.get('twilio_account_sid','') }}" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"></td>
+          </tr>
+          <tr>
+            <td><label for="twilio_auth_token"><b>Twilio Auth Token</b></label></td>
+            <td><input type="password" name="twilio_auth_token" id="twilio_auth_token" value="{{ system_settings.get('twilio_auth_token','') }}" placeholder="Your Twilio Auth Token"></td>
+          </tr>
+          <tr>
+            <td><label for="twilio_from_number"><b>Twilio From Number</b></label></td>
+            <td><input type="text" name="twilio_from_number" id="twilio_from_number" value="{{ system_settings.get('twilio_from_number','') }}" placeholder="+15551234567"></td>
           </tr>
           <tr>
             <td colspan="2">
-              <div style="background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 5px; padding: 15px; margin: 10px 0;">
-                <strong style="color: #856404;">⚠️ SMS Gateway Notice:</strong>
-                <p style="margin: 8px 0; color: #856404;">
-                  Major U.S. carriers (AT&T, Verizon, T-Mobile) <strong>discontinued email-to-SMS gateways</strong> in 2024-2025.
-                  Traditional gateways like @txt.att.net, @vtext.com, and @tmomail.net <strong>no longer work</strong>.
-                </p>
-                <p style="margin: 8px 0; color: #856404;">
-                  <strong>Options:</strong>
-                </p>
-                <ul style="margin: 5px 0; padding-left: 20px; color: #856404;">
-                  <li>Use <strong>Email</strong> mode for reliable notifications (recommended)</li>
-                  <li>Or use a commercial SMS API service like <a href="https://www.twilio.com/" target="_blank" style="color: #0056b3;">Twilio</a>, 
-                      <a href="https://textp2p.com/" target="_blank" style="color: #0056b3;">TextP2P</a>, or 
-                      <a href="https://signalwire.com/" target="_blank" style="color: #0056b3;">SignalWire</a></li>
-                </ul>
-                <p style="margin: 8px 0; font-size: 0.9em; color: #856404;">
-                  See <a href="https://github.com/RabbitFarmer/Fermenter-Temp-Controller/blob/main/NOTIFICATIONS.md" target="_blank" style="color: #0056b3;">NOTIFICATIONS.md</a> for details.
+              <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; border-radius: 5px; padding: 12px; margin: 10px 0;">
+                <strong style="color: #0c5460;">📱 Twilio Setup (Free Trial Available)</strong>
+                <ol style="margin: 8px 0; padding-left: 20px; color: #0c5460; font-size: 0.9em;">
+                  <li>Sign up at <a href="https://www.twilio.com/try-twilio" target="_blank" style="color: #0056b3;">twilio.com/try-twilio</a> (free trial includes $15 credit)</li>
+                  <li>Get a phone number: Console → Phone Numbers → Buy a Number ($1/month)</li>
+                  <li>Find credentials: Console Dashboard → Account SID and Auth Token</li>
+                  <li>Enter credentials above and Save</li>
+                  <li>Use "Test SMS" button below to verify</li>
+                </ol>
+                <p style="margin: 5px 0; font-size: 0.85em; color: #0c5460;">
+                  Trial account can send to verified numbers. Upgrade to send to any number (~$0.0075/SMS).
                 </p>
               </div>
             </td>

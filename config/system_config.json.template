@@ -1,5 +1,8 @@
 {
   "brewery_name": "My Fermentorium",
   "brewer_name": "Frank",
-  "units": "Fahrenheit"
+  "units": "Fahrenheit",
+  "twilio_account_sid": "",
+  "twilio_auth_token": "",
+  "twilio_from_number": ""
 }

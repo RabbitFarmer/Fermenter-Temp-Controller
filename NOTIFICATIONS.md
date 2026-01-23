@@ -22,35 +22,56 @@ Navigate to **System Settings → SMS/eMail** tab and configure:
 - **Use STARTTLS**: Check this for secure connections (recommended)
 - **Recipient eMail Address**: Where notifications should be sent
 
-#### SMS Configuration
+#### SMS Configuration (Twilio API)
 
-> **⚠️ IMPORTANT NOTICE (2024-2025):** Major U.S. carriers (AT&T, Verizon, T-Mobile) have **discontinued their email-to-SMS gateway services** due to spam and security concerns. The traditional email-to-SMS method using `@txt.att.net`, `@vtext.com`, and `@tmomail.net` **no longer works** as of late 2024/mid-2025.
+> **📱 SMS Now Uses Twilio API**
 >
-> **To receive SMS notifications, you must use a commercial SMS API service** such as:
-> - [Twilio](https://www.twilio.com/) - Most popular, offers free trial credits
-> - [TextP2P](https://textp2p.com/) - Simple email-to-SMS alternative
-> - [SignalWire](https://signalwire.com/) - Twilio alternative with competitive pricing
-> - [Notifyre](https://notifyre.com/) - Designed for business messaging
+> Major U.S. carriers discontinued their free email-to-SMS gateways in 2024-2025. SMS notifications now use **Twilio**, a professional SMS API service.
 >
-> These services provide email-to-SMS bridges, APIs, or webhooks that can be integrated with the Fermenter Controller. Check their documentation for integration options.
->
-> **If you still see carrier gateway options below, they are kept for reference only and will not work.**
+> **Why Twilio?**
+> - Industry-standard, reliable SMS delivery
+> - Free trial includes $15 credit (~2000 SMS messages)
+> - Pay-as-you-go: ~$0.0075 per SMS after trial
+> - Simple setup, no monthly fees (except $1/month for phone number)
 
-**Legacy SMS Configuration (No Longer Functional):**
-- **Recipient Cell Phone Number**: Your mobile number (e.g., `8031234567`)
-- **SMS Gateway Domain**: Your carrier's email-to-SMS gateway
-  - ~~AT&T: `txt.att.net`~~ (Discontinued June 2025)
-  - ~~T-Mobile: `tmomail.net`~~ (Discontinued late 2024)
-  - ~~Verizon: `vtext.com`~~ (Discontinued late 2024)
-  - ~~Sprint: `messaging.sprintpcs.com`~~ (Merged with T-Mobile, discontinued)
+**Twilio Setup Steps:**
 
-**Alternative:** Use **Email** mode for notifications until you set up an SMS API service.
+1. **Sign up for Twilio** (free trial available):
+   - Visit [twilio.com/try-twilio](https://www.twilio.com/try-twilio)
+   - Create a free account (no credit card required for trial)
+
+2. **Get a Twilio phone number**:
+   - Navigate to Console → Phone Numbers → Buy a Number
+   - Choose any available number ($1/month)
+   - This is the "From" number for your SMS messages
+
+3. **Get your API credentials**:
+   - Go to Console Dashboard
+   - Copy your **Account SID** (starts with "AC...")
+   - Copy your **Auth Token** (click to reveal)
+
+4. **Configure in Fermenter Controller**:
+   - Navigate to **System Settings → SMS/eMail** tab
+   - **Recipient Cell Phone Number**: Your mobile number (e.g., `+15551234567` or `5551234567`)
+   - **Twilio Account SID**: Paste your Account SID
+   - **Twilio Auth Token**: Paste your Auth Token
+   - **Twilio From Number**: Your Twilio phone number (e.g., `+15551234567`)
+   - Click **Save**
+
+5. **Test it**:
+   - Click the **Test SMS** button
+   - You should receive a test message within seconds
+
+**Trial Account Notes:**
+- Trial accounts can send to verified phone numbers only
+- To send to any number, upgrade your account (still pay-as-you-go, no monthly fee)
+- Verify additional phone numbers at: Console → Phone Numbers → Verified Caller IDs
 
 #### Messaging Options
 Select how you want to receive notifications:
 - **None**: Notifications disabled
-- **eMail**: Email only (recommended until SMS API is configured)
-- **SMS**: SMS only (requires SMS API service, not carrier gateways)
+- **eMail**: Email only
+- **SMS**: SMS only (requires Twilio configuration)
 - **Both**: Both email and SMS
 
 ### Step 2: Configure Temperature Control Notifications
@@ -217,37 +238,42 @@ If using Gmail, you **must** use an App Password, not your regular Gmail passwor
 
 ### SMS Not Working
 
-**⚠️ CRITICAL: Email-to-SMS Gateways Are Discontinued (2024-2025)**
+**Using Twilio SMS:**
 
-If you're trying to use traditional carrier gateways like `@txt.att.net`, `@vtext.com`, or `@tmomail.net`, **these will not work**. Major U.S. carriers discontinued these services:
-- **AT&T** (`txt.att.net`, `mms.att.net`) - Shut down June 17, 2025
-- **Verizon** (`vtext.com`, `vzwpix.com`) - Discontinued late 2024
-- **T-Mobile** (`tmomail.net`) - Discontinued late 2024
-- **Sprint** (`messaging.sprintpcs.com`) - Merged with T-Mobile, discontinued
+1. **Check Twilio Configuration**:
+   - Verify Account SID and Auth Token are correct
+   - Ensure From Number matches your Twilio phone number (include +1)
+   - Ensure Recipient Number is in correct format (+15551234567)
 
-**Solutions:**
+2. **Trial Account Limitations**:
+   - Trial accounts can only send to verified phone numbers
+   - Verify your number at: Twilio Console → Phone Numbers → Verified Caller IDs
+   - Or upgrade to paid account (still pay-as-you-go, no monthly fee)
 
-1. **Switch to Email notifications** (recommended immediate fix):
-   - Set Warning Mode to "Email" instead of "SMS" or "Both"
-   - Email notifications work reliably and contain full details
+3. **Check Twilio Console**:
+   - Log into [twilio.com/console](https://www.twilio.com/console)
+   - Check "Monitor → Logs → Messaging" for delivery status
+   - Look for error messages or failed deliveries
 
-2. **Use a commercial SMS API service** (for true SMS):
-   - [Twilio](https://www.twilio.com/) - Industry standard, free trial available
-   - [TextP2P](https://textp2p.com/) - Email-to-SMS replacement service
-   - [SignalWire](https://signalwire.com/) - Twilio alternative
-   - [Notifyre](https://notifyre.com/) - Business messaging platform
-   
-   These services typically offer:
-   - Email-to-SMS bridges (use their custom email gateway addresses)
-   - APIs for direct integration (requires code changes)
-   - Webhook endpoints for notifications
+4. **Common Twilio Errors**:
+   - "Unable to create record: Account not authorized" → Need to verify recipient number or upgrade account
+   - "Invalid 'To' phone number" → Phone number format is wrong (needs +1 for US)
+   - "Authentication Error" → Check Account SID and Auth Token are correct
 
-3. **For legacy/custom gateways only:**
-   - If you have access to a private/corporate SMS gateway, verify:
-     - Gateway domain is configured correctly
-     - Mobile number format is digits only (no dashes or spaces)
-     - Gateway accepts email-based messages
-     - Test email notifications work first
+5. **Test in Twilio Console First**:
+   - Go to Console → Messaging → Try it Out
+   - Send a test SMS directly from Twilio to confirm your setup works
+   - Then try the Fermenter Controller Test SMS button
+
+**Still Having Issues?**
+- Ensure Twilio library is installed: `pip install twilio`
+- Check the console output for "[LOG] Twilio SMS..." messages
+- Try Email mode instead while troubleshooting
+
+**Need Help with Carrier Gateways?**
+- Carrier email-to-SMS gateways (AT&T, Verizon, T-Mobile) were **permanently discontinued** in 2024-2025
+- They will not work and cannot be restored
+- You must use Twilio or switch to Email notifications
 
 ### Fermentation Starting Not Triggering
 
