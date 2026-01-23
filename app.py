@@ -2267,8 +2267,19 @@ def test_external_logging():
         field_map_id = data.get('field_map_id', 'default')
         custom_field_map = data.get('custom_field_map', '')
         
+        # Helper function to apply field mapping
+        def apply_field_mapping(payload, field_map):
+            """Apply field mapping transformation to payload."""
+            transformed = {}
+            for logical_field, remote_field in field_map.items():
+                if logical_field in payload:
+                    transformed[remote_field] = payload[logical_field]
+            return transformed
+        
         # Transform for Brewers Friend if needed
         # Check if the URL contains brewersfriend.com as the domain (not in query params)
+        # Note: Brewers Friend transformation takes precedence over custom field maps
+        # to ensure compatibility with their API requirements
         try:
             parsed = urlparse(url)
             is_brewersfriend = 'brewersfriend.com' in parsed.netloc.lower()
@@ -2293,11 +2304,7 @@ def test_external_logging():
             if field_map_id == 'custom' and custom_field_map:
                 try:
                     field_map = json.loads(custom_field_map)
-                    transformed_payload = {}
-                    for logical_field, remote_field in field_map.items():
-                        if logical_field in test_payload:
-                            transformed_payload[remote_field] = test_payload[logical_field]
-                    test_payload = transformed_payload
+                    test_payload = apply_field_mapping(test_payload, field_map)
                 except (json.JSONDecodeError, ValueError, TypeError):
                     # If custom field map is invalid, use original payload
                     pass
@@ -2306,11 +2313,7 @@ def test_external_logging():
                 predefined_maps = get_predefined_field_maps()
                 field_map = predefined_maps.get(field_map_id, {}).get("map")
                 if field_map:
-                    transformed_payload = {}
-                    for logical_field, remote_field in field_map.items():
-                        if logical_field in test_payload:
-                            transformed_payload[remote_field] = test_payload[logical_field]
-                    test_payload = transformed_payload
+                    test_payload = apply_field_mapping(test_payload, field_map)
         
         # Attempt to send test data
         if requests is None:

@@ -1,0 +1,10 @@
+{
+  "brewery_name": "Test Brewery",
+  "brewer_name": "Test Brewer",
+  "external_refresh_rate": 15,
+  "external_urls": [
+    {"name": "", "url": ""},
+    {"name": "", "url": ""},
+    {"name": "", "url": ""}
+  ]
+}
