@@ -2305,9 +2305,10 @@ def test_external_logging():
                 try:
                     field_map = json.loads(custom_field_map)
                     test_payload = apply_field_mapping(test_payload, field_map)
-                except (json.JSONDecodeError, ValueError, TypeError):
+                except (json.JSONDecodeError, ValueError, TypeError) as e:
                     # If custom field map is invalid, use original payload
-                    pass
+                    print(f"[WARNING] Invalid custom field map JSON for test connection: {e}")
+                    # Continue with original payload instead of failing the test
             else:
                 # Use predefined field map
                 predefined_maps = get_predefined_field_maps()
