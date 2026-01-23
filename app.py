@@ -998,11 +998,23 @@ def send_email(subject, body):
 
 def send_sms(body, subject="Fermenter Notification"):
     """
-    Send SMS notification using Twilio API.
+    Send SMS notification using configured SMS provider.
+    
+    Supported providers:
+    - Twilio API (paid, reliable, professional)
+    - Android SMS Gateway (free, uses old Android phone)
     
     Note: Legacy carrier email-to-SMS gateways (AT&T, Verizon, T-Mobile) were discontinued in 2024-2025.
-    This function now requires Twilio configuration.
     """
+    sms_provider = system_cfg.get("sms_provider", "twilio").lower()
+    
+    if sms_provider == "android":
+        return _send_sms_android_gateway(body, subject)
+    else:  # Default to Twilio
+        return _send_sms_twilio(body, subject)
+
+def _send_sms_twilio(body, subject="Fermenter Notification"):
+    """Send SMS using Twilio API"""
     if not TwilioClient:
         error_msg = "Twilio library not installed. Run: pip install twilio"
         print(f"[LOG] {error_msg}")
@@ -1017,7 +1029,7 @@ def send_sms(body, subject="Fermenter Notification"):
     
     # Validate configuration
     if not account_sid or not auth_token:
-        error_msg = "Twilio Account SID and Auth Token must be configured in System Settings. Get free credentials at https://www.twilio.com/try-twilio"
+        error_msg = "Twilio Account SID and Auth Token must be configured in System Settings. Get free trial at https://www.twilio.com/try-twilio"
         print(f"[LOG] {error_msg}")
         temp_cfg["sms_error"] = True
         return False, error_msg
@@ -1072,8 +1084,74 @@ def send_sms(body, subject="Fermenter Notification"):
         print(f"[LOG] {error_msg}")
         temp_cfg["sms_error"] = True
         return False, error_msg
-    temp_cfg["sms_error"] = not success
-    return success, error_msg
+
+def _send_sms_android_gateway(body, subject="Fermenter Notification"):
+    """Send SMS using Android SMS Gateway app (free, self-hosted)"""
+    if not requests:
+        error_msg = "requests library not installed. Run: pip install requests"
+        print(f"[LOG] {error_msg}")
+        temp_cfg["sms_error"] = True
+        return False, error_msg
+    
+    # Get Android Gateway configuration
+    gateway_url = system_cfg.get("android_gateway_url", "").strip()
+    to_number = system_cfg.get("mobile", "").strip()
+    api_key = system_cfg.get("android_gateway_api_key", "").strip()
+    
+    # Validate configuration
+    if not gateway_url:
+        error_msg = "Android Gateway URL must be configured. Install SMS Gateway app on Android phone and enter the URL shown in the app."
+        print(f"[LOG] {error_msg}")
+        temp_cfg["sms_error"] = True
+        return False, error_msg
+    
+    if not to_number:
+        error_msg = "Recipient mobile number must be configured in System Settings"
+        print(f"[LOG] {error_msg}")
+        temp_cfg["sms_error"] = True
+        return False, error_msg
+    
+    try:
+        # Combine subject and body for SMS
+        if subject and subject != "Fermenter Notification":
+            sms_body = f"{subject}\n{body}"
+        else:
+            sms_body = body
+        
+        # Android SMS Gateway API format (compatible with most apps)
+        # Different apps may use different API formats - this supports common ones
+        payload = {
+            "phone": to_number,
+            "message": sms_body
+        }
+        
+        headers = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        
+        # Make HTTP POST request to Android gateway
+        response = requests.post(
+            gateway_url,
+            json=payload,
+            headers=headers,
+            timeout=10
+        )
+        
+        if response.status_code in [200, 201]:
+            print(f"[LOG] Android SMS Gateway sent successfully")
+            temp_cfg["sms_error"] = False
+            return True, "Success"
+        else:
+            error_msg = f"Android Gateway returned status {response.status_code}: {response.text[:100]}"
+            print(f"[LOG] {error_msg}")
+            temp_cfg["sms_error"] = True
+            return False, error_msg
+            
+    except Exception as e:
+        error_msg = f"Android SMS Gateway failed: {str(e)}"
+        print(f"[LOG] {error_msg}")
+        temp_cfg["sms_error"] = True
+        return False, error_msg
 
 def attempt_send_notifications(subject, body):
     # Use system_cfg for notification mode
@@ -1874,6 +1952,16 @@ def update_system_config():
         # Store as smtp_password for SMTP authentication
         system_cfg["smtp_password"] = sending_email_password
     
+    # Handle Twilio Auth Token - only update if provided
+    twilio_auth_token = data.get("twilio_auth_token", "")
+    if twilio_auth_token:
+        system_cfg["twilio_auth_token"] = twilio_auth_token
+    
+    # Handle Android Gateway API Key - only update if provided
+    android_gateway_api_key = data.get("android_gateway_api_key", "")
+    if android_gateway_api_key:
+        system_cfg["android_gateway_api_key"] = android_gateway_api_key
+    
     # Handle external URLs - support new per-URL configuration format
     external_urls = []
     for i in range(3):
@@ -1919,7 +2007,12 @@ def update_system_config():
         "smtp_starttls": 'smtp_starttls' in data,
         "sms_gateway_domain": data.get("sms_gateway_domain", system_cfg.get('sms_gateway_domain','')),
         "kasa_rate_limit_seconds": data.get("kasa_rate_limit_seconds", system_cfg.get('kasa_rate_limit_seconds', 10)),
-        "tilt_logging_interval_minutes": int(data.get("tilt_logging_interval_minutes", system_cfg.get("tilt_logging_interval_minutes", 15)))
+        "tilt_logging_interval_minutes": int(data.get("tilt_logging_interval_minutes", system_cfg.get("tilt_logging_interval_minutes", 15))),
+        # SMS provider settings
+        "sms_provider": data.get("sms_provider", "twilio"),
+        "twilio_account_sid": data.get("twilio_account_sid", ""),
+        "twilio_from_number": data.get("twilio_from_number", ""),
+        "android_gateway_url": data.get("android_gateway_url", ""),
     })
     
     # Preserve old format fields for backward compatibility (only if external_urls is empty)
