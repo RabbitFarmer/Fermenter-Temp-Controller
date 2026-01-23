@@ -90,7 +90,7 @@
     .tc-notification-item.heating { color: var(--status-red); }
     .tc-notification-item.cooling { color: var(--now-cool-blue); }
     .tc-notification-item.kasa-error { color: var(--kasa-yellow); }
-    .tc-notification-item.sms-error { color: var(--error-orange); }
+    .tc-notification-item.push-error { color: var(--error-orange); }
     .tc-notification-item.email-error { color: var(--error-orange); }
 
     /* Blinking animation for notifications */
@@ -102,7 +102,7 @@
     .tc-notification-item.heating { animation: blink 1.0s ease-in-out infinite; }
     .tc-notification-item.cooling { animation: blink 1.0s ease-in-out infinite; }
     .tc-notification-item.kasa-error { animation: blink 1.0s ease-in-out infinite; }
-    .tc-notification-item.sms-error { animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.push-error { animation: blink 1.0s ease-in-out infinite; }
     .tc-notification-item.email-error { animation: blink 1.0s ease-in-out infinite; }
 
     /* Respect reduced motion */
@@ -110,7 +110,7 @@
       .tc-notification-item.heating,
       .tc-notification-item.cooling,
       .tc-notification-item.kasa-error,
-      .tc-notification-item.sms-error,
+      .tc-notification-item.push-error,
       .tc-notification-item.email-error {
         animation: none;
       }
@@ -258,7 +258,7 @@
     .tc-notification-item.heating { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
     .tc-notification-item.cooling { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
     .tc-notification-item.kasa-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
-    .tc-notification-item.sms-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.push-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
     .tc-notification-item.email-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
 
     /* Small responsive tweaks */
@@ -698,8 +698,8 @@
           if (tc.heating_error || tc.cooling_error) {
             notifications.push('<div class="tc-notification-item kasa-error">Kasa Connection Lost</div>');
           }
-          if (tc.sms_error) {
-            notifications.push('<div class="tc-notification-item sms-error">SMS Error</div>');
+          if (tc.push_error) {
+            notifications.push('<div class="tc-notification-item push-error">Push Error</div>');
           }
           if (tc.email_error) {
             notifications.push('<div class="tc-notification-item email-error">eMail Error</div>');

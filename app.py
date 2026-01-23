@@ -62,11 +62,12 @@ try:
 except Exception:
     psutil = None
 
-# Optional Twilio for SMS
+# Optional imports for push notifications
+# Pushover is recommended, but we also support ntfy (open-source alternative)
 try:
-    from twilio.rest import Client as TwilioClient
+    import requests
 except Exception:
-    TwilioClient = None
+    requests = None
 
 app = Flask(__name__)
 
@@ -376,7 +377,7 @@ def ensure_temp_defaults():
     temp_cfg.setdefault("notifications_trigger", False)
     temp_cfg.setdefault("notification_last_sent", None)
     temp_cfg.setdefault("notification_comm_failure", False)
-    temp_cfg.setdefault("sms_error", False)
+    temp_cfg.setdefault("push_error", False)
     temp_cfg.setdefault("email_error", False)
     temp_cfg.setdefault("control_initialized", False)
     temp_cfg.setdefault("last_logged_low_limit", temp_cfg.get("low_limit"))
@@ -996,161 +997,134 @@ def send_email(subject, body):
     temp_cfg["email_error"] = not success
     return success, error_msg
 
-def send_sms(body, subject="Fermenter Notification"):
+def send_push(body, subject="Fermenter Notification"):
     """
-    Send SMS notification using configured SMS provider.
+    Send push notification using configured push provider.
     
     Supported providers:
-    - Twilio API (paid, reliable, professional)
-    - Android SMS Gateway (free, uses old Android phone)
-    
-    Note: Legacy carrier email-to-SMS gateways (AT&T, Verizon, T-Mobile) were discontinued in 2024-2025.
+    - Pushover (paid, $5 one-time per platform, very reliable)
+    - ntfy (free, open-source, self-hostable)
     """
-    sms_provider = system_cfg.get("sms_provider", "twilio").lower()
+    push_provider = system_cfg.get("push_provider", "pushover").lower()
     
-    if sms_provider == "android":
-        return _send_sms_android_gateway(body, subject)
-    else:  # Default to Twilio
-        return _send_sms_twilio(body, subject)
+    if push_provider == "ntfy":
+        return _send_push_ntfy(body, subject)
+    else:  # Default to Pushover
+        return _send_push_pushover(body, subject)
 
-def _send_sms_twilio(body, subject="Fermenter Notification"):
-    """Send SMS using Twilio API"""
-    if not TwilioClient:
-        error_msg = "Twilio library not installed. Run: pip install twilio"
-        print(f"[LOG] {error_msg}")
-        temp_cfg["sms_error"] = True
-        return False, error_msg
-    
-    # Get Twilio credentials from config
-    account_sid = system_cfg.get("twilio_account_sid", "").strip()
-    auth_token = system_cfg.get("twilio_auth_token", "").strip()
-    from_number = system_cfg.get("twilio_from_number", "").strip()
-    to_number = system_cfg.get("mobile", "").strip()
-    
-    # Validate configuration
-    if not account_sid or not auth_token:
-        error_msg = "Twilio Account SID and Auth Token must be configured in System Settings. Get free trial at https://www.twilio.com/try-twilio"
-        print(f"[LOG] {error_msg}")
-        temp_cfg["sms_error"] = True
-        return False, error_msg
-    
-    if not from_number:
-        error_msg = "Twilio From Number must be configured in System Settings"
-        print(f"[LOG] {error_msg}")
-        temp_cfg["sms_error"] = True
-        return False, error_msg
-    
-    if not to_number:
-        error_msg = "Recipient mobile number must be configured in System Settings"
-        print(f"[LOG] {error_msg}")
-        temp_cfg["sms_error"] = True
-        return False, error_msg
-    
-    # Format phone numbers (Twilio requires E.164 format: +1XXXXXXXXXX)
-    if not to_number.startswith('+'):
-        # Assume US number if no country code
-        to_number = f"+1{to_number.replace('-', '').replace(' ', '').replace('(', '').replace(')', '')}"
-    
-    if not from_number.startswith('+'):
-        from_number = f"+1{from_number.replace('-', '').replace(' ', '').replace('(', '').replace(')', '')}"
-    
-    try:
-        client = TwilioClient(account_sid, auth_token)
-        
-        # Combine subject and body for SMS (keep it concise)
-        if subject and subject != "Fermenter Notification":
-            sms_body = f"{subject}\n{body}"
-        else:
-            sms_body = body
-        
-        # SMS has 160 char limit for single message, 1600 for concatenated
-        # Truncate if needed but warn
-        if len(sms_body) > 1600:
-            sms_body = sms_body[:1597] + "..."
-            print("[LOG] SMS body truncated to 1600 characters")
-        
-        message = client.messages.create(
-            body=sms_body,
-            from_=from_number,
-            to=to_number
-        )
-        
-        print(f"[LOG] Twilio SMS sent successfully. Message SID: {message.sid}")
-        temp_cfg["sms_error"] = False
-        return True, "Success"
-        
-    except Exception as e:
-        error_msg = f"Twilio SMS failed: {str(e)}"
-        print(f"[LOG] {error_msg}")
-        temp_cfg["sms_error"] = True
-        return False, error_msg
-
-def _send_sms_android_gateway(body, subject="Fermenter Notification"):
-    """Send SMS using Android SMS Gateway app (free, self-hosted)"""
+def _send_push_pushover(body, subject="Fermenter Notification"):
+    """Send push notification using Pushover API"""
     if not requests:
         error_msg = "requests library not installed. Run: pip install requests"
         print(f"[LOG] {error_msg}")
-        temp_cfg["sms_error"] = True
+        temp_cfg["push_error"] = True
         return False, error_msg
     
-    # Get Android Gateway configuration
-    gateway_url = system_cfg.get("android_gateway_url", "").strip()
-    to_number = system_cfg.get("mobile", "").strip()
-    api_key = system_cfg.get("android_gateway_api_key", "").strip()
+    # Get Pushover credentials from config
+    user_key = system_cfg.get("pushover_user_key", "").strip()
+    api_token = system_cfg.get("pushover_api_token", "").strip()
     
     # Validate configuration
-    if not gateway_url:
-        error_msg = "Android Gateway URL must be configured. Install SMS Gateway app on Android phone and enter the URL shown in the app."
+    if not user_key or not api_token:
+        error_msg = "Pushover User Key and API Token must be configured in System Settings. Sign up at https://pushover.net"
         print(f"[LOG] {error_msg}")
-        temp_cfg["sms_error"] = True
-        return False, error_msg
-    
-    if not to_number:
-        error_msg = "Recipient mobile number must be configured in System Settings"
-        print(f"[LOG] {error_msg}")
-        temp_cfg["sms_error"] = True
+        temp_cfg["push_error"] = True
         return False, error_msg
     
     try:
-        # Combine subject and body for SMS
-        if subject and subject != "Fermenter Notification":
-            sms_body = f"{subject}\n{body}"
-        else:
-            sms_body = body
+        # Pushover API endpoint
+        url = "https://api.pushover.net/1/messages.json"
         
-        # Android SMS Gateway API format (compatible with most apps)
-        # Different apps may use different API formats - this supports common ones
+        # Prepare payload
         payload = {
-            "phone": to_number,
-            "message": sms_body
+            "token": api_token,
+            "user": user_key,
+            "title": subject,
+            "message": body,
+            "priority": 0  # Normal priority
         }
         
-        headers = {}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+        # Optional: Set device if configured
+        device = system_cfg.get("pushover_device", "").strip()
+        if device:
+            payload["device"] = device
         
-        # Make HTTP POST request to Android gateway
+        # Send push notification
+        response = requests.post(url, data=payload, timeout=10)
+        
+        if response.status_code == 200:
+            print(f"[LOG] Pushover push notification sent successfully")
+            temp_cfg["push_error"] = False
+            return True, "Success"
+        else:
+            error_msg = f"Pushover returned status {response.status_code}: {response.text[:200]}"
+            print(f"[LOG] {error_msg}")
+            temp_cfg["push_error"] = True
+            return False, error_msg
+        
+    except Exception as e:
+        error_msg = f"Pushover push notification failed: {str(e)}"
+        print(f"[LOG] {error_msg}")
+        temp_cfg["push_error"] = True
+        return False, error_msg
+
+def _send_push_ntfy(body, subject="Fermenter Notification"):
+    """Send push notification using ntfy (free, open-source)"""
+    if not requests:
+        error_msg = "requests library not installed. Run: pip install requests"
+        print(f"[LOG] {error_msg}")
+        temp_cfg["push_error"] = True
+        return False, error_msg
+    
+    # Get ntfy configuration
+    ntfy_server = system_cfg.get("ntfy_server", "https://ntfy.sh").strip()
+    ntfy_topic = system_cfg.get("ntfy_topic", "").strip()
+    
+    # Validate configuration
+    if not ntfy_topic:
+        error_msg = "ntfy Topic must be configured. Choose a unique topic name and configure it in System Settings."
+        print(f"[LOG] {error_msg}")
+        temp_cfg["push_error"] = True
+        return False, error_msg
+    
+    try:
+        # ntfy API endpoint
+        url = f"{ntfy_server}/{ntfy_topic}"
+        
+        # Prepare headers (ntfy uses headers for metadata)
+        headers = {
+            "Title": subject,
+            "Priority": "default",
+            "Tags": "beer,fermentation"
+        }
+        
+        # Optional: Add auth token if configured
+        auth_token = system_cfg.get("ntfy_auth_token", "").strip()
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+        
+        # Send push notification (body is sent as plain text in request body)
         response = requests.post(
-            gateway_url,
-            json=payload,
+            url,
+            data=body.encode('utf-8'),
             headers=headers,
             timeout=10
         )
         
-        if response.status_code in [200, 201]:
-            print(f"[LOG] Android SMS Gateway sent successfully")
-            temp_cfg["sms_error"] = False
+        if response.status_code == 200:
+            print(f"[LOG] ntfy push notification sent successfully")
+            temp_cfg["push_error"] = False
             return True, "Success"
         else:
-            error_msg = f"Android Gateway returned status {response.status_code}: {response.text[:100]}"
+            error_msg = f"ntfy returned status {response.status_code}: {response.text[:200]}"
             print(f"[LOG] {error_msg}")
-            temp_cfg["sms_error"] = True
+            temp_cfg["push_error"] = True
             return False, error_msg
             
     except Exception as e:
-        error_msg = f"Android SMS Gateway failed: {str(e)}"
+        error_msg = f"ntfy push notification failed: {str(e)}"
         print(f"[LOG] {error_msg}")
-        temp_cfg["sms_error"] = True
+        temp_cfg["push_error"] = True
         return False, error_msg
 
 def attempt_send_notifications(subject, body):
@@ -1160,7 +1134,7 @@ def attempt_send_notifications(subject, body):
     temp_cfg['notifications_trigger'] = True
     
     # Reset error flags before attempting
-    temp_cfg['sms_error'] = False
+    temp_cfg['push_error'] = False
     temp_cfg['email_error'] = False
     
     try:
@@ -1168,18 +1142,18 @@ def attempt_send_notifications(subject, body):
             success_any, error_msg = send_email(subject, body)
             if not success_any:
                 print(f"[LOG] Email notification failed: {error_msg}")
-        elif mode == 'SMS':
-            success_any, error_msg = send_sms(body)
+        elif mode == 'PUSH':
+            success_any, error_msg = send_push(body, subject)
             if not success_any:
-                print(f"[LOG] SMS notification failed: {error_msg}")
+                print(f"[LOG] Push notification failed: {error_msg}")
         elif mode == 'BOTH':
             e, email_error = send_email(subject, body)
-            s, sms_error = send_sms(body)
+            p, push_error = send_push(body, subject)
             if not e:
                 print(f"[LOG] Email notification failed: {email_error}")
-            if not s:
-                print(f"[LOG] SMS notification failed: {sms_error}")
-            success_any = e or s
+            if not p:
+                print(f"[LOG] Push notification failed: {push_error}")
+            success_any = e or p
         else:
             success_any = False
     except Exception as e:
@@ -2081,15 +2055,15 @@ def update_system_config():
         # Store as smtp_password for SMTP authentication
         system_cfg["smtp_password"] = sending_email_password
     
-    # Handle Twilio Auth Token - only update if provided
-    twilio_auth_token = data.get("twilio_auth_token", "")
-    if twilio_auth_token:
-        system_cfg["twilio_auth_token"] = twilio_auth_token
+    # Handle Pushover API Token - only update if provided
+    pushover_api_token = data.get("pushover_api_token", "")
+    if pushover_api_token:
+        system_cfg["pushover_api_token"] = pushover_api_token
     
-    # Handle Android Gateway API Key - only update if provided
-    android_gateway_api_key = data.get("android_gateway_api_key", "")
-    if android_gateway_api_key:
-        system_cfg["android_gateway_api_key"] = android_gateway_api_key
+    # Handle ntfy Auth Token - only update if provided
+    ntfy_auth_token = data.get("ntfy_auth_token", "")
+    if ntfy_auth_token:
+        system_cfg["ntfy_auth_token"] = ntfy_auth_token
     
     # Handle external URLs - support new per-URL configuration format
     external_urls = []
@@ -2134,14 +2108,14 @@ def update_system_config():
         "smtp_host": data.get("smtp_host", system_cfg.get('smtp_host', 'smtp.gmail.com')),
         "smtp_port": int(data.get("smtp_port", system_cfg.get('smtp_port', 587))),
         "smtp_starttls": 'smtp_starttls' in data,
-        "sms_gateway_domain": data.get("sms_gateway_domain", system_cfg.get('sms_gateway_domain','')),
         "kasa_rate_limit_seconds": data.get("kasa_rate_limit_seconds", system_cfg.get('kasa_rate_limit_seconds', 10)),
         "tilt_logging_interval_minutes": int(data.get("tilt_logging_interval_minutes", system_cfg.get("tilt_logging_interval_minutes", 15))),
-        # SMS provider settings
-        "sms_provider": data.get("sms_provider", "twilio"),
-        "twilio_account_sid": data.get("twilio_account_sid", ""),
-        "twilio_from_number": data.get("twilio_from_number", ""),
-        "android_gateway_url": data.get("android_gateway_url", ""),
+        # Push notification provider settings
+        "push_provider": data.get("push_provider", "pushover"),
+        "pushover_user_key": data.get("pushover_user_key", ""),
+        "pushover_device": data.get("pushover_device", ""),
+        "ntfy_server": data.get("ntfy_server", "https://ntfy.sh"),
+        "ntfy_topic": data.get("ntfy_topic", ""),
     })
     
     # Preserve old format fields for backward compatibility (only if external_urls is empty)
@@ -2185,7 +2159,7 @@ def update_system_config():
 
     new_warn = system_cfg.get('warning_mode','NONE')
     # Reset notification state when warning mode changes
-    if old_warn.upper() == 'NONE' and new_warn.upper() in ('EMAIL','SMS','BOTH'):
+    if old_warn.upper() == 'NONE' and new_warn.upper() in ('EMAIL','PUSH','BOTH'):
         temp_cfg['notifications_trigger'] = False
         temp_cfg['notification_comm_failure'] = False
     elif new_warn.upper() == 'NONE':
@@ -2219,32 +2193,32 @@ def test_email():
             'message': f'An error occurred while sending test email: {str(e)}'
         })
 
-@app.route('/test_sms', methods=['POST'])
-def test_sms():
-    """Test SMS notification with current settings"""
+@app.route('/test_push', methods=['POST'])
+def test_push():
+    """Test push notification with current settings"""
     try:
         # Determine which provider is configured
-        sms_provider = system_cfg.get("sms_provider", "twilio").lower()
-        provider_name = "Twilio" if sms_provider == "twilio" else "Android SMS Gateway"
+        push_provider = system_cfg.get("push_provider", "pushover").lower()
+        provider_name = "Pushover" if push_provider == "pushover" else "ntfy"
         
-        body = f"*** TEST MESSAGE *** This is a TEST SMS from your Fermenter Temperature Controller. If you received this, your {provider_name} settings are configured correctly! *** TEST MESSAGE ***"
+        body = f"*** TEST MESSAGE *** This is a TEST push notification from your Fermenter Temperature Controller. If you received this, your {provider_name} settings are configured correctly! *** TEST MESSAGE ***"
         
-        success, error_msg = send_sms(body, subject="TEST - Fermenter Controller")
+        success, error_msg = send_push(body, subject="TEST - Fermenter Controller")
         
         if success:
             return jsonify({
                 'success': True,
-                'message': f'Test SMS sent successfully via {provider_name}! Check your phone.'
+                'message': f'Test push notification sent successfully via {provider_name}! Check your device.'
             })
         else:
             return jsonify({
                 'success': False,
-                'message': f'Failed to send test SMS: {error_msg}'
+                'message': f'Failed to send test push notification: {error_msg}'
             })
     except Exception as e:
         return jsonify({
             'success': False,
-            'message': f'An error occurred while sending test SMS: {str(e)}'
+            'message': f'An error occurred while sending test push notification: {str(e)}'
         })
 
 @app.route('/test_external_logging', methods=['POST'])
@@ -2817,7 +2791,7 @@ def live_snapshot():
             "temp_control_active": temp_cfg.get('temp_control_active', False),
             "heating_error": temp_cfg.get('heating_error', False),
             "cooling_error": temp_cfg.get('cooling_error', False),
-            "sms_error": temp_cfg.get('sms_error', False),
+            "push_error": temp_cfg.get('push_error', False),
             "email_error": temp_cfg.get('email_error', False)
         }
     }
