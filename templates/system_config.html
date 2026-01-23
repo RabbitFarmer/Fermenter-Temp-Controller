@@ -396,13 +396,21 @@
           <table class="config-table" style="width: 100%;">
             <tr>
               <td style="width:35%;"><label for="external_name_{{ i }}"><b>Service Name</b></label></td>
-              <td><input type="text" name="external_name_{{ i }}" id="external_name_{{ i }}" value="{{ external_urls[i].get('name', '') }}" placeholder="e.g., Brewers Friend"></td>
+              <td><input type="text" name="external_name_{{ i }}" id="external_name_{{ i }}" value="{{ external_urls[i].get('name', '') }}" placeholder="e.g., Brewers Friend" maxlength="30"></td>
             </tr>
             <tr>
               <td><label for="external_url_{{ i }}"><b>URL</b></label></td>
               <td><input type="text" name="external_url_{{ i }}" id="external_url_{{ i }}" value="{{ external_urls[i].get('url', '') }}" placeholder="https://..." onchange="toggleUrlSettings({{ i }})"></td>
             </tr>
           </table>
+          
+          <!-- Test Connection Button -->
+          <div style="text-align: center; margin-top: 15px;">
+            <button type="button" class="btn-action" onclick="testExternalConnection({{ i }})" style="margin-bottom: 10px;">
+              Test Connection
+            </button>
+            <div id="external-test-result-{{ i }}" style="margin-top: 10px; font-weight: bold;"></div>
+          </div>
 
           <div id="url_settings_{{ i }}" style="{% if not external_urls[i].get('url') %}display:none;{% endif %} margin-top: 10px; padding: 10px; background-color: #fff; border-left: 3px solid #4CAF50;">
             <h4 style="margin-top: 0; color: #555;">Connection Settings</h4>
@@ -775,7 +783,7 @@
     }
 
     // Test External Logging connection
-    function testExternalLogging(index) {
+    function testExternalConnection(index) {
       const resultDiv = document.getElementById('external-test-result-' + index);
       const urlField = document.getElementById('external_url_' + index);
       const url = urlField.value.trim();
@@ -785,6 +793,13 @@
         return;
       }
       
+      // Get all configuration settings for this URL
+      const method = document.getElementById('external_method_' + index)?.value || 'POST';
+      const contentType = document.getElementById('external_content_type_' + index)?.value || 'form';
+      const timeout = document.getElementById('external_timeout_seconds_' + index)?.value || 8;
+      const fieldMapId = document.getElementById('external_field_map_id_' + index)?.value || 'default';
+      const customFieldMap = document.getElementById('external_custom_field_map_' + index)?.value || '';
+      
       resultDiv.innerHTML = '<span style="color: blue;">Testing connection...</span>';
       
       fetch('/test_external_logging', {
@@ -792,7 +807,15 @@
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ index: index, url: url })
+        body: JSON.stringify({ 
+          index: index, 
+          url: url,
+          method: method,
+          content_type: contentType,
+          timeout_seconds: timeout,
+          field_map_id: fieldMapId,
+          custom_field_map: customFieldMap
+        })
       })
       .then(response => response.json())
       .then(data => {
@@ -805,6 +828,12 @@
       .catch(error => {
         resultDiv.innerHTML = '<span style="color: red;">✗ Error: ' + escapeHtml(error.message) + '</span>';
       });
+    }
+    
+    // Test External Logging connection (legacy function - kept for backwards compatibility)
+    function testExternalLogging(index) {
+      // Redirect to new function
+      testExternalConnection(index);
     }
     
     // Toggle Push provider fields

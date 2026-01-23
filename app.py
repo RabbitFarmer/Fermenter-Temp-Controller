@@ -2257,12 +2257,29 @@ def test_external_logging():
             "test": True
         }
         
-        # Get external method and content type from system config
-        method = system_cfg.get("external_method", "POST").upper()
-        send_json = (system_cfg.get("external_content_type", "form") == "json")
+        # Get configuration settings from request (per-URL settings) or fall back to system config
+        method = data.get('method', system_cfg.get("external_method", "POST")).upper()
+        content_type = data.get('content_type', system_cfg.get("external_content_type", "form"))
+        send_json = (content_type == "json")
+        timeout = int(data.get('timeout_seconds', system_cfg.get("external_timeout_seconds", 8)) or 8)
+        
+        # Get field map settings
+        field_map_id = data.get('field_map_id', 'default')
+        custom_field_map = data.get('custom_field_map', '')
+        
+        # Helper function to apply field mapping
+        def apply_field_mapping(payload, field_map):
+            """Apply field mapping transformation to payload."""
+            transformed = {}
+            for logical_field, remote_field in field_map.items():
+                if logical_field in payload:
+                    transformed[remote_field] = payload[logical_field]
+            return transformed
         
         # Transform for Brewers Friend if needed
         # Check if the URL contains brewersfriend.com as the domain (not in query params)
+        # Note: Brewers Friend transformation takes precedence over custom field maps
+        # to ensure compatibility with their API requirements
         try:
             parsed = urlparse(url)
             is_brewersfriend = 'brewersfriend.com' in parsed.netloc.lower()
@@ -2282,6 +2299,22 @@ def test_external_logging():
                 "comment": "Test from Fermenter Controller"
             }
             send_json = True
+        elif field_map_id and field_map_id != 'default':
+            # Apply field map transformation if specified
+            if field_map_id == 'custom' and custom_field_map:
+                try:
+                    field_map = json.loads(custom_field_map)
+                    test_payload = apply_field_mapping(test_payload, field_map)
+                except (json.JSONDecodeError, ValueError, TypeError) as e:
+                    # If custom field map is invalid, use original payload
+                    print(f"[WARNING] Invalid custom field map JSON for test connection: {e}")
+                    # Continue with original payload instead of failing the test
+            else:
+                # Use predefined field map
+                predefined_maps = get_predefined_field_maps()
+                field_map = predefined_maps.get(field_map_id, {}).get("map")
+                if field_map:
+                    test_payload = apply_field_mapping(test_payload, field_map)
         
         # Attempt to send test data
         if requests is None:
@@ -2290,7 +2323,6 @@ def test_external_logging():
                 'message': 'Requests library not available'
             })
         
-        timeout = int(system_cfg.get("external_timeout_seconds", 8) or 8)
         headers = {}
         
         try:
