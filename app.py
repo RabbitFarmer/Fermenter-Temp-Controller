@@ -3260,6 +3260,11 @@ def exit_system():
     - POST with confirm=yes: Turn off all plugs, show goodbye page, and shut down
     - POST with confirm=no: Return to main page
     """
+    # Timing constants for shutdown sequence
+    PLUG_COMMAND_DELAY = 0.5  # seconds to wait for plug command to be processed
+    GOODBYE_DISPLAY_TIME = 2  # seconds to display goodbye page before shutdown
+    PROCESS_TERMINATION_TIMEOUT = 2  # seconds to wait for process to terminate
+    
     if request.method == 'POST':
         confirm = request.form.get('confirm', 'no')
         if confirm == 'yes':
@@ -3271,12 +3276,12 @@ def exit_system():
                 # Turn off heating plug if configured
                 if heating_plug and kasa_queue:
                     kasa_queue.put({'mode': 'heating', 'url': heating_plug, 'action': 'off'})
-                    time.sleep(0.5)  # Brief pause to allow command to be processed
+                    time.sleep(PLUG_COMMAND_DELAY)
                 
                 # Turn off cooling plug if configured
                 if cooling_plug and kasa_queue:
                     kasa_queue.put({'mode': 'cooling', 'url': cooling_plug, 'action': 'off'})
-                    time.sleep(0.5)  # Brief pause to allow command to be processed
+                    time.sleep(PLUG_COMMAND_DELAY)
             except Exception as e:
                 print(f"[LOG] Error turning off plugs during shutdown: {e}")
             
@@ -3285,13 +3290,13 @@ def exit_system():
             
             # Schedule shutdown after response is sent
             def shutdown_system():
-                time.sleep(2)  # Give time for goodbye page to display
+                time.sleep(GOODBYE_DISPLAY_TIME)
                 try:
                     # Terminate the kasa worker process if it exists
-                    if 'kasa_proc' in globals() and kasa_proc:
+                    if kasa_proc is not None:
                         try:
                             kasa_proc.terminate()
-                            kasa_proc.join(timeout=2)
+                            kasa_proc.join(timeout=PROCESS_TERMINATION_TIMEOUT)
                         except Exception:
                             pass
                 except Exception as e:
