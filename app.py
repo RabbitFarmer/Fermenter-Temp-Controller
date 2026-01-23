@@ -2319,7 +2319,8 @@ def toggle_temp_control():
         # Save the state
         save_json(TEMP_CFG_FILE, temp_cfg)
         
-        return jsonify({"success": True, "active": new_state})
+        # If this was a new session, signal that we should redirect to temp_config
+        return jsonify({"success": True, "active": new_state, "redirect": "/temp_config" if (new_state and new_session) else None})
     except Exception as e:
         print(f"[LOG] Error toggling temp control: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2485,6 +2486,7 @@ def live_snapshot():
             "current_temp": temp_cfg.get("current_temp"),
             "low_limit": temp_cfg.get("low_limit"),
             "high_limit": temp_cfg.get("high_limit"),
+            "tilt_color": temp_cfg.get("tilt_color", ""),
             "heater_on": temp_cfg.get("heater_on"),
             "cooler_on": temp_cfg.get("cooler_on"),
             "heater_pending": temp_cfg.get("heater_pending"),
