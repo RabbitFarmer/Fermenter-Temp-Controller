@@ -62,13 +62,6 @@ try:
 except Exception:
     psutil = None
 
-# Optional imports for push notifications
-# Pushover is recommended, but we also support ntfy (open-source alternative)
-try:
-    import requests
-except Exception:
-    requests = None
-
 app = Flask(__name__)
 
 # --- Files and global constants ---------------------------------------------
