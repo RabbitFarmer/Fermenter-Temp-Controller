@@ -205,13 +205,88 @@
             <td><label for="email"><b>Recipient eMail Address</b></label></td>
             <td><input type="email" name="email" id="email" value="{{ system_settings.get('email','') }}"></td>
           </tr>
+          
+          <!-- SMS Configuration -->
           <tr>
-            <td><label for="mobile"><b>Recipient Cell Phone Number</b></label></td>
-            <td><input type="text" name="mobile" id="mobile" value="{{ system_settings.get('mobile','') }}"></td>
+            <td colspan="2" style="padding-top: 20px;">
+              <h4 style="margin: 0;">SMS Configuration</h4>
+              <p style="margin: 5px 0; font-size: 0.9em; color: #666;">
+                Note: Carrier email-to-SMS gateways were discontinued in 2024-2025.
+              </p>
+            </td>
           </tr>
           <tr>
-            <td><label for="sms_gateway_domain"><b>SMS Gateway Domain</b></label></td>
-            <td><input type="text" name="sms_gateway_domain" id="sms_gateway_domain" value="{{ system_settings.get('sms_gateway_domain','') }}" placeholder="e.g., txt.att.net"></td>
+            <td><label for="sms_provider"><b>SMS Provider</b></label></td>
+            <td>
+              <select name="sms_provider" id="sms_provider" onchange="toggleSMSProvider()">
+                <option value="twilio" {% if system_settings.get('sms_provider','twilio') == 'twilio' %}selected{% endif %}>Twilio (Paid - Reliable)</option>
+                <option value="android" {% if system_settings.get('sms_provider','twilio') == 'android' %}selected{% endif %}>Android SMS Gateway (FREE)</option>
+              </select>
+            </td>
+          </tr>
+          <tr>
+            <td><label for="mobile"><b>Recipient Cell Phone Number</b></label></td>
+            <td><input type="text" name="mobile" id="mobile" value="{{ system_settings.get('mobile','') }}" placeholder="e.g., +15551234567 or 5551234567"></td>
+          </tr>
+          
+          <!-- Twilio-specific fields -->
+          <tr class="twilio-field">
+            <td><label for="twilio_account_sid"><b>Twilio Account SID</b></label></td>
+            <td><input type="text" name="twilio_account_sid" id="twilio_account_sid" value="{{ system_settings.get('twilio_account_sid','') }}" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"></td>
+          </tr>
+          <tr class="twilio-field">
+            <td><label for="twilio_auth_token"><b>Twilio Auth Token</b></label></td>
+            <td><input type="password" name="twilio_auth_token" id="twilio_auth_token" placeholder="{% if system_settings.get('twilio_auth_token','') %}••••••••{% else %}Your Twilio Auth Token{% endif %}"></td>
+          </tr>
+          <tr class="twilio-field">
+            <td><label for="twilio_from_number"><b>Twilio From Number</b></label></td>
+            <td><input type="text" name="twilio_from_number" id="twilio_from_number" value="{{ system_settings.get('twilio_from_number','') }}" placeholder="+15551234567"></td>
+          </tr>
+          <tr class="twilio-field">
+            <td colspan="2">
+              <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; border-radius: 5px; padding: 12px; margin: 10px 0;">
+                <strong style="color: #0c5460;">📱 Twilio Setup (Free Trial - $15 Credit)</strong>
+                <ol style="margin: 8px 0; padding-left: 20px; color: #0c5460; font-size: 0.9em;">
+                  <li>Sign up at <a href="https://www.twilio.com/try-twilio" target="_blank" style="color: #0056b3;">twilio.com/try-twilio</a> (free trial includes $15 credit)</li>
+                  <li>Get a phone number: Console → Phone Numbers → Buy a Number ($1/month)</li>
+                  <li>Find credentials: Console Dashboard → Account SID and Auth Token</li>
+                  <li>Enter credentials above and Save</li>
+                  <li>Use "Test SMS" button below to verify</li>
+                </ol>
+                <p style="margin: 5px 0; font-size: 0.85em; color: #0c5460;">
+                  Trial account can send to verified numbers. Upgrade to send to any number (~$0.0075/SMS).
+                </p>
+              </div>
+            </td>
+          </tr>
+          
+          <!-- Android SMS Gateway fields -->
+          <tr class="android-field" style="display: none;">
+            <td><label for="android_gateway_url"><b>Android Gateway URL</b></label></td>
+            <td><input type="text" name="android_gateway_url" id="android_gateway_url" value="{{ system_settings.get('android_gateway_url','') }}" placeholder="http://192.168.1.100:8080/api/send"></td>
+          </tr>
+          <tr class="android-field" style="display: none;">
+            <td><label for="android_gateway_api_key"><b>API Key (Optional)</b></label></td>
+            <td><input type="password" name="android_gateway_api_key" id="android_gateway_api_key" placeholder="{% if system_settings.get('android_gateway_api_key','') %}••••••••{% else %}Leave blank if not required{% endif %}"></td>
+          </tr>
+          <tr class="android-field" style="display: none;">
+            <td colspan="2">
+              <div style="background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 5px; padding: 12px; margin: 10px 0;">
+                <strong style="color: #155724;">🆓 Android SMS Gateway Setup (100% FREE!)</strong>
+                <ol style="margin: 8px 0; padding-left: 20px; color: #155724; font-size: 0.9em;">
+                  <li>Find an old Android phone (Android 5.0+)</li>
+                  <li>Install "SMS Gateway" app from <a href="https://play.google.com/store/search?q=sms+gateway&c=apps" target="_blank" style="color: #0056b3;">Google Play</a> (try "SMS Gateway", "WaSMS", or "SMS Gateway API")</li>
+                  <li>Open app and start the gateway service</li>
+                  <li>Note the URL shown in the app (e.g., http://192.168.1.100:8080)</li>
+                  <li>Enter the URL above (add /api/send or endpoint shown in app)</li>
+                  <li>If app requires API key, set it and enter above</li>
+                  <li>Click Save and use "Test SMS" button</li>
+                </ol>
+                <p style="margin: 5px 0; font-size: 0.85em; color: #155724;">
+                  <strong>Zero cost!</strong> Uses your phone's existing SMS plan. Perfect for hobbyists.
+                </p>
+              </div>
+            </td>
           </tr>
         </table>
 
@@ -730,6 +805,26 @@
         resultDiv.innerHTML = '<span style="color: red;">✗ Error: ' + escapeHtml(error.message) + '</span>';
       });
     }
+    
+    // Toggle SMS provider fields
+    function toggleSMSProvider() {
+      const provider = document.getElementById('sms_provider').value;
+      const twilioFields = document.querySelectorAll('.twilio-field');
+      const androidFields = document.querySelectorAll('.android-field');
+      
+      if (provider === 'twilio') {
+        twilioFields.forEach(field => field.style.display = '');
+        androidFields.forEach(field => field.style.display = 'none');
+      } else if (provider === 'android') {
+        twilioFields.forEach(field => field.style.display = 'none');
+        androidFields.forEach(field => field.style.display = '');
+      }
+    }
+    
+    // Initialize SMS provider visibility on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      toggleSMSProvider();
+    });
   </script>
 </body>
 </html>

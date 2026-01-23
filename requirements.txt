@@ -2,3 +2,4 @@ flask
 flask-cors
 bleak
 python-daemon
+twilio
