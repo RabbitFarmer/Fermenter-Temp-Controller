@@ -2064,23 +2064,23 @@ def update_system_config():
         name = data.get(f"external_name_{i}", "").strip()
         url = data.get(f"external_url_{i}", "").strip()
         
-        if url:  # Only add if URL is provided
-            url_config = {
-                "name": name or f"Service {i + 1}",
-                "url": url,
-                "method": data.get(f"external_method_{i}", "POST"),
-                "content_type": data.get(f"external_content_type_{i}", "form"),
-                "timeout_seconds": int(data.get(f"external_timeout_seconds_{i}", 8)),
-                "field_map_id": data.get(f"external_field_map_id_{i}", "default")
-            }
-            
-            # If custom field map is selected, store the custom JSON
-            if url_config["field_map_id"] == "custom":
-                custom_map = data.get(f"external_custom_field_map_{i}", "").strip()
-                if custom_map:
-                    url_config["custom_field_map"] = custom_map
-            
-            external_urls.append(url_config)
+        # Always create entry (even if URL is empty) to preserve settings
+        url_config = {
+            "name": name or f"Service {i + 1}",
+            "url": url,
+            "method": data.get(f"external_method_{i}", "POST"),
+            "content_type": data.get(f"external_content_type_{i}", "form"),
+            "timeout_seconds": int(data.get(f"external_timeout_seconds_{i}", 8)),
+            "field_map_id": data.get(f"external_field_map_id_{i}", "default")
+        }
+        
+        # If custom field map is selected, store the custom JSON
+        if url_config["field_map_id"] == "custom":
+            custom_map = data.get(f"external_custom_field_map_{i}", "").strip()
+            if custom_map:
+                url_config["custom_field_map"] = custom_map
+        
+        external_urls.append(url_config)
     
     system_cfg.update({
         "brewery_name": data.get("brewery_name", ""),
@@ -2094,7 +2094,7 @@ def update_system_config():
         "timestamp_format": data.get("timestamp_format", ""),
         "update_interval": data.get("update_interval", "1"),
         "temp_logging_interval": data.get("temp_logging_interval", system_cfg.get('temp_logging_interval', 10)),
-        "external_refresh_rate": data.get("external_refresh_rate", "0"),
+        "external_refresh_rate": data.get("external_refresh_rate", "15"),
         "external_urls": external_urls,  # New format
         "warning_mode": data.get("warning_mode", "NONE"),
         "sending_email": data.get("sending_email", system_cfg.get('sending_email','')),

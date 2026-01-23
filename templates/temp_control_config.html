@@ -12,10 +12,12 @@
     /* Minimal local rules so page isn't totally raw if styles.css fails */
     .page-container { font-family: Arial, Helvetica, sans-serif; padding: 0 12px; color: #222; }
     .site-header { margin: 18px 0; }
-    .config-ribbon a { margin-right: 16px; color: #1a6; text-decoration: none; font-weight: bold; }
     .btn { padding: 6px 10px; border: 1px solid #888; background:#eee; border-radius:3px; text-decoration:none; color:#000; cursor: pointer; }
     .btn.secondary { background:#fff; color:#00f; border-color:#d0d0d0; }
     .btn.warning { background:#fdd; border-color:#f00; color:#700; }
+    .btn-action { padding: 10px 20px; background-color: #8B4513; color: white; border: none; cursor: pointer; font-size: 16px; font-weight: bold; border-radius: 5px; text-decoration: none; display: inline-block; }
+    .btn-primary { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; font-size: 16px; font-weight: bold; border-radius: 5px; }
+    .btn-secondary { padding: 10px 20px; background-color: #ddd; color: #333; border: none; cursor: pointer; font-size: 16px; font-weight: bold; border-radius: 5px; }
     .form-row { margin: 8px 0; display:flex; align-items:center; }
     label { display:inline-block; min-width:160px; vertical-align: middle; }
     input[type=number], input[type=text], select { padding:6px; border:1px solid #ccc; border-radius:4px; width:240px; }
@@ -29,11 +31,6 @@
 <body>
   <div class="page-container">
     <header class="site-header">
-      <nav class="config-ribbon" role="navigation" aria-label="top navigation">
-        <a href="/">Dashboard</a>
-        <a href="/system_config">System Settings</a>
-        <a href="/temp_config">Temperature Control</a>
-      </nav>
       <h1>Temperature Control Settings</h1>
     </header>
 
@@ -91,8 +88,6 @@
 
           <div class="form-row" style="margin-top:12px;">
             <a href="/scan_kasa_plugs" class="btn">Scan Kasa Plugs</a>
-            <a class="btn secondary" href="/temp_config" style="margin-left:8px;">Cancel</a>
-            <button id="saveBtn" type="submit" class="btn" style="margin-left:8px;">Save Settings</button>
           </div>
         </form>
       </div>
@@ -139,6 +134,13 @@
         {% else %}
           <p class="small">No live Tilt adverts seen yet.</p>
         {% endif %}
+      </div>
+
+      <!-- Action buttons at bottom -->
+      <div style="text-align:center; margin-top:30px; margin-bottom:20px;">
+        <button type="button" onclick="window.location='/'" class="btn-action">Dashboard</button>
+        <button type="submit" form="tempConfigForm" class="btn-primary" style="margin-left:16px;">Save</button>
+        <button type="button" onclick="window.location='/temp_config'" class="btn-secondary" style="margin-left:16px;">Cancel</button>
       </div>
 
       <footer style="margin-top:20px; color:#666; font-size:0.9em;">
