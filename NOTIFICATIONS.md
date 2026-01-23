@@ -1,376 +1,791 @@
-# Email and SMS Notifications Guide
+# Fermenter Temperature Controller - Notifications Guide
 
-This document explains how to configure and use the email and SMS notification features in the Fermenter Temperature Controller.
+This comprehensive guide explains how to configure email and push notifications for your fermenter temperature controller.
 
-## Overview
+## 📱 Overview
 
-The system can send notifications via email and/or SMS for two main categories:
-1. **Temperature Control Messages** - Alerts when temperature goes out of range or when heating/cooling devices turn on/off
-2. **Batch Messages** - Alerts for fermentation milestones like signal loss, fermentation start, and daily progress reports
+The Fermenter Temperature Controller sends real-time notifications to keep you informed about your fermentation batches. The notification system supports:
 
-## Configuration
+- **Email notifications** via SMTP (Gmail, Outlook, Yahoo, etc.)
+- **Push notifications** via Pushover or ntfy
+- **Flexible routing** - Email only, Push only, or Both
 
-### Step 1: Configure Email/SMS Settings
+### Notification Categories
 
-Navigate to **System Settings → SMS/eMail** tab and configure:
+1. **Temperature Control Notifications**
+   - Temperature below low limit
+   - Temperature above high limit  
+   - Heating device turned on/off
+   - Cooling device turned on/off
+   - Temperature control started/stopped
+   - Control mode changed
 
-#### Email Configuration
-- **Sending Email Address**: The email account that will send notifications (e.g., `fermentercontroller@gmail.com`)
-- **Sending Email Password**: **For Gmail, use an App Password** (see Gmail Configuration Tips below), NOT your regular password
-- **SMTP Server Host**: Email server address (e.g., `smtp.gmail.com` for Gmail)
-- **SMTP Server Port**: Usually `587` for TLS or `465` for SSL
-- **Use STARTTLS**: Check this for secure connections (recommended)
-- **Recipient eMail Address**: Where notifications should be sent
+2. **Batch Notifications**
+   - Loss of Tilt signal
+   - Fermentation starting (activity detected)
+   - Fermentation completion detected
+   - Fermentation finished
+   - Daily progress reports
 
-#### SMS Configuration
+Each notification type can be individually enabled or disabled in the web interface.
 
-> **📱 Two SMS Options Available**
->
-> Major U.S. carriers discontinued their free email-to-SMS gateways in 2024-2025. 
-> You now have **two options** for SMS notifications:
->
-> 1. **Android SMS Gateway (FREE!)** - Perfect for homebrewers
-> 2. **Twilio API (Paid)** - Professional SMS service
+---
 
-##### Option 1: Android SMS Gateway (100% FREE!) ⭐ Recommended for Hobbyists
+## 🚫 Why Push Notifications Instead of SMS?
 
-**Why Android SMS Gateway?**
-- **Zero cost** - Uses your phone's existing SMS plan
-- **No signup required** - No accounts, no credit cards
-- **Privacy** - Messages stay on your network
-- **Perfect for hobbyists** - Ideal for homebrewing use
+**SMS email gateways were discontinued by major carriers in 2024-2025**, making traditional SMS notifications unreliable or impossible. Push notifications are the modern replacement with significant advantages:
 
-**Setup Steps:**
+### Problems with SMS
+- ❌ **Discontinued service** - AT&T, T-Mobile, and Verizon shut down email-to-SMS gateways
+- ❌ **Unreliable delivery** - Messages often delayed or never delivered
+- ❌ **Limited functionality** - Plain text only, no rich features
+- ❌ **Privacy concerns** - Requires sharing phone numbers
+- ❌ **Carrier dependent** - Different gateways for each carrier
 
-1. **Find an old Android phone** (Android 5.0 or newer):
-   - Dust off that old phone sitting in a drawer
-   - Needs WiFi connectivity
-   - Doesn't need a data plan (just SMS)
+### Advantages of Push Notifications
+- ✅ **Highly reliable** - Direct delivery to your devices
+- ✅ **Cost-effective** - Free (ntfy) or $5 one-time (Pushover)
+- ✅ **Rich features** - Images, priorities, action buttons, sounds
+- ✅ **Cross-platform** - Works on iOS, Android, Desktop, Web
+- ✅ **Privacy-friendly** - No phone number required
+- ✅ **Instant delivery** - Near real-time notifications
+- ✅ **Internet-based** - Works anywhere with data/WiFi
 
-2. **Install SMS Gateway app**:
-   - Open Google Play Store
-   - Search for "SMS Gateway" (popular apps: "SMS Gateway", "WaSMS", "SMS Gateway API")
-   - Install and open the app
+---
 
-3. **Start the gateway service**:
-   - Open the app
-   - Click "Start Service" or similar
-   - Note the URL displayed (e.g., `http://192.168.1.100:8080`)
-   - Keep the app running (can run in background)
+## 📊 Pushover vs ntfy Comparison
 
-4. **Configure in Fermenter Controller**:
-   - Navigate to **System Settings → SMS/eMail** tab
-   - **SMS Provider**: Select "Android SMS Gateway (FREE)"
-   - **Recipient Cell Phone Number**: Your mobile number (e.g., `5551234567`)
-   - **Android Gateway URL**: The URL from the app (e.g., `http://192.168.1.100:8080/api/send`)
-   - **API Key**: Leave blank unless your app requires one
-   - Click **Save**
+| Feature | Pushover | ntfy |
+|---------|----------|------|
+| **Cost** | $5 one-time per platform | 100% FREE |
+| **Reliability** | Extremely high (99.9%+) | Very high |
+| **Setup Difficulty** | Easy | Very easy |
+| **iOS App** | ✅ Official app | ✅ Official app |
+| **Android App** | ✅ Official app | ✅ Official app |
+| **Desktop/Web** | ✅ Via browser | ✅ Via browser or app |
+| **Self-hosting** | ❌ Cloud only | ✅ Can self-host |
+| **Privacy** | Good (US company) | Excellent (open-source, self-hostable) |
+| **Message History** | 7 days (free), 1 year (paid) | 12 hours (public server), unlimited (self-hosted) |
+| **Priority Levels** | 5 levels | 5 levels |
+| **Custom Sounds** | ✅ Extensive library | ✅ Custom sounds |
+| **Delivery Confirmation** | ✅ Yes | ✅ Yes |
+| **API Rate Limits** | 10,000 messages/month | Unlimited (public server has soft limits) |
+| **Max Message Length** | 1024 characters | 4096 characters |
+| **Attachments** | Images up to 2.5 MB | Images/files (any size on self-hosted) |
+| **Commercial Support** | ✅ Paid support available | ❌ Community only |
 
-5. **Test it**:
-   - Click the **Test SMS** button
-   - You should receive a test message within seconds
+### 🏆 Recommendation
 
-**Tips:**
-- Keep the Android phone plugged in and connected to WiFi
-- The phone should be on the same network as your Raspberry Pi (or configure port forwarding)
-- Most apps have a web interface to monitor messages sent
+- **Choose Pushover if:** You want the most reliable, polished experience and don't mind paying $5 once per platform (iOS, Android, Desktop)
+- **Choose ntfy if:** You want a completely free, open-source solution or need self-hosting for privacy
 
-##### Option 2: Twilio API (Professional Service)
+Both work excellently for homebrewing notifications. Pushover is slightly more polished, while ntfy offers more flexibility and zero cost.
 
-**Why Twilio?**
-- Industry-standard, reliable SMS delivery
-- Free trial includes $15 credit (~2000 SMS messages)
-- Pay-as-you-go: ~$0.0075 per SMS after trial
-- Works anywhere, no local device needed
+---
 
-**Setup Steps:**
+## 🔧 Setup Instructions
 
-1. **Sign up for Twilio** (free trial available):
-   - Visit [twilio.com/try-twilio](https://www.twilio.com/try-twilio)
-   - Create a free account (no credit card required for trial)
+### Option 1: Pushover Setup (Recommended - $5 One-Time)
 
-2. **Get a Twilio phone number**:
-   - Navigate to Console → Phone Numbers → Buy a Number
-   - Choose any available number ($1/month)
-   - This is the "From" number for your SMS messages
+Pushover is the easiest and most reliable option for most users.
 
-3. **Get your API credentials**:
-   - Go to Console Dashboard
-   - Copy your **Account SID** (starts with "AC...")
-   - Copy your **Auth Token** (click to reveal)
+#### Step 1: Create Pushover Account
 
-4. **Configure in Fermenter Controller**:
-   - Navigate to **System Settings → SMS/eMail** tab
-   - **SMS Provider**: Select "Twilio (Paid - Reliable)"
-   - **Recipient Cell Phone Number**: Your mobile number (e.g., `+15551234567` or `5551234567`)
-   - **Twilio Account SID**: Paste your Account SID
-   - **Twilio Auth Token**: Paste your Auth Token
-   - **Twilio From Number**: Your Twilio phone number (e.g., `+15551234567`)
-   - Click **Save**
+1. Visit [pushover.net](https://pushover.net) and sign up for a free account
+2. The account includes a **30-day free trial** to test the service
+3. After the trial, purchase the app for $5 (one-time payment per platform)
+   - iOS: Purchase once in App Store
+   - Android: Purchase once in Google Play Store
+   - Desktop: Free browser-based client
 
-5. **Test it**:
-   - Click the **Test SMS** button
-   - You should receive a test message within seconds
+#### Step 2: Install Pushover App
 
-**Trial Account Notes:**
-- Trial accounts can send to verified phone numbers only
-- To send to any number, upgrade your account (still pay-as-you-go, no monthly fee)
-- Verify additional phone numbers at: Console → Phone Numbers → Verified Caller IDs
+1. **iOS:** Download "Pushover Notifications" from the App Store
+2. **Android:** Download "Pushover" from Google Play Store
+3. **Desktop:** Use the web interface at [pushover.net](https://pushover.net)
+4. Log in with your Pushover account
 
-#### Messaging Options
-Select how you want to receive notifications:
-- **None**: Notifications disabled
-- **eMail**: Email only
-- **SMS**: SMS only (requires Android Gateway or Twilio)
-- **Both**: Both email and SMS
+#### Step 3: Get Your User Key
 
-### Step 2: Configure Temperature Control Notifications
+1. Log in to [pushover.net](https://pushover.net)
+2. Your **User Key** is displayed on the home page after login
+3. It's a 30-character alphanumeric string (e.g., `uQiRzpo4DXghDmr9QzzfQu27cmVRsG`)
+4. **Copy this key** - you'll need it for configuration
 
-In the **SMS/eMail** tab, scroll down to **Temperature Control Notifications**.
+#### Step 4: Create an Application
 
-Enable the specific events you want to be notified about:
-- ✅ **Temperature Below Low Limit** (Default: ON)
-- ✅ **Temperature Above High Limit** (Default: ON)
-- ☐ **Heating Turned On** (Default: OFF)
-- ☐ **Heating Turned Off** (Default: OFF)
-- ☐ **Cooling Turned On** (Default: OFF)
-- ☐ **Cooling Turned Off** (Default: OFF)
+1. Go to [pushover.net/apps/build](https://pushover.net/apps/build)
+2. Click **Create an Application/API Token**
+3. Fill in the application details:
+   - **Name:** `Fermenter Controller` (or any name you prefer)
+   - **Type:** Application
+   - **Description:** `Fermentation monitoring notifications` (optional)
+   - **URL:** Leave blank (optional)
+   - **Icon:** Upload a beer/fermentation icon (optional)
+4. Click **Create Application**
+5. Your **API Token/Key** will be displayed (e.g., `azGDORePK8gMaC0QOYAMyEEuzJnyUi`)
+6. **Copy this token** - you'll need it for configuration
 
-**Note**: The system will NOT notify you about triggers/control modes that you haven't enabled. This gives you fine-grained control over which events generate notifications.
+#### Step 5: Configure in Fermenter Controller
 
-### Step 3: Configure Batch Notifications
+1. Open your Fermenter Controller web interface (`http://<raspberry-pi-ip>:5000`)
+2. Navigate to **System Settings**
+3. Scroll to the **Notification Settings** section
+4. Select **Pushover ($5 one-time - Recommended)** from the **Push Provider** dropdown
+5. Enter your credentials:
+   - **Pushover User Key:** Paste your 30-character user key
+   - **Pushover API Token:** Paste your API token from the app you created
+   - **Device Name:** (Optional) Leave blank to send to all your devices, or enter a specific device name
+6. Set **Messaging Options** to:
+   - `PUSH` - Push notifications only
+   - `BOTH` - Email and push notifications
+7. Click **Save Settings**
 
-Still in the **SMS/eMail** tab, configure **Batch Notifications**:
+#### Step 6: Test Notifications
 
-These settings apply system-wide to each active tilt:
+1. In System Settings, scroll to **Test Notifications**
+2. Click **Send Test Email/Push Notification**
+3. You should receive a test notification on your device within seconds
+4. If it doesn't work, check:
+   - User Key and API Token are correct (no extra spaces)
+   - Your device has internet connectivity
+   - The Pushover app is installed and logged in
 
-#### Loss of Signal Alert
-- ✅ **Enable**: Receive alerts when a tilt stops broadcasting (Default: ON)
-- **Timeout**: Minutes before triggering alert (Default: 30 minutes)
+---
 
-When triggered, you'll receive:
-- Brewery name, date, time
-- Tilt color
-- Brew name
-- Caption: "Loss of Signal -- Receiving no tilt readings"
+### Option 2: ntfy Setup (Free and Open-Source)
 
-The alert will reset automatically when the signal returns.
+ntfy is a completely free, open-source alternative that's perfect for privacy-conscious users or those who don't want to pay.
 
-#### Fermentation Starting Alert
-- ✅ **Enable**: Receive alert when fermentation begins (Default: ON)
+#### Step 1: Install ntfy App
 
-Triggers when the next 3 consecutive gravity readings (at your configured intervals) are at least 0.010 below the initial/starting gravity.
+1. **iOS:** Download "ntfy" from the App Store (free)
+2. **Android:** Download "ntfy" from Google Play Store or F-Droid (free)
+3. **Desktop:** Use web interface at [ntfy.sh](https://ntfy.sh) or install desktop app
 
-Message includes:
-- Brewery name, date, time
-- Tilt color
-- Brew name
-- Starting gravity and current gravity
-- Caption: "Fermentation has started"
+#### Step 2: Choose a Unique Topic Name
 
-#### Daily Progress Report
-- ✅ **Enable**: Receive daily fermentation progress (Default: ON)
-- **Report Time**: Time to send daily report (24-hour format, e.g., `09:00`)
+ntfy uses "topics" to route notifications. You need to choose a unique topic name.
 
-Each active tilt generates a separate daily report with:
-- Brewery name, date, time
-- Tilt color
-- Brew name
-- Starting gravity
-- Last gravity reading
-- Net change (starting - last)
-- Change since yesterday (24 hours ago - last)
+**Important:** Topics on the public server (ntfy.sh) are public by default. Anyone who knows your topic name can subscribe to it. Choose something unique and hard to guess.
 
-## Example Notification Messages
+**Topic name suggestions:**
+- `fermentor_john_smith_2025_unique_xyz123` (long and random)
+- `beerlab_secretcode_abc789def456` (include random characters)
+- `homebrewing_monitor_[yourname]_[random]` (personalized)
 
-### Temperature Control Alert
+**Topic name rules:**
+- Letters, numbers, underscores, and hyphens only
+- No spaces
+- Case-sensitive
+- Should be hard to guess for privacy
+
+#### Step 3: Subscribe to Your Topic in the App
+
+1. Open the ntfy app on your phone
+2. Tap the **+** button to add a new subscription
+3. **Using ntfy.sh (free public server):**
+   - Server: `https://ntfy.sh` (default)
+   - Topic: Enter your unique topic name (e.g., `my_fermenter_notifications_xyz789`)
+   - Display name: `Fermenter` (or any name you like)
+4. **Using self-hosted server (advanced):**
+   - Server: Your self-hosted ntfy server URL (e.g., `https://ntfy.yourdomain.com`)
+   - Topic: Your topic name
+   - Auth: If required, enable authentication and enter username/password
+5. Tap **Subscribe**
+
+#### Step 4: Configure in Fermenter Controller
+
+1. Open your Fermenter Controller web interface
+2. Navigate to **System Settings**
+3. Scroll to the **Notification Settings** section
+4. Select **ntfy (100% FREE - Open Source)** from the **Push Provider** dropdown
+5. Enter your configuration:
+   - **ntfy Server URL:** `https://ntfy.sh` (or your self-hosted server)
+   - **ntfy Topic:** Your unique topic name (must match what you subscribed to in the app)
+   - **Auth Token:** Leave blank for public server (or enter token for self-hosted with auth)
+6. Set **Messaging Options** to:
+   - `PUSH` - Push notifications only
+   - `BOTH` - Email and push notifications
+7. Click **Save Settings**
+
+#### Step 5: Test Notifications
+
+1. In System Settings, scroll to **Test Notifications**
+2. Click **Send Test Email/Push Notification**
+3. You should receive a test notification within seconds
+4. If it doesn't work, check:
+   - Topic name in the app matches exactly (case-sensitive)
+   - Server URL is correct
+   - Your device has internet connectivity
+   - You're subscribed to the correct topic in the ntfy app
+
+#### Step 6: Optional - Self-Host ntfy for Privacy
+
+For maximum privacy, you can host your own ntfy server:
+
+1. **Install ntfy server** on any Linux server or Raspberry Pi:
+   ```bash
+   # Using Docker (easiest)
+   docker run -p 80:80 -v /var/cache/ntfy:/var/cache/ntfy binwiederhier/ntfy serve
+   
+   # Or install natively (Debian/Ubuntu)
+   curl -sSL https://archive.heckel.io/apt/pubkey.txt | sudo apt-key add -
+   sudo apt install ntfy
+   sudo systemctl enable ntfy
+   sudo systemctl start ntfy
+   ```
+
+2. **Configure authentication** (recommended for self-hosted):
+   - Edit `/etc/ntfy/server.yml`
+   - Enable auth and create user accounts
+   - Restart ntfy server
+
+3. **Use your server** in the Fermenter Controller:
+   - ntfy Server URL: `http://your-server-ip` or `https://your-domain.com`
+   - ntfy Topic: Any topic name (private to your server)
+   - Auth Token: If auth is enabled, generate a token in ntfy web UI
+
+See [ntfy.sh documentation](https://docs.ntfy.sh) for detailed self-hosting instructions.
+
+---
+
+## 📧 Email Configuration (Optional)
+
+Email notifications work alongside or instead of push notifications. Most users configure **both** for redundancy.
+
+### Supported Email Providers
+
+The system works with any SMTP email service:
+- Gmail (most common)
+- Outlook / Hotmail
+- Yahoo Mail
+- iCloud Mail
+- Zoho Mail
+- Custom SMTP servers
+
+### Gmail Setup (Recommended)
+
+Gmail is the most common and reliable option. **You must use an App Password** - your regular Gmail password won't work.
+
+#### Step 1: Enable 2-Factor Authentication
+
+App Passwords require 2FA to be enabled on your Google account.
+
+1. Go to [myaccount.google.com](https://myaccount.google.com)
+2. Click **Security** in the left sidebar
+3. Under "Signing in to Google", click **2-Step Verification**
+4. Follow the prompts to enable 2FA (using your phone)
+
+#### Step 2: Generate an App Password
+
+1. Go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+   - If you don't see this option, make sure 2FA is enabled
+2. You may need to sign in again
+3. Under "Select app", choose **Mail**
+4. Under "Select device", choose **Other (Custom name)**
+5. Enter a name: `Fermenter Controller`
+6. Click **Generate**
+7. Google will display a 16-character app password (e.g., `abcd efgh ijkl mnop`)
+8. **Copy this password** - you won't be able to see it again
+9. Remove the spaces when entering it: `abcdefghijklmnop`
+
+#### Step 3: Configure in Fermenter Controller
+
+1. Open Fermenter Controller web interface
+2. Navigate to **System Settings**
+3. Scroll to **Email Settings** section
+4. Configure the following:
+   - **Recipient Email:** Your email address (where you want to receive notifications)
+   - **Sending Email (From):** Your Gmail address (e.g., `yourname@gmail.com`)
+   - **Sending Email Password:** Your 16-character app password (no spaces)
+   - **SMTP Server Host:** `smtp.gmail.com` (auto-filled)
+   - **SMTP Server Port:** `587` (auto-filled)
+   - **Use STARTTLS:** ✅ Keep checked
+5. Set **Messaging Options:**
+   - `EMAIL` - Email only
+   - `BOTH` - Email and push notifications
+6. Click **Save Settings**
+
+#### Step 4: Test Email
+
+1. In System Settings, scroll to **Test Notifications**
+2. Click **Send Test Email/Push Notification**
+3. Check your email inbox (and spam folder)
+4. If email doesn't arrive, verify:
+   - App password is correct (16 characters, no spaces)
+   - 2FA is enabled on your Google account
+   - SMTP settings are correct (host: `smtp.gmail.com`, port: `587`)
+   - STARTTLS is enabled
+
+### Other Email Providers
+
+#### Outlook / Hotmail Setup
+
+1. Generate an app password at [account.microsoft.com/security](https://account.microsoft.com/security)
+2. Configure SMTP settings:
+   - SMTP Host: `smtp-mail.outlook.com`
+   - SMTP Port: `587`
+   - STARTTLS: ✅ Enabled
+   - Email: Your Outlook/Hotmail address
+   - Password: Your app password
+
+#### Yahoo Mail Setup
+
+1. Generate an app password at [login.yahoo.com/account/security](https://login.yahoo.com/account/security)
+2. Configure SMTP settings:
+   - SMTP Host: `smtp.mail.yahoo.com`
+   - SMTP Port: `587`
+   - STARTTLS: ✅ Enabled
+
+#### iCloud Mail Setup
+
+1. Generate an app password at [appleid.apple.com](https://appleid.apple.com) → Security → App-Specific Passwords
+2. Configure SMTP settings:
+   - SMTP Host: `smtp.mail.me.com`
+   - SMTP Port: `587`
+   - STARTTLS: ✅ Enabled
+
+#### Custom SMTP Server
+
+For custom email servers, configure:
+- SMTP Host: Your mail server hostname
+- SMTP Port: Usually 587 (STARTTLS) or 465 (SSL)
+- STARTTLS: Enable if using port 587
+- Username: Your email login username
+- Password: Your email password
+
+---
+
+## ⚙️ Notification Settings Configuration
+
+### Setting Notification Mode
+
+Choose how you want to receive notifications:
+
+1. Navigate to **System Settings**
+2. Find **Messaging Options** dropdown
+3. Select one:
+   - **NONE** - Disable all notifications (logging only)
+   - **EMAIL** - Email notifications only
+   - **PUSH** - Push notifications only (Pushover or ntfy)
+   - **BOTH** - Email AND push notifications (recommended)
+4. Click **Save Settings**
+
+### Temperature Control Notifications
+
+Configure which temperature events trigger notifications:
+
+1. Navigate to **Temperature Control Settings**
+2. Scroll to **Temperature Control Notifications** section
+3. Check/uncheck event types:
+   - ✅ **Temperature Below Low Limit** - Alert when temp drops below threshold
+   - ✅ **Temperature Above High Limit** - Alert when temp exceeds threshold
+   - ✅ **Heating Turned On** - Alert when heating device activates
+   - ✅ **Heating Turned Off** - Alert when heating device deactivates
+   - ✅ **Cooling Turned On** - Alert when cooling device activates
+   - ✅ **Cooling Turned Off** - Alert when cooling device deactivates
+   - ✅ **Temperature Control Started** - Alert when control loop starts
+   - ✅ **Temperature Control Stopped** - Alert when control loop stops
+4. Click **Save Settings**
+
+**Tip:** Most users keep all temperature control notifications enabled, as these are critical safety alerts.
+
+### Batch Notifications
+
+Configure which fermentation events trigger notifications:
+
+1. Navigate to **System Settings** (or batch-specific settings)
+2. Scroll to **Batch Notifications** section
+3. Check/uncheck event types:
+   - ✅ **Loss of Signal** - Alert when Tilt stops reporting data
+   - ✅ **Fermentation Starting** - Alert when active fermentation begins
+   - ✅ **Fermentation Completion** - Alert when fermentation appears complete
+   - ✅ **Fermentation Finished** - Alert when batch is marked finished
+   - ✅ **Daily Report** - Send daily progress summary
+4. Click **Save Settings**
+
+**Tip:** "Loss of Signal" and "Fermentation Starting" are the most important. Daily reports can be noisy for some users.
+
+---
+
+## 📬 Example Notification Messages
+
+### Temperature Control Notifications
+
+#### Temperature Out of Range
+**Subject:** `Temp Below Low Limit Notification`  
+**Message:**
 ```
-Subject: Frank's Fermatorium - Temperature Control Alert
-
-Brewery Name: Frank's Fermatorium
-Date: 2026-01-17
-Time: 14:30:00
-Tilt Color: Black
-
-Temperature Below Low Limit - Current: 65.0°F, Low Limit: 68.0°F
+Tilt: Purple
+Temperature has dropped below the low limit.
+Current temp: 64.2°F
+Low limit: 66.0°F
+High limit: 70.0°F
 ```
 
-### Fermentation Starting
+#### Heating/Cooling Events
+**Subject:** `Heating On Notification`  
+**Message:**
 ```
-Subject: Frank's Fermatorium - Fermentation Started
-
-Brewery Name: Frank's Fermatorium
-Tilt Color: Black
-Brew Name: West Coast IPA
-Date/Time: 2026-01-17 14:30:00
-
-Fermentation has started.
-Gravity at start: 1.060
-Gravity now: 1.048
+Tilt: Purple
+Heating device has been turned ON.
+Current temp: 65.8°F
+Target range: 66.0°F - 70.0°F
 ```
 
-### Loss of Signal
+#### Control Mode Changed
+**Subject:** `Temp Control Started Notification`  
+**Message:**
 ```
-Subject: Frank's Fermatorium - Loss of Signal
-
-Brewery Name: Frank's Fermatorium
-Tilt Color: Black
-Brew Name: West Coast IPA
-Date/Time: 2026-01-17 14:30:00
-
-Loss of Signal -- Receiving no tilt readings
+Temperature control has been started for Purple Tilt.
+Low limit: 66.0°F
+High limit: 70.0°F
 ```
 
-### Daily Report
+### Batch Notifications
+
+#### Fermentation Starting
+**Subject:** `Fermentation Starting Notification`  
+**Message:**
 ```
-Subject: Frank's Fermatorium - Daily Report
-
-Brewery Name: Frank's Fermatorium
-Tilt Color: Black
-Brew Name: West Coast IPA
-Date/Time: 2026-01-17 09:00:00
-
-Starting Gravity: 1.060
-Last Gravity: 1.015
-Net Change: 0.045
-Change since yesterday: 0.003
+Tilt: Purple
+Fermentation activity detected!
+Batch: Hazy IPA 2025-01-15
+Starting gravity: 1.058
+Current gravity: 1.056
+Temperature: 68.2°F
 ```
 
-## Gmail Configuration Tips
+#### Fermentation Completion
+**Subject:** `Fermentation Completion Notification`  
+**Message:**
+```
+Tilt: Purple
+Fermentation appears to be complete!
+Batch: Hazy IPA 2025-01-15
+Final gravity: 1.012 (stable for 48 hours)
+Starting gravity: 1.058
+Apparent attenuation: 79.3%
+```
 
-If using Gmail, you **must** use an App Password, not your regular Gmail password. Google has disabled "less secure app access" and requires App Passwords for third-party applications.
+#### Loss of Signal
+**Subject:** `Loss Of Signal Notification`  
+**Message:**
+```
+Tilt: Purple
+Signal lost from Tilt hydrometer!
+Last reading: 15 minutes ago
+Last gravity: 1.024
+Last temp: 67.8°F
+Check Bluetooth connection and battery.
+```
 
-### How to Set Up Gmail App Password:
+#### Daily Report
+**Subject:** `Daily Report Notification`  
+**Message:**
+```
+Tilt: Purple
+Daily Fermentation Report
+Batch: Hazy IPA 2025-01-15
+Day 3 of fermentation
 
-1. **Enable 2-Factor Authentication** (if not already enabled):
-   - Go to https://myaccount.google.com/security
-   - Click on "2-Step Verification" and follow the setup process
+Current gravity: 1.018
+Starting gravity: 1.058
+Change (24h): -0.008
 
-2. **Generate an App Password**:
-   - Go to https://myaccount.google.com/apppasswords
-   - You may need to verify your identity
-   - Select "Mail" and "Other (Custom name)" 
-   - Enter a name like "Fermenter Controller"
-   - Click "Generate"
-   - Google will display a 16-character password (e.g., `abcd efgh ijkl mnop`)
+Temperature: 67.5°F
+Apparent attenuation: 69.0%
 
-3. **Use the App Password in Fermenter Controller**:
-   - Copy the 16-character App Password (spaces don't matter)
-   - In the Fermenter Controller SMS/Email configuration page
-   - Enter your Gmail address (e.g., `yourname@gmail.com`) in "Fermenter Email Account Address"
-   - Enter the App Password in "Fermenter Email Password" field
-   - **Important**: Use the App Password, NOT your regular Gmail password
+Fermentation status: Active
+```
 
-4. **SMTP Settings for Gmail**:
-   - Host: `smtp.gmail.com`
-   - Port: `587`
-   - STARTTLS: Enabled (checked)
+---
 
-### Common Gmail Errors:
+## 🔍 Troubleshooting
 
-**Error: "Username and Password not accepted" or "BadCredentials"**
-- This means you're using your regular Gmail password instead of an App Password
-- Solution: Generate and use an App Password as described above
+### Push Notifications Not Working
 
-**Error: "Please log in via your web browser"**
-- Gmail detected unusual activity or you haven't enabled 2FA
-- Solution: Enable 2-Factor Authentication and generate an App Password
+#### Pushover Issues
 
-## Troubleshooting
+**Problem:** Not receiving Pushover notifications
 
-### Not Receiving Notifications
+1. **Verify credentials:**
+   - User Key is 30 characters (e.g., `uQiRzpo4DXghDmr9QzzfQu27cmVRsG`)
+   - API Token is from your created application
+   - No extra spaces before/after keys
+   
+2. **Check device:**
+   - Pushover app is installed and logged in
+   - Device has internet connectivity
+   - If you specified a device name, make sure it matches exactly (case-sensitive)
+   
+3. **Test the API directly:**
+   ```bash
+   curl -X POST https://api.pushover.net/1/messages.json \
+     -d "token=YOUR_API_TOKEN" \
+     -d "user=YOUR_USER_KEY" \
+     -d "message=Test from command line"
+   ```
+   If this works, the issue is in the Fermenter Controller configuration.
 
-1. **Check Warning Mode**: Ensure it's set to EMAIL, SMS, or BOTH (not NONE)
-2. **Verify Email Settings**: Test by setting up a brew and triggering a temperature alert
-3. **Check SMTP Credentials**: Ensure password is correct
-4. **Review Logs**: Check the console output for "[LOG] SMTP send failed" messages
-5. **Rate Limiting**: Notifications are rate-limited to prevent spam (default: 1 hour between similar notifications)
+4. **Check Pushover status:**
+   - Visit [pushover.net/status](https://pushover.net/status) to verify service is operational
+   
+5. **Review subscription:**
+   - After 30-day trial, verify you purchased the app ($5)
 
-### SMS Not Working
+**Problem:** Notifications delayed or inconsistent
 
-**Which SMS provider are you using?**
+- Pushover is highly reliable. If you experience delays:
+  - Check your device's notification settings (not in Do Not Disturb mode)
+  - Verify app has permission to show notifications
+  - Try logging out and back in to the Pushover app
 
-#### Using Android SMS Gateway (Free):
+#### ntfy Issues
 
-1. **Check Android phone**:
-   - Is the phone powered on and connected to WiFi?
-   - Is the SMS Gateway app running?
-   - Can you see the gateway URL in the app?
+**Problem:** Not receiving ntfy notifications
 
-2. **Check network connectivity**:
-   - Is the Raspberry Pi on the same network as the Android phone?
-   - Can you ping the phone's IP from the Pi? `ping 192.168.1.100`
-   - Try opening the gateway URL in a browser from the Pi
+1. **Verify topic name:**
+   - Topic in app matches exactly (case-sensitive)
+   - No spaces or special characters
+   - Check for typos
 
-3. **Check gateway URL**:
-   - Verify the URL format matches the app's requirements
-   - Common formats: `http://IP:PORT/api/send` or `http://IP:PORT/send`
-   - Some apps use different endpoints - check the app's documentation
+2. **Check server URL:**
+   - Public server: `https://ntfy.sh`
+   - Self-hosted: Verify your server is accessible
+   - Test by visiting the URL in a browser
 
-4. **Test directly**:
-   - Most apps have a web interface - try sending a test SMS from there
-   - If that works, the issue is in the Fermenter Controller configuration
+3. **Verify subscription:**
+   - Open ntfy app and check you're subscribed to the correct topic
+   - Try unsubscribing and re-subscribing
 
-5. **Check API key**:
-   - If the app requires an API key, make sure it's entered correctly
-   - Try without an API key first if the app allows it
+4. **Test manually:**
+   ```bash
+   # Send test notification
+   curl -X POST https://ntfy.sh/YOUR_TOPIC \
+     -H "Title: Test" \
+     -d "This is a test message"
+   ```
+   If you receive this in your app, the issue is in the Fermenter Controller.
 
-#### Using Twilio (Paid):
+5. **Check ntfy app settings:**
+   - App has notification permissions
+   - Not in battery optimization mode (Android)
+   - App is not force-stopped
 
-1. **Check Twilio Configuration**:
-   - Verify Account SID and Auth Token are correct
-   - Ensure From Number matches your Twilio phone number (include +1)
-   - Ensure Recipient Number is in correct format (+15551234567)
+**Problem:** Topic is public and others might see my notifications
 
-2. **Trial Account Limitations**:
-   - Trial accounts can only send to verified phone numbers
-   - Verify your number at: Twilio Console → Phone Numbers → Verified Caller IDs
-   - Or upgrade to paid account (still pay-as-you-go, no monthly fee)
+- Use a very long, random topic name
+- Or self-host ntfy with authentication
+- Never use simple topic names like `fermenter` or `beer`
 
-3. **Check Twilio Console**:
-   - Log into [twilio.com/console](https://www.twilio.com/console)
-   - Check "Monitor → Logs → Messaging" for delivery status
-   - Look for error messages or failed deliveries
+### Email Notifications Not Working
 
-4. **Common Twilio Errors**:
-   - "Unable to create record: Account not authorized" → Need to verify recipient number or upgrade account
-   - "Invalid 'To' phone number" → Phone number format is wrong (needs +1 for US)
-   - "Authentication Error" → Check Account SID and Auth Token are correct
+**Problem:** Emails not being received
 
-5. **Test in Twilio Console First**:
-   - Go to Console → Messaging → Try it Out
-   - Send a test SMS directly from Twilio to confirm your setup works
-   - Then try the Fermenter Controller Test SMS button
+1. **Check spam folder:**
+   - First place to check!
+   - Mark as "Not Spam" if found there
 
-**Still Having Issues?**
-- Check the console output for "[LOG] SMS..." messages
-- Try Email mode instead while troubleshooting
-- For Android Gateway: Ensure `requests` library is installed (`pip install requests`)
-- For Twilio: Ensure `twilio` library is installed (`pip install twilio`)
+2. **Verify Gmail app password:**
+   - Must use app password, not regular Gmail password
+   - 16 characters, no spaces
+   - 2FA must be enabled
+   - Generate new app password if unsure
 
-**What about carrier email-to-SMS gateways?**
-- Carrier gateways (AT&T, Verizon, T-Mobile) were **permanently discontinued** in 2024-2025
-- They will not work and cannot be restored
-- You must use Android SMS Gateway (free) or Twilio, or switch to Email notifications
+3. **Check SMTP settings:**
+   - Gmail: `smtp.gmail.com`, port `587`, STARTTLS enabled
+   - Outlook: `smtp-mail.outlook.com`, port `587`
+   - Yahoo: `smtp.mail.yahoo.com`, port `587`
 
-### Fermentation Starting Not Triggering
+4. **Test SMTP manually:**
+   ```python
+   import smtplib
+   server = smtplib.SMTP('smtp.gmail.com', 587)
+   server.starttls()
+   server.login('your-email@gmail.com', 'your-app-password')
+   server.sendmail('your-email@gmail.com', 'your-email@gmail.com', 'Test message')
+   server.quit()
+   ```
 
-1. **Verify Actual OG**: Must be set in batch settings
-2. **Check Tilt Logging Interval**: Readings must be frequent enough to detect the drop
-3. **Gravity Threshold**: Needs 3 consecutive readings ≥0.010 below starting gravity
+5. **Check Fermenter Controller logs:**
+   - Look for SMTP errors in `/logs/error.log`
+   - Common errors: authentication failure, connection timeout
 
-## Testing Your Configuration
+**Problem:** "App Password" option not available in Google account
 
-Run the included test script to verify your configuration:
+- Ensure 2-Factor Authentication is enabled
+- Sign out and sign back in to Google account
+- Try accessing directly: [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+
+**Problem:** SMTP authentication errors
+
+- Regenerate app password
+- Verify email address is correct
+- For Gmail: Ensure "Less secure app access" is NOT required (app passwords don't need this)
+
+### General Issues
+
+**Problem:** Test notification fails with "requests library not installed"
 
 ```bash
-python3 test_notifications.py
+pip install requests
 ```
+Restart the Fermenter Controller application.
 
-This will show your current settings and any configuration issues.
+**Problem:** Notifications sent but not for specific events
 
-## Security Notes
+1. Check notification settings:
+   - Navigate to **System Settings** or **Temperature Control Settings**
+   - Verify the specific event type is **enabled** (checkbox checked)
+   
+2. Verify notification mode:
+   - Must be set to `EMAIL`, `PUSH`, or `BOTH` (not `NONE`)
 
-- Email passwords are stored in `system_config.json` - protect this file
-- Use app-specific passwords when possible (Gmail, Yahoo, etc.)
-- Keep your system updated and secure
+**Problem:** Too many notifications
+
+1. **Disable daily reports:**
+   - Uncheck "Daily Report" in batch notification settings
+   
+2. **Disable heating/cooling cycle notifications:**
+   - Uncheck "Heating On/Off" and "Cooling On/Off"
+   - Keep temperature limit alerts enabled for safety
+   
+3. **Adjust temperature limits:**
+   - Wider temperature range = fewer out-of-range alerts
+
+**Problem:** Missing notifications for important events
+
+- Check that event type is enabled in notification settings
+- Verify correct notification mode (not `NONE`)
+- Review logs to confirm events are being detected
+- Test notifications to verify system is working
+
+---
+
+## 🎯 Best Practices
+
+### For Reliability
+
+1. **Configure BOTH push and email:**
+   - Set messaging mode to `BOTH`
+   - Redundancy ensures you never miss critical alerts
+   - Push is instant, email is a reliable backup
+
+2. **Test before brewing:**
+   - Always send test notifications before starting a batch
+   - Verify both push and email are working
+   - Check devices have internet connectivity
+
+3. **Monitor notification status:**
+   - Dashboard shows notification errors
+   - Fix issues promptly when error indicators appear
+
+### For Privacy
+
+1. **Use ntfy with self-hosting:**
+   - Full control over your data
+   - No third-party services
+   - Messages stored only on your server
+
+2. **Use long, random topic names:**
+   - If using public ntfy server, make topics hard to guess
+   - Example: `fermentor_john_abc789xyz456def123`
+
+3. **Enable authentication:**
+   - Self-hosted ntfy: Enable auth tokens
+   - Protects your notification endpoint
+
+### For Cost Savings
+
+1. **Use ntfy for free notifications:**
+   - Zero cost, fully functional
+   - Great for hobbyists and home use
+
+2. **Pushover family plan:**
+   - One $5 purchase covers unlimited devices on same platform
+   - Share with household members if desired
+
+### For Homebrewing Workflow
+
+1. **Enable critical alerts only:**
+   - Loss of signal (Tilt battery/connection issues)
+   - Temperature out of range (safety)
+   - Fermentation starting (confirms activity)
+   - Fermentation completion (time to package)
+
+2. **Disable noisy alerts:**
+   - Heating/cooling cycles (can be frequent)
+   - Daily reports (unless you really want them)
+
+3. **Set appropriate temperature limits:**
+   - Not too tight (causes frequent alerts)
+   - Not too loose (misses problems)
+   - Typical: ±2-3°F from target
+
+---
+
+## 📚 Additional Resources
+
+### Pushover
+- Website: [pushover.net](https://pushover.net)
+- API Documentation: [pushover.net/api](https://pushover.net/api)
+- Support: [pushover.net/support](https://pushover.net/support)
+- Status Page: [pushover.net/status](https://pushover.net/status)
+
+### ntfy
+- Website: [ntfy.sh](https://ntfy.sh)
+- Documentation: [docs.ntfy.sh](https://docs.ntfy.sh)
+- GitHub: [github.com/binwiederhier/ntfy](https://github.com/binwiederhier/ntfy)
+- Self-Hosting Guide: [docs.ntfy.sh/install](https://docs.ntfy.sh/install)
+
+### Gmail App Passwords
+- Create App Password: [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+- 2FA Setup: [myaccount.google.com/security](https://myaccount.google.com/security)
+- Gmail Help: [support.google.com/mail](https://support.google.com/mail)
+
+### SMTP Settings Reference
+- Gmail: `smtp.gmail.com:587` (STARTTLS)
+- Outlook: `smtp-mail.outlook.com:587` (STARTTLS)
+- Yahoo: `smtp.mail.yahoo.com:587` (STARTTLS)
+- iCloud: `smtp.mail.me.com:587` (STARTTLS)
+
+---
+
+## 🆘 Getting Help
+
+If you're still having issues after following this guide:
+
+1. **Check the logs:**
+   - `/logs/error.log` for error messages
+   - Look for SMTP or push notification errors
+
+2. **Review configuration:**
+   - Double-check all settings in System Settings
+   - Verify no extra spaces in keys/passwords
+
+3. **Test components separately:**
+   - Test push notifications first
+   - Test email separately
+   - Isolate which component is failing
+
+4. **Create a GitHub issue:**
+   - Visit the repository: [github.com/RabbitFarmer/Fermenter-Temp-Controller](https://github.com/RabbitFarmer/Fermenter-Temp-Controller)
+   - Include: error messages, configuration (redact passwords!), what you've tried
+
+---
+
+## 📝 Summary
+
+This notification system provides reliable, modern push notifications to keep you informed about your fermentation:
+
+- **Choose Pushover** for maximum reliability and polish ($5 one-time)
+- **Choose ntfy** for free, open-source, self-hostable notifications
+- **Configure email** as a backup (Gmail with app password recommended)
+- **Enable BOTH** modes for redundancy
+- **Customize** which events trigger notifications
+- **Test** before brewing to ensure everything works
+
+Happy brewing! 🍺
+

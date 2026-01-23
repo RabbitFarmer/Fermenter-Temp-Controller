@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script to verify email/SMS notification functionality.
+Test script to verify email/push notification functionality.
 This script simulates various notification scenarios without requiring actual Tilt hardware.
 """
 
@@ -28,7 +28,7 @@ print()
 
 if warning_mode == 'NONE':
     print("⚠️  WARNING: Notifications are disabled (warning_mode = NONE)")
-    print("   To enable, set warning_mode to 'EMAIL', 'SMS', or 'BOTH' in system settings")
+    print("   To enable, set warning_mode to 'EMAIL', 'PUSH', or 'BOTH' in system settings")
     print()
 
 # Check email configuration
@@ -41,10 +41,18 @@ print(f"  SMTP STARTTLS: {system_cfg.get('smtp_starttls', False)}")
 print(f"  SMTP Password: {'SET' if system_cfg.get('smtp_password') else 'NOT SET'}")
 print()
 
-# Check SMS configuration
-print("SMS Configuration:")
-print(f"  Mobile Number: {system_cfg.get('mobile', 'NOT SET')}")
-print(f"  SMS Gateway Domain: {system_cfg.get('sms_gateway_domain', 'NOT SET')}")
+# Check Push notification configuration
+print("Push Notification Configuration:")
+push_provider = system_cfg.get('push_provider', 'pushover')
+print(f"  Push Provider: {push_provider}")
+if push_provider == 'pushover':
+    print(f"  Pushover User Key: {'SET' if system_cfg.get('pushover_user_key') else 'NOT SET'}")
+    print(f"  Pushover API Token: {'SET' if system_cfg.get('pushover_api_token') else 'NOT SET'}")
+    print(f"  Pushover Device: {system_cfg.get('pushover_device', 'ALL DEVICES')}")
+else:  # ntfy
+    print(f"  ntfy Server: {system_cfg.get('ntfy_server', 'NOT SET')}")
+    print(f"  ntfy Topic: {system_cfg.get('ntfy_topic', 'NOT SET')}")
+    print(f"  ntfy Auth Token: {'SET' if system_cfg.get('ntfy_auth_token') else 'NOT SET'}")
 print()
 
 # Check temperature control notifications
@@ -89,11 +97,18 @@ elif warning_mode in ['EMAIL', 'BOTH']:
     if not system_cfg.get('smtp_host'):
         errors.append("SMTP host not configured")
 
-if warning_mode in ['SMS', 'BOTH']:
-    if not system_cfg.get('mobile'):
-        errors.append("Mobile number not configured")
-    if not system_cfg.get('sms_gateway_domain'):
-        errors.append("SMS gateway domain not configured")
+if warning_mode in ['PUSH', 'BOTH']:
+    push_provider = system_cfg.get('push_provider', 'pushover')
+    if push_provider == 'pushover':
+        if not system_cfg.get('pushover_user_key'):
+            errors.append("Pushover User Key not configured")
+        if not system_cfg.get('pushover_api_token'):
+            errors.append("Pushover API Token not configured")
+    else:  # ntfy
+        if not system_cfg.get('ntfy_topic'):
+            errors.append("ntfy Topic not configured")
+        if not system_cfg.get('ntfy_server'):
+            errors.append("ntfy Server not configured")
 
 if errors:
     print("❌ ERRORS:")
