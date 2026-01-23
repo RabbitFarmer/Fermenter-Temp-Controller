@@ -31,8 +31,8 @@ def setup_test_config():
             "brewid": "test123",
             "og_confirmed": False,
             "notification_state": {
-                "fermentation_start_notified": False,
-                "signal_loss_notified": False,
+                "fermentation_start_datetime": None,
+                "fermentation_completion_datetime": None,
                 "last_daily_report": None
             }
         }
@@ -70,15 +70,15 @@ def test_notification_state_persistence():
         config = setup_test_config()
         initial_state = config["Black"]["notification_state"]
         print(f"   Initial state: {initial_state}")
-        assert initial_state["fermentation_start_notified"] == False
-        assert initial_state["signal_loss_notified"] == False
+        assert initial_state["fermentation_start_datetime"] is None
+        assert initial_state["fermentation_completion_datetime"] is None
         assert initial_state["last_daily_report"] is None
         print("   ✅ Initial state verified")
         
         # Simulate: Fermentation started notification sent
         print("\n2. Simulating fermentation started notification...")
         config = load_test_config()
-        config["Black"]["notification_state"]["fermentation_start_notified"] = True
+        config["Black"]["notification_state"]["fermentation_start_datetime"] = "2025-10-02T08:00:00"
         config["Black"]["notification_state"]["last_daily_report"] = "2025-10-02T09:00:00"
         save_test_config(config)
         print("   ✅ Notification state saved")
@@ -90,25 +90,25 @@ def test_notification_state_persistence():
         print(f"   Reloaded state: {reloaded_state}")
         
         # Assert: State persisted correctly
-        assert reloaded_state["fermentation_start_notified"] == True, \
-            "fermentation_start_notified should be True after reload"
-        assert reloaded_state["signal_loss_notified"] == False, \
-            "signal_loss_notified should still be False"
+        assert reloaded_state["fermentation_start_datetime"] == "2025-10-02T08:00:00", \
+            "fermentation_start_datetime should persist after reload"
+        assert reloaded_state["fermentation_completion_datetime"] is None, \
+            "fermentation_completion_datetime should still be None"
         assert reloaded_state["last_daily_report"] == "2025-10-02T09:00:00", \
             "last_daily_report should be persisted"
         print("   ✅ Notification state persisted correctly")
         
-        # Simulate: Signal loss notification
-        print("\n4. Simulating signal loss notification...")
+        # Simulate: Fermentation completion notification
+        print("\n4. Simulating fermentation completion notification...")
         config = load_test_config()
-        config["Black"]["notification_state"]["signal_loss_notified"] = True
+        config["Black"]["notification_state"]["fermentation_completion_datetime"] = "2025-10-05T14:30:00"
         save_test_config(config)
         
-        # Verify: Both flags persisted
+        # Verify: Both datetime fields persisted
         reloaded_config = load_test_config()
         reloaded_state = reloaded_config["Black"]["notification_state"]
-        assert reloaded_state["fermentation_start_notified"] == True
-        assert reloaded_state["signal_loss_notified"] == True
+        assert reloaded_state["fermentation_start_datetime"] == "2025-10-02T08:00:00"
+        assert reloaded_state["fermentation_completion_datetime"] == "2025-10-05T14:30:00"
         print("   ✅ Multiple notification states persisted correctly")
         
         print("\n" + "=" * 80)
@@ -161,20 +161,20 @@ def test_backward_compatibility():
         print("\n3. Simulating application handling of missing state...")
         notification_state = loaded["Black"].get("notification_state", {})
         # Application should provide defaults for missing fields
-        fermentation_notified = notification_state.get("fermentation_start_notified", False)
-        signal_loss_notified = notification_state.get("signal_loss_notified", False)
+        fermentation_start_dt = notification_state.get("fermentation_start_datetime")
+        fermentation_completion_dt = notification_state.get("fermentation_completion_datetime")
         last_report = notification_state.get("last_daily_report")
         
-        assert fermentation_notified == False
-        assert signal_loss_notified == False
+        assert fermentation_start_dt is None
+        assert fermentation_completion_dt is None
         assert last_report is None
-        print("   ✅ Application handles missing state correctly (defaults to False)")
+        print("   ✅ Application handles missing state correctly (defaults to None)")
         
         # Simulate: Application updates config with notification_state
         print("\n4. Simulating first notification (adds notification_state)...")
         loaded["Black"]["notification_state"] = {
-            "fermentation_start_notified": True,
-            "signal_loss_notified": False,
+            "fermentation_start_datetime": "2025-10-02T08:00:00",
+            "fermentation_completion_datetime": None,
             "last_daily_report": None
         }
         save_test_config(loaded)
@@ -182,7 +182,7 @@ def test_backward_compatibility():
         # Verify: Config upgraded to new format
         upgraded = load_test_config()
         assert "notification_state" in upgraded["Black"]
-        assert upgraded["Black"]["notification_state"]["fermentation_start_notified"] == True
+        assert upgraded["Black"]["notification_state"]["fermentation_start_datetime"] == "2025-10-02T08:00:00"
         print("   ✅ Old config upgraded to new format")
         
         print("\n" + "=" * 80)
@@ -210,8 +210,8 @@ def test_multiple_tilts():
                 "beer_name": "IPA",
                 "brewid": "black123",
                 "notification_state": {
-                    "fermentation_start_notified": False,
-                    "signal_loss_notified": False,
+                    "fermentation_start_datetime": None,
+                    "fermentation_completion_datetime": None,
                     "last_daily_report": None
                 }
             },
@@ -219,8 +219,8 @@ def test_multiple_tilts():
                 "beer_name": "Stout",
                 "brewid": "red456",
                 "notification_state": {
-                    "fermentation_start_notified": False,
-                    "signal_loss_notified": False,
+                    "fermentation_start_datetime": None,
+                    "fermentation_completion_datetime": None,
                     "last_daily_report": None
                 }
             }
@@ -233,27 +233,28 @@ def test_multiple_tilts():
         # Simulate: Black tilt triggers fermentation notification
         print("\n2. Black tilt: Fermentation started...")
         config = load_test_config()
-        config["Black"]["notification_state"]["fermentation_start_notified"] = True
+        config["Black"]["notification_state"]["fermentation_start_datetime"] = "2025-10-02T08:00:00"
         save_test_config(config)
         
         # Verify: Only Black tilt state changed
         config = load_test_config()
-        assert config["Black"]["notification_state"]["fermentation_start_notified"] == True
-        assert config["Red"]["notification_state"]["fermentation_start_notified"] == False
+        assert config["Black"]["notification_state"]["fermentation_start_datetime"] == "2025-10-02T08:00:00"
+        assert config["Red"]["notification_state"]["fermentation_start_datetime"] is None
         print("   ✅ Black tilt state updated independently")
         
-        # Simulate: Red tilt triggers signal loss
-        print("\n3. Red tilt: Signal loss...")
+        # Simulate: Red tilt triggers fermentation completion
+        print("\n3. Red tilt: Fermentation completion...")
         config = load_test_config()
-        config["Red"]["notification_state"]["signal_loss_notified"] = True
+        config["Red"]["notification_state"]["fermentation_start_datetime"] = "2025-10-01T10:00:00"
+        config["Red"]["notification_state"]["fermentation_completion_datetime"] = "2025-10-05T14:00:00"
         save_test_config(config)
         
         # Verify: Both tilts have independent states
         config = load_test_config()
-        assert config["Black"]["notification_state"]["fermentation_start_notified"] == True
-        assert config["Black"]["notification_state"]["signal_loss_notified"] == False
-        assert config["Red"]["notification_state"]["fermentation_start_notified"] == False
-        assert config["Red"]["notification_state"]["signal_loss_notified"] == True
+        assert config["Black"]["notification_state"]["fermentation_start_datetime"] == "2025-10-02T08:00:00"
+        assert config["Black"]["notification_state"]["fermentation_completion_datetime"] is None
+        assert config["Red"]["notification_state"]["fermentation_start_datetime"] == "2025-10-01T10:00:00"
+        assert config["Red"]["notification_state"]["fermentation_completion_datetime"] == "2025-10-05T14:00:00"
         print("   ✅ Red tilt state updated independently")
         print("   ✅ Both tilts maintain independent notification states")
         

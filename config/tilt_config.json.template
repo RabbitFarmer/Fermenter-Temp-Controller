@@ -10,8 +10,8 @@
     "brewid": "",
     "og_confirmed": false,
     "notification_state": {
-      "fermentation_start_notified": false,
-      "signal_loss_notified": false,
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
       "last_daily_report": null
     }
   },
@@ -26,8 +26,8 @@
     "brewid": "",
     "og_confirmed": false,
     "notification_state": {
-      "fermentation_start_notified": false,
-      "signal_loss_notified": false,
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
       "last_daily_report": null
     }
   },
@@ -42,8 +42,8 @@
     "brewid": "",
     "og_confirmed": false,
     "notification_state": {
-      "fermentation_start_notified": false,
-      "signal_loss_notified": false,
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
       "last_daily_report": null
     }
   },
@@ -58,8 +58,8 @@
     "brewid": "",
     "og_confirmed": false,
     "notification_state": {
-      "fermentation_start_notified": false,
-      "signal_loss_notified": false,
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
       "last_daily_report": null
     }
   },
@@ -74,8 +74,8 @@
     "brewid": "",
     "og_confirmed": false,
     "notification_state": {
-      "fermentation_start_notified": false,
-      "signal_loss_notified": false,
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
       "last_daily_report": null
     }
   },
@@ -90,8 +90,8 @@
     "brewid": "",
     "og_confirmed": false,
     "notification_state": {
-      "fermentation_start_notified": false,
-      "signal_loss_notified": false,
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
       "last_daily_report": null
     }
   },
@@ -106,8 +106,8 @@
     "brewid": "",
     "og_confirmed": false,
     "notification_state": {
-      "fermentation_start_notified": false,
-      "signal_loss_notified": false,
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
       "last_daily_report": null
     }
   },
@@ -122,8 +122,8 @@
     "brewid": "",
     "og_confirmed": false,
     "notification_state": {
-      "fermentation_start_notified": false,
-      "signal_loss_notified": false,
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
       "last_daily_report": null
     }
   }

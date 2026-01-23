@@ -44,8 +44,8 @@ class MockApp:
             return
         
         self.tilt_cfg[color]['notification_state'] = {
-            'fermentation_start_notified': state.get('fermentation_start_notified', False),
-            'signal_loss_notified': state.get('signal_loss_notified', False),
+            'fermentation_start_datetime': state.get('fermentation_start_datetime'),
+            'fermentation_completion_datetime': state.get('fermentation_completion_datetime'),
             'last_daily_report': state.get('last_daily_report')
         }
         
@@ -58,9 +58,10 @@ class MockApp:
         return {
             'last_reading_time': datetime.utcnow(),
             'signal_lost': False,
-            'signal_loss_notified': persisted_state.get('signal_loss_notified', False),
-            'fermentation_started': persisted_state.get('fermentation_start_notified', False),
-            'fermentation_start_notified': persisted_state.get('fermentation_start_notified', False),
+            'signal_loss_notified': False,  # Always start fresh on restart
+            'fermentation_started': bool(persisted_state.get('fermentation_start_datetime')),
+            'fermentation_start_datetime': persisted_state.get('fermentation_start_datetime'),
+            'fermentation_completion_datetime': persisted_state.get('fermentation_completion_datetime'),
             'gravity_history': [],
             'last_daily_report': persisted_state.get('last_daily_report')
         }
@@ -92,7 +93,8 @@ class MockApp:
     
     def check_fermentation_starting(self, color, brewid, cfg, state):
         """Check if fermentation has started (mirrors app.py)"""
-        if state.get('fermentation_start_notified'):
+        # Check if notification already sent (datetime will be present)
+        if state.get('fermentation_start_datetime'):
             return
         
         actual_og = cfg.get('actual_og')
@@ -119,12 +121,15 @@ class MockApp:
             current_gravity = last_three[-1]['gravity']
             beer_name = cfg.get('beer_name', 'Unknown Beer')
             
+            # Get current datetime for the notification
+            notification_time = datetime.utcnow()
+            
             # Mock sending notification
             message = f"Fermentation Started: {beer_name}, Gravity: {starting_gravity:.3f} -> {current_gravity:.3f}"
             self.notifications_sent.append(message)
             
-            # Set flags and persist
-            state['fermentation_start_notified'] = True
+            # Save the datetime when notification was sent (not just a boolean)
+            state['fermentation_start_datetime'] = notification_time.isoformat()
             state['fermentation_started'] = True
             self.save_notification_state_to_config(color, brewid)
 
@@ -158,8 +163,8 @@ def test_restart_scenario():
                 "brewid": "wc-ipa-2025",
                 "og_confirmed": False,
                 "notification_state": {
-                    "fermentation_start_notified": False,
-                    "signal_loss_notified": False,
+                    "fermentation_start_datetime": None,
+                    "fermentation_completion_datetime": None,
                     "last_daily_report": None
                 }
             }
@@ -208,7 +213,7 @@ def test_restart_scenario():
         with open(config_file, 'r') as f:
             persisted_config = json.load(f)
         
-        assert persisted_config["Black"]["notification_state"]["fermentation_start_notified"] == True
+        assert persisted_config["Black"]["notification_state"]["fermentation_start_datetime"] is not None
         print("   ✅ Notification state persisted to config file")
         
         # PHASE 2: Application restart (simulate power outage, reboot, etc.)
@@ -227,7 +232,7 @@ def test_restart_scenario():
         print("1. Application restarted, config loaded from disk")
         loaded_state = app2.tilt_cfg["Black"]["notification_state"]
         print(f"   Loaded notification_state: {loaded_state}")
-        assert loaded_state["fermentation_start_notified"] == True
+        assert loaded_state["fermentation_start_datetime"] is not None
         print("   ✅ Persisted state loaded successfully")
         
         # Continue monitoring with more readings
@@ -250,8 +255,8 @@ def test_restart_scenario():
         
         final_state = final_config["Black"]["notification_state"]
         print(f"   Final persisted state: {final_state}")
-        assert final_state["fermentation_start_notified"] == True
-        print("   ✅ Notification flag still persisted")
+        assert final_state["fermentation_start_datetime"] is not None
+        print("   ✅ Notification datetime still persisted")
         
         # Summary
         print("\n" + "=" * 80)
@@ -287,8 +292,8 @@ def test_new_batch_after_restart():
                 "brewid": "old123",
                 "actual_og": 1.060,
                 "notification_state": {
-                    "fermentation_start_notified": True,
-                    "signal_loss_notified": False,
+                    "fermentation_start_datetime": "2025-10-02T08:00:00",
+                    "fermentation_completion_datetime": None,
                     "last_daily_report": "2025-10-10T09:00:00"
                 }
             }
@@ -298,7 +303,7 @@ def test_new_batch_after_restart():
             json.dump(config, f, indent=2)
         
         print("\n1. Old batch exists (notification already sent)")
-        print("   fermentation_start_notified: True")
+        print("   fermentation_start_datetime: 2025-10-02T08:00:00")
         
         # Simulate user creating a new batch (brewid changes)
         print("\n2. User creates new batch...")
@@ -307,8 +312,8 @@ def test_new_batch_after_restart():
             "brewid": "new456",
             "actual_og": 1.055,
             "notification_state": {
-                "fermentation_start_notified": False,
-                "signal_loss_notified": False,
+                "fermentation_start_datetime": None,
+                "fermentation_completion_datetime": None,
                 "last_daily_report": None
             }
         }
@@ -317,7 +322,7 @@ def test_new_batch_after_restart():
             json.dump(config, f, indent=2)
         
         print("   New brewid: new456")
-        print("   fermentation_start_notified reset to: False")
+        print("   fermentation_start_datetime reset to: None")
         
         # Verify new batch can trigger notification
         app = MockApp(config_file)
