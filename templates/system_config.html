@@ -213,6 +213,29 @@
             <td><label for="sms_gateway_domain"><b>SMS Gateway Domain</b></label></td>
             <td><input type="text" name="sms_gateway_domain" id="sms_gateway_domain" value="{{ system_settings.get('sms_gateway_domain','') }}" placeholder="e.g., txt.att.net"></td>
           </tr>
+          <tr>
+            <td colspan="2">
+              <div style="background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 5px; padding: 15px; margin: 10px 0;">
+                <strong style="color: #856404;">⚠️ SMS Gateway Notice:</strong>
+                <p style="margin: 8px 0; color: #856404;">
+                  Major U.S. carriers (AT&T, Verizon, T-Mobile) <strong>discontinued email-to-SMS gateways</strong> in 2024-2025.
+                  Traditional gateways like @txt.att.net, @vtext.com, and @tmomail.net <strong>no longer work</strong>.
+                </p>
+                <p style="margin: 8px 0; color: #856404;">
+                  <strong>Options:</strong>
+                </p>
+                <ul style="margin: 5px 0; padding-left: 20px; color: #856404;">
+                  <li>Use <strong>Email</strong> mode for reliable notifications (recommended)</li>
+                  <li>Or use a commercial SMS API service like <a href="https://www.twilio.com/" target="_blank" style="color: #0056b3;">Twilio</a>, 
+                      <a href="https://textp2p.com/" target="_blank" style="color: #0056b3;">TextP2P</a>, or 
+                      <a href="https://signalwire.com/" target="_blank" style="color: #0056b3;">SignalWire</a></li>
+                </ul>
+                <p style="margin: 8px 0; font-size: 0.9em; color: #856404;">
+                  See <a href="https://github.com/RabbitFarmer/Fermenter-Temp-Controller/blob/main/NOTIFICATIONS.md" target="_blank" style="color: #0056b3;">NOTIFICATIONS.md</a> for details.
+                </p>
+              </div>
+            </td>
+          </tr>
         </table>
 
         <h3 style="text-align: center; margin-top: 30px;">Temperature Control Notifications</h3>

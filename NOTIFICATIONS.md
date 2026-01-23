@@ -23,18 +23,34 @@ Navigate to **System Settings → SMS/eMail** tab and configure:
 - **Recipient eMail Address**: Where notifications should be sent
 
 #### SMS Configuration
+
+> **⚠️ IMPORTANT NOTICE (2024-2025):** Major U.S. carriers (AT&T, Verizon, T-Mobile) have **discontinued their email-to-SMS gateway services** due to spam and security concerns. The traditional email-to-SMS method using `@txt.att.net`, `@vtext.com`, and `@tmomail.net` **no longer works** as of late 2024/mid-2025.
+>
+> **To receive SMS notifications, you must use a commercial SMS API service** such as:
+> - [Twilio](https://www.twilio.com/) - Most popular, offers free trial credits
+> - [TextP2P](https://textp2p.com/) - Simple email-to-SMS alternative
+> - [SignalWire](https://signalwire.com/) - Twilio alternative with competitive pricing
+> - [Notifyre](https://notifyre.com/) - Designed for business messaging
+>
+> These services provide email-to-SMS bridges, APIs, or webhooks that can be integrated with the Fermenter Controller. Check their documentation for integration options.
+>
+> **If you still see carrier gateway options below, they are kept for reference only and will not work.**
+
+**Legacy SMS Configuration (No Longer Functional):**
 - **Recipient Cell Phone Number**: Your mobile number (e.g., `8031234567`)
 - **SMS Gateway Domain**: Your carrier's email-to-SMS gateway
-  - AT&T: `txt.att.net`
-  - T-Mobile: `tmomail.net`
-  - Verizon: `vtext.com`
-  - Sprint: `messaging.sprintpcs.com`
+  - ~~AT&T: `txt.att.net`~~ (Discontinued June 2025)
+  - ~~T-Mobile: `tmomail.net`~~ (Discontinued late 2024)
+  - ~~Verizon: `vtext.com`~~ (Discontinued late 2024)
+  - ~~Sprint: `messaging.sprintpcs.com`~~ (Merged with T-Mobile, discontinued)
+
+**Alternative:** Use **Email** mode for notifications until you set up an SMS API service.
 
 #### Messaging Options
 Select how you want to receive notifications:
 - **None**: Notifications disabled
-- **eMail**: Email only
-- **SMS**: SMS only
+- **eMail**: Email only (recommended until SMS API is configured)
+- **SMS**: SMS only (requires SMS API service, not carrier gateways)
 - **Both**: Both email and SMS
 
 ### Step 2: Configure Temperature Control Notifications
@@ -201,9 +217,37 @@ If using Gmail, you **must** use an App Password, not your regular Gmail passwor
 
 ### SMS Not Working
 
-1. **Verify Gateway Domain**: Different carriers use different gateway addresses
-2. **Check Mobile Number Format**: Should be just digits (no dashes or spaces)
-3. **Test Email First**: Ensure email works before testing SMS
+**⚠️ CRITICAL: Email-to-SMS Gateways Are Discontinued (2024-2025)**
+
+If you're trying to use traditional carrier gateways like `@txt.att.net`, `@vtext.com`, or `@tmomail.net`, **these will not work**. Major U.S. carriers discontinued these services:
+- **AT&T** (`txt.att.net`, `mms.att.net`) - Shut down June 17, 2025
+- **Verizon** (`vtext.com`, `vzwpix.com`) - Discontinued late 2024
+- **T-Mobile** (`tmomail.net`) - Discontinued late 2024
+- **Sprint** (`messaging.sprintpcs.com`) - Merged with T-Mobile, discontinued
+
+**Solutions:**
+
+1. **Switch to Email notifications** (recommended immediate fix):
+   - Set Warning Mode to "Email" instead of "SMS" or "Both"
+   - Email notifications work reliably and contain full details
+
+2. **Use a commercial SMS API service** (for true SMS):
+   - [Twilio](https://www.twilio.com/) - Industry standard, free trial available
+   - [TextP2P](https://textp2p.com/) - Email-to-SMS replacement service
+   - [SignalWire](https://signalwire.com/) - Twilio alternative
+   - [Notifyre](https://notifyre.com/) - Business messaging platform
+   
+   These services typically offer:
+   - Email-to-SMS bridges (use their custom email gateway addresses)
+   - APIs for direct integration (requires code changes)
+   - Webhook endpoints for notifications
+
+3. **For legacy/custom gateways only:**
+   - If you have access to a private/corporate SMS gateway, verify:
+     - Gateway domain is configured correctly
+     - Mobile number format is digits only (no dashes or spaces)
+     - Gateway accepts email-based messages
+     - Test email notifications work first
 
 ### Fermentation Starting Not Triggering
 

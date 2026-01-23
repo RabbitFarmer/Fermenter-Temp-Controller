@@ -997,6 +997,29 @@ def send_sms(body, subject="Fermenter Notification"):
         print("[LOG] SMS gateway not configured (mobile or sms_gateway_domain missing)")
         temp_cfg["sms_error"] = True
         return False, "SMS gateway not configured (mobile or sms_gateway_domain missing)"
+    
+    # Check for discontinued carrier gateways
+    discontinued_gateways = {
+        'txt.att.net': 'AT&T (discontinued June 2025)',
+        'mms.att.net': 'AT&T MMS (discontinued June 2025)',
+        'vtext.com': 'Verizon (discontinued late 2024)',
+        'vzwpix.com': 'Verizon MMS (discontinued late 2024)',
+        'tmomail.net': 'T-Mobile (discontinued late 2024)',
+        'messaging.sprintpcs.com': 'Sprint (merged with T-Mobile, discontinued)',
+    }
+    
+    gateway_lower = gateway.lower()
+    if gateway_lower in discontinued_gateways:
+        error_msg = (
+            f"SMS gateway {discontinued_gateways[gateway_lower]} is no longer supported. "
+            f"Major carriers discontinued email-to-SMS services in 2024-2025. "
+            f"To receive SMS notifications, you must use an SMS API service like Twilio, TextP2P, "
+            f"SignalWire, or Notifyre. See documentation for alternatives."
+        )
+        print(f"[LOG] {error_msg}")
+        temp_cfg["sms_error"] = True
+        return False, error_msg
+    
     recipient = f"{mobile}@{gateway}"
     success, error_msg = _smtp_send(recipient, subject, body)
     temp_cfg["sms_error"] = not success
@@ -1928,6 +1951,30 @@ def test_email():
 def test_sms():
     """Test SMS notification with current settings"""
     try:
+        # Check if gateway is configured
+        gateway = system_cfg.get("sms_gateway_domain", "").lower()
+        
+        # Warn about discontinued gateways before attempting send
+        discontinued_gateways = {
+            'txt.att.net': 'AT&T',
+            'mms.att.net': 'AT&T MMS',
+            'vtext.com': 'Verizon',
+            'vzwpix.com': 'Verizon MMS',
+            'tmomail.net': 'T-Mobile',
+            'messaging.sprintpcs.com': 'Sprint',
+        }
+        
+        if gateway in discontinued_gateways:
+            return jsonify({
+                'success': False,
+                'message': (
+                    f'{discontinued_gateways[gateway]} email-to-SMS gateway is no longer supported. '
+                    f'Major carriers discontinued these services in 2024-2025 due to spam/security concerns. '
+                    f'To receive SMS notifications, use an SMS API service like Twilio, TextP2P, SignalWire, or Notifyre. '
+                    f'Email notifications still work - consider using "Email" or "Both" mode until you set up an SMS API.'
+                )
+            })
+        
         body = "*** TEST MESSAGE *** This is a TEST SMS from your Fermenter Temperature Controller. If you received this, your SMS settings are configured correctly! *** TEST MESSAGE ***"
         
         success, error_msg = send_sms(body, subject="TEST - Fermenter Controller")
@@ -1935,7 +1982,7 @@ def test_sms():
         if success:
             return jsonify({
                 'success': True,
-                'message': 'Test SMS sent successfully! Check your phone.'
+                'message': 'Test SMS sent successfully! Check your phone. Note: If using a carrier gateway (AT&T, Verizon, T-Mobile), these were discontinued in 2024-2025 and messages will not be delivered.'
             })
         else:
             return jsonify({
