@@ -2092,16 +2092,20 @@ def test_email():
 
 @app.route('/test_sms', methods=['POST'])
 def test_sms():
-    """Test SMS notification with current Twilio settings"""
+    """Test SMS notification with current settings"""
     try:
-        body = "*** TEST MESSAGE *** This is a TEST SMS from your Fermenter Temperature Controller. If you received this, your Twilio SMS settings are configured correctly! *** TEST MESSAGE ***"
+        # Determine which provider is configured
+        sms_provider = system_cfg.get("sms_provider", "twilio").lower()
+        provider_name = "Twilio" if sms_provider == "twilio" else "Android SMS Gateway"
+        
+        body = f"*** TEST MESSAGE *** This is a TEST SMS from your Fermenter Temperature Controller. If you received this, your {provider_name} settings are configured correctly! *** TEST MESSAGE ***"
         
         success, error_msg = send_sms(body, subject="TEST - Fermenter Controller")
         
         if success:
             return jsonify({
                 'success': True,
-                'message': 'Test SMS sent successfully via Twilio! Check your phone.'
+                'message': f'Test SMS sent successfully via {provider_name}! Check your phone.'
             })
         else:
             return jsonify({
