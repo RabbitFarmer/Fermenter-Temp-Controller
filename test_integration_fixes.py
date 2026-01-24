@@ -197,6 +197,17 @@ def test_tab_validation():
                 "Malicious script found in response - XSS vulnerability!"
             print("  ✓ PASS: Malicious script rejected")
             
+            # Test with URL-encoded XSS attempt
+            response = client.get('/system_config?tab=%3Cscript%3Ealert(1)%3C/script%3E')
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+            
+            # Verify the decoded malicious script is NOT in the response
+            assert b'<script>alert(1)</script>' not in response.data, \
+                "URL-encoded malicious script found in response - XSS vulnerability!"
+            assert b'%3Cscript%3E' not in response.data, \
+                "URL-encoded form found in response"
+            print("  ✓ PASS: URL-encoded malicious script rejected")
+            
             # Test with another invalid tab value
             response = client.get('/system_config?tab=invalid-tab-name')
             assert response.status_code == 200, f"Expected 200, got {response.status_code}"

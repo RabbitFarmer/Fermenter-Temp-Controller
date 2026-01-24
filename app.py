@@ -74,6 +74,9 @@ TILT_CONFIG_FILE = 'config/tilt_config.json'
 TEMP_CFG_FILE = 'config/temp_control_config.json'
 SYSTEM_CFG_FILE = 'config/system_config.json'
 
+# Valid tab names for system config page
+VALID_SYSTEM_CONFIG_TABS = ['main-settings', 'push-email', 'logging-integrations', 'backup-restore']
+
 # Chart caps
 DEFAULT_CHART_LIMIT = 500
 MAX_CHART_LIMIT = 2000
@@ -1999,9 +2002,8 @@ def dashboard():
 @app.route('/system_config')
 def system_config():
     # Get the tab parameter from query string and validate it
-    VALID_TABS = ['main-settings', 'push-email', 'logging-integrations', 'backup-restore']
     active_tab = request.args.get('tab', 'main-settings')
-    if active_tab not in VALID_TABS:
+    if active_tab not in VALID_SYSTEM_CONFIG_TABS:
         active_tab = 'main-settings'
     
     # Migrate old format to new format if needed
@@ -2050,9 +2052,8 @@ def update_system_config():
     old_warn = system_cfg.get('warning_mode', 'NONE')
     
     # Capture the active tab to return to it after saving (validate against whitelist)
-    VALID_TABS = ['main-settings', 'push-email', 'logging-integrations', 'backup-restore']
     active_tab = data.get('active_tab', 'main-settings')
-    if active_tab not in VALID_TABS:
+    if active_tab not in VALID_SYSTEM_CONFIG_TABS:
         active_tab = 'main-settings'
     
     # Handle password field - only update if provided
