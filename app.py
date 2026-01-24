@@ -1337,8 +1337,6 @@ def check_fermentation_starting(color, brewid, cfg, state):
         if elapsed < 5:
             return
     
-    state['last_fermentation_start_check'] = datetime.utcnow()
-    
     actual_og = cfg.get('actual_og')
     if not actual_og:
         return
@@ -1360,6 +1358,10 @@ def check_fermentation_starting(color, brewid, cfg, state):
     )
     
     if all_below_threshold:
+        # Update debounce timestamp only when we detect the condition
+        # This ensures we don't delay legitimate notifications due to early returns
+        state['last_fermentation_start_check'] = datetime.utcnow()
+        
         current_gravity = last_three[-1]['gravity']
         brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
         beer_name = cfg.get('beer_name', 'Unknown Beer')
@@ -1410,8 +1412,6 @@ def check_fermentation_completion(color, brewid, cfg, state):
         if elapsed < 5:
             return
     
-    state['last_fermentation_completion_check'] = datetime.utcnow()
-    
     # Only check for completion if fermentation has started
     if not state.get('fermentation_started'):
         return
@@ -1445,6 +1445,10 @@ def check_fermentation_completion(color, brewid, cfg, state):
         return
     
     # Fermentation completion detected
+    # Update debounce timestamp only when we detect the condition
+    # This ensures we don't delay legitimate notifications due to early returns
+    state['last_fermentation_completion_check'] = datetime.utcnow()
+    
     brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
     beer_name = cfg.get('beer_name', 'Unknown Beer')
     actual_og = cfg.get('actual_og')
