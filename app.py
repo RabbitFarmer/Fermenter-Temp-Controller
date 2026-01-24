@@ -1368,6 +1368,8 @@ def check_fermentation_starting(color, brewid, cfg, state):
         notification_time = datetime.utcnow()
         
         # Set flag BEFORE sending to prevent race condition with duplicate notifications
+        # This is critical: setting the flag FIRST ensures that even if multiple BLE packets
+        # arrive within milliseconds, only the first one will proceed to send notification
         state['fermentation_start_datetime'] = notification_time.isoformat()
         state['fermentation_started'] = True
         
@@ -1381,13 +1383,16 @@ Fermentation has started.
 Gravity at start: {starting_gravity:.3f}
 Gravity now: {current_gravity:.3f}"""
         
-        if attempt_send_notifications(subject, body):
-            # Save state to config file on successful notification
-            save_notification_state_to_config(color, brewid)
-        else:
-            # On failure to send, clear the flag so it can be retried
-            state['fermentation_start_datetime'] = None
-            state['fermentation_started'] = False
+        # Attempt to send notification(s) based on warning_mode (EMAIL/PUSH/BOTH)
+        notification_sent = attempt_send_notifications(subject, body)
+        
+        # Always save state to config file, regardless of notification success
+        # This prevents retry spam if notifications are misconfigured
+        # Users can check logs/UI to see if notifications failed
+        save_notification_state_to_config(color, brewid)
+        
+        if not notification_sent:
+            print(f"[LOG] Fermentation start notification failed for {color}/{brewid}, but state saved to prevent duplicates")
 
 def check_fermentation_completion(color, brewid, cfg, state):
     """
