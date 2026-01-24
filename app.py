@@ -1330,6 +1330,15 @@ def check_fermentation_starting(color, brewid, cfg, state):
     if state.get('fermentation_start_datetime'):
         return
     
+    # Add debounce protection: prevent re-checking too frequently (5 second minimum)
+    last_check = state.get('last_fermentation_start_check')
+    if last_check:
+        elapsed = (datetime.utcnow() - last_check).total_seconds()
+        if elapsed < 5:
+            return
+    
+    state['last_fermentation_start_check'] = datetime.utcnow()
+    
     actual_og = cfg.get('actual_og')
     if not actual_og:
         return
@@ -1358,6 +1367,10 @@ def check_fermentation_starting(color, brewid, cfg, state):
         # Get current datetime for the notification
         notification_time = datetime.utcnow()
         
+        # Set flag BEFORE sending to prevent race condition with duplicate notifications
+        state['fermentation_start_datetime'] = notification_time.isoformat()
+        state['fermentation_started'] = True
+        
         subject = f"{brewery_name} - Fermentation Started"
         body = f"""Brewery Name: {brewery_name}
 Tilt Color: {color}
@@ -1369,10 +1382,12 @@ Gravity at start: {starting_gravity:.3f}
 Gravity now: {current_gravity:.3f}"""
         
         if attempt_send_notifications(subject, body):
-            # Save the datetime when notification was sent (not just a boolean)
-            state['fermentation_start_datetime'] = notification_time.isoformat()
-            state['fermentation_started'] = True
+            # Save state to config file on successful notification
             save_notification_state_to_config(color, brewid)
+        else:
+            # On failure to send, clear the flag so it can be retried
+            state['fermentation_start_datetime'] = None
+            state['fermentation_started'] = False
 
 def check_fermentation_completion(color, brewid, cfg, state):
     """
@@ -1382,6 +1397,15 @@ def check_fermentation_completion(color, brewid, cfg, state):
     # Check if notification already sent (datetime will be present)
     if state.get('fermentation_completion_datetime'):
         return
+    
+    # Add debounce protection: prevent re-checking too frequently (5 second minimum)
+    last_check = state.get('last_fermentation_completion_check')
+    if last_check:
+        elapsed = (datetime.utcnow() - last_check).total_seconds()
+        if elapsed < 5:
+            return
+    
+    state['last_fermentation_completion_check'] = datetime.utcnow()
     
     # Only check for completion if fermentation has started
     if not state.get('fermentation_started'):
@@ -1415,12 +1439,17 @@ def check_fermentation_completion(color, brewid, cfg, state):
     if not readings_24h_ago or not stable_for_24h:
         return
     
-    # Fermentation completion detected - send notification
+    # Fermentation completion detected
     brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
     beer_name = cfg.get('beer_name', 'Unknown Beer')
     actual_og = cfg.get('actual_og')
     
     notification_time = datetime.utcnow()
+    
+    # Set flag BEFORE sending to prevent race condition with duplicate notifications
+    # This is critical: setting the flag FIRST ensures that even if multiple BLE packets
+    # arrive within milliseconds, only the first one will proceed to send notification
+    state['fermentation_completion_datetime'] = notification_time.isoformat()
     
     subject = f"{brewery_name} - Fermentation Completion"
     body = f"""Brewery Name: {brewery_name}
@@ -1440,10 +1469,16 @@ Gravity has been stable for 24 hours: {current_gravity:.3f}"""
         except (ValueError, TypeError):
             pass
     
-    if attempt_send_notifications(subject, body):
-        # Save the datetime when notification was sent
-        state['fermentation_completion_datetime'] = notification_time.isoformat()
-        save_notification_state_to_config(color, brewid)
+    # Attempt to send notification(s) based on warning_mode (EMAIL/PUSH/BOTH)
+    notification_sent = attempt_send_notifications(subject, body)
+    
+    # Always save state to config file, regardless of notification success
+    # This prevents retry spam if notifications are misconfigured
+    # Users can check logs/UI to see if notifications failed
+    save_notification_state_to_config(color, brewid)
+    
+    if not notification_sent:
+        print(f"[LOG] Fermentation completion notification failed for {color}/{brewid}, but state saved to prevent duplicates")
 
 def check_signal_loss():
     """
