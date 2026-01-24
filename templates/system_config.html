@@ -62,16 +62,18 @@
 
     <!-- Tab Navigation -->
     <div class="tab-navigation">
-      <button type="button" class="tab-button active" onclick="openTab(event, 'main-settings')">Main Settings</button>
-      <button type="button" class="tab-button" onclick="openTab(event, 'push-email')">PUSH/eMail</button>
-      <button type="button" class="tab-button" onclick="openTab(event, 'logging-integrations')">Logging Integrations</button>
-      <button type="button" class="tab-button" onclick="openTab(event, 'backup-restore')">Backup/Restore</button>
+      <button type="button" class="tab-button {% if active_tab == 'main-settings' %}active{% endif %}" onclick="openTab(event, 'main-settings')">Main Settings</button>
+      <button type="button" class="tab-button {% if active_tab == 'push-email' %}active{% endif %}" onclick="openTab(event, 'push-email')">PUSH/eMail</button>
+      <button type="button" class="tab-button {% if active_tab == 'logging-integrations' %}active{% endif %}" onclick="openTab(event, 'logging-integrations')">Logging Integrations</button>
+      <button type="button" class="tab-button {% if active_tab == 'backup-restore' %}active{% endif %}" onclick="openTab(event, 'backup-restore')">Backup/Restore</button>
     </div>
 
     <form action="{{ url_for('update_system_config') }}" method="post" class="temp-config-form">
+      <!-- Hidden field to track which tab is active when form is submitted -->
+      <input type="hidden" id="active_tab" name="active_tab" value="{{ active_tab }}">
       
       <!-- Main Settings Tab -->
-      <div id="main-settings" class="tab-content active">
+      <div id="main-settings" class="tab-content {% if active_tab == 'main-settings' %}active{% endif %}">
         <table class="config-table" style="width: 60%; margin: auto;">
           <tr>
             <td><label for="brewery_name"><b>Brewery Name</b></label></td>
@@ -159,7 +161,7 @@
       </div>
 
       <!-- PUSH/eMail Tab -->
-      <div id="push-email" class="tab-content">
+      <div id="push-email" class="tab-content {% if active_tab == 'push-email' %}active{% endif %}">
         <table class="config-table" style="width: 60%; margin: auto;">
           <tr>
             <td><label for="sending_email"><b>Sending Email Address</b></label></td>
@@ -384,7 +386,7 @@
       </div>
 
       <!-- Logging Integrations Tab -->
-      <div id="logging-integrations" class="tab-content">
+      <div id="logging-integrations" class="tab-content {% if active_tab == 'logging-integrations' %}active{% endif %}">
         <table class="config-table" style="width: 80%; margin: auto;">
           <tr>
             <td><label for="external_refresh_rate"><b>External Post Interval (minutes)</b></label></td>
@@ -497,7 +499,7 @@
       </div>
 
       <!-- Backup/Restore Tab -->
-      <div id="backup-restore" class="tab-content">
+      <div id="backup-restore" class="tab-content {% if active_tab == 'backup-restore' %}active{% endif %}">
         <h3 style="text-align: center; margin-top: 20px;">System Backup and Restore</h3>
         <p style="text-align: center; font-style: italic; color: #666; margin-bottom: 30px;">
           Backup all programs and data to a USB device, or restore from a previous backup.
@@ -576,6 +578,9 @@
       // Show the selected tab and mark button as active
       document.getElementById(tabName).classList.add("active");
       evt.currentTarget.classList.add("active");
+      
+      // Update the hidden field to track the active tab
+      document.getElementById('active_tab').value = tabName;
     }
     
     // Helper function to switch to a tab programmatically (for Back buttons)
@@ -887,6 +892,12 @@
     // Initialize Push provider visibility on page load
     document.addEventListener('DOMContentLoaded', function() {
       togglePushProvider();
+      
+      // Activate the correct tab based on the server-provided active_tab value
+      var activeTab = '{{ active_tab }}';
+      if (activeTab && activeTab !== 'main-settings') {
+        switchToTab(activeTab);
+      }
     });
   </script>
 </body>

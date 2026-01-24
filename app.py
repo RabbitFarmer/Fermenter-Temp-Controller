@@ -1998,6 +1998,9 @@ def dashboard():
 
 @app.route('/system_config')
 def system_config():
+    # Get the tab parameter from query string
+    active_tab = request.args.get('tab', 'main-settings')
+    
     # Migrate old format to new format if needed
     external_urls = system_cfg.get("external_urls", [])
     
@@ -2035,12 +2038,16 @@ def system_config():
     return render_template('system_config.html', 
                          system_settings=system_cfg,
                          external_urls=external_urls,
-                         predefined_field_maps=get_predefined_field_maps())
+                         predefined_field_maps=get_predefined_field_maps(),
+                         active_tab=active_tab)
 
 @app.route('/update_system_config', methods=['POST'])
 def update_system_config():
     data = request.form
     old_warn = system_cfg.get('warning_mode', 'NONE')
+    
+    # Capture the active tab to return to it after saving
+    active_tab = data.get('active_tab', 'main-settings')
     
     # Handle password field - only update if provided
     sending_email_password = data.get("sending_email_password", "")
@@ -2094,7 +2101,7 @@ def update_system_config():
         "timestamp_format": data.get("timestamp_format", ""),
         "update_interval": data.get("update_interval", "1"),
         "temp_logging_interval": data.get("temp_logging_interval", system_cfg.get('temp_logging_interval', 10)),
-        "external_refresh_rate": data.get("external_refresh_rate", "15"),
+        "external_refresh_rate": data.get("external_refresh_rate", system_cfg.get("external_refresh_rate", "15")),
         "external_urls": external_urls,  # New format
         "warning_mode": data.get("warning_mode", "NONE"),
         "sending_email": data.get("sending_email", system_cfg.get('sending_email','')),
@@ -2159,7 +2166,7 @@ def update_system_config():
         temp_cfg['notifications_trigger'] = False
         temp_cfg['notification_comm_failure'] = False
 
-    return redirect('/system_config')
+    return redirect(f'/system_config?tab={active_tab}')
 
 @app.route('/test_email', methods=['POST'])
 def test_email():
@@ -3286,7 +3293,7 @@ def exit_system():
                 print(f"[LOG] Error turning off plugs during shutdown: {e}")
             
             # Show goodbye page
-            response = make_response(render_template('goodbye.html'))
+            response = make_response(render_template('goodbye.html', brewery_name=system_cfg.get('brewery_name', 'Fermenter Temperature Controller')))
             
             # Schedule shutdown after response is sent
             def shutdown_system():
