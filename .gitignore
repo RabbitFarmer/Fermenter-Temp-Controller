@@ -21,8 +21,28 @@ temp_control/*.bak
 config/system_config.json
 config/temp_control_config.json
 config/tilt_config.json
+
 # Root-level config files (should be in config/ directory)
 /batch_settings.json
 /system_config.json
 /temp_control_config.json
 /tilt_config.json
+
+# Test outputs
+tests/__pycache__/
+.pytest_cache/
+*.pyc
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+
+# Environment
+venv/
+env/
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
