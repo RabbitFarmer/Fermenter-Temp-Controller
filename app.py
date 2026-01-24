@@ -1522,6 +1522,12 @@ def check_signal_loss():
                     break
             
             if color and cfg:
+                # Set flags BEFORE sending to prevent race condition with duplicate notifications
+                # This ensures that even if check_signal_loss is called multiple times rapidly,
+                # only the first call will proceed to send the notification
+                state['signal_lost'] = True
+                state['signal_loss_notified'] = True
+                
                 brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
                 beer_name = cfg.get('beer_name', 'Unknown Beer')
                 
@@ -1533,10 +1539,13 @@ Date/Time: {now.strftime('%Y-%m-%d %H:%M:%S')}
 
 Loss of Signal -- Receiving no tilt readings"""
                 
-                if attempt_send_notifications(subject, body):
-                    state['signal_lost'] = True
-                    state['signal_loss_notified'] = True
-                    # Note: Signal loss is NOT persisted - resets on restart
+                # Attempt to send notification(s) based on warning_mode (EMAIL/PUSH/BOTH)
+                notification_sent = attempt_send_notifications(subject, body)
+                
+                if not notification_sent:
+                    print(f"[LOG] Signal loss notification failed for {color}/{brewid}")
+                    # Note: We keep the flags set even on failure to prevent retry spam
+                    # Signal loss flags are NOT persisted - they reset on restart
 
 def send_daily_report():
     """
