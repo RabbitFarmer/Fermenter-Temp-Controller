@@ -74,8 +74,8 @@ TILT_CONFIG_FILE = 'config/tilt_config.json'
 TEMP_CFG_FILE = 'config/temp_control_config.json'
 SYSTEM_CFG_FILE = 'config/system_config.json'
 
-# Valid tab names for system config page
-VALID_SYSTEM_CONFIG_TABS = ['main-settings', 'push-email', 'logging-integrations', 'backup-restore']
+# Valid tab names for system config page (using set for O(1) lookup)
+VALID_SYSTEM_CONFIG_TABS = {'main-settings', 'push-email', 'logging-integrations', 'backup-restore'}
 
 # Chart caps
 DEFAULT_CHART_LIMIT = 500
