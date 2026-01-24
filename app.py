@@ -3252,9 +3252,71 @@ def list_backups():
         })
 
 
-@app.route('/exit_system')
+@app.route('/exit_system', methods=['GET', 'POST'])
 def exit_system():
-    return redirect('/')
+    """
+    Handle system exit:
+    - GET: Show confirmation page
+    - POST with confirm=yes: Turn off all plugs, show goodbye page, and shut down
+    - POST with confirm=no: Return to main page
+    """
+    # Timing constants for shutdown sequence
+    PLUG_COMMAND_DELAY = 0.5  # seconds to wait for plug command to be processed
+    GOODBYE_DISPLAY_TIME = 2  # seconds to display goodbye page before shutdown
+    PROCESS_TERMINATION_TIMEOUT = 2  # seconds to wait for process to terminate
+    
+    if request.method == 'POST':
+        confirm = request.form.get('confirm', 'no')
+        if confirm == 'yes':
+            # Turn off all plugs before shutdown
+            try:
+                heating_plug = temp_cfg.get("heating_plug", "")
+                cooling_plug = temp_cfg.get("cooling_plug", "")
+                
+                # Turn off heating plug if configured
+                if heating_plug and kasa_queue:
+                    kasa_queue.put({'mode': 'heating', 'url': heating_plug, 'action': 'off'})
+                    time.sleep(PLUG_COMMAND_DELAY)
+                
+                # Turn off cooling plug if configured
+                if cooling_plug and kasa_queue:
+                    kasa_queue.put({'mode': 'cooling', 'url': cooling_plug, 'action': 'off'})
+                    time.sleep(PLUG_COMMAND_DELAY)
+            except Exception as e:
+                print(f"[LOG] Error turning off plugs during shutdown: {e}")
+            
+            # Show goodbye page
+            response = make_response(render_template('goodbye.html'))
+            
+            # Schedule shutdown after response is sent
+            def shutdown_system():
+                time.sleep(GOODBYE_DISPLAY_TIME)
+                try:
+                    # Terminate the kasa worker process if it exists
+                    if kasa_proc is not None:
+                        try:
+                            kasa_proc.terminate()
+                            kasa_proc.join(timeout=PROCESS_TERMINATION_TIMEOUT)
+                        except Exception:
+                            pass
+                except Exception as e:
+                    print(f"[LOG] Error during process cleanup: {e}")
+                
+                # Shutdown Flask
+                os.kill(os.getpid(), signal.SIGINT)
+            
+            # Start shutdown in background thread
+            shutdown_thread = threading.Thread(target=shutdown_system)
+            shutdown_thread.daemon = True
+            shutdown_thread.start()
+            
+            return response
+        else:
+            # User cancelled, return to main page
+            return redirect('/')
+    
+    # GET request: show confirmation page
+    return render_template('exit_system.html')
 
 
 # --- Program entry ---------------------------------------------------------
