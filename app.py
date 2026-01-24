@@ -458,6 +458,11 @@ DAILY_REPORT_COOLDOWN_HOURS = 23  # Prevent duplicate daily reports (allows timi
 DAILY_REPORT_WINDOW_MINUTES = 5   # Time window for daily report triggering
 BATCH_MONITORING_INTERVAL_SECONDS = 300  # Check signal loss and daily reports every 5 minutes
 
+# Notification retry constants (Option A: Auto-retry with exponential backoff)
+NOTIFICATION_MAX_RETRIES = 2  # Maximum retry attempts (total: 1 initial + 2 retries = 3 attempts)
+NOTIFICATION_RETRY_INTERVALS = [300, 1800]  # Retry after 5 minutes, then 30 minutes (in seconds)
+notification_retry_queue = []  # Queue of failed notifications pending retry
+
 def generate_brewid(beer_name, batch_name, date_str):
     id_str = f"{beer_name}-{batch_name}-{date_str}"
     return hashlib.sha256(id_str.encode('utf-8')).hexdigest()[:8]
@@ -1389,12 +1394,20 @@ Gravity now: {current_gravity:.3f}"""
         notification_sent = attempt_send_notifications(subject, body)
         
         # Always save state to config file, regardless of notification success
-        # This prevents retry spam if notifications are misconfigured
+        # This prevents duplicate notifications even if retry fails
         # Users can check logs/UI to see if notifications failed
         save_notification_state_to_config(color, brewid)
         
         if not notification_sent:
-            print(f"[LOG] Fermentation start notification failed for {color}/{brewid}, but state saved to prevent duplicates")
+            # Queue for retry with exponential backoff
+            queue_notification_retry(
+                notification_type='fermentation_start',
+                subject=subject,
+                body=body,
+                brewid=brewid,
+                color=color
+            )
+            print(f"[LOG] Fermentation start notification failed for {color}/{brewid}, queued for retry")
 
 def check_fermentation_completion(color, brewid, cfg, state):
     """
@@ -1482,12 +1495,20 @@ Gravity has been stable for 24 hours: {current_gravity:.3f}"""
     notification_sent = attempt_send_notifications(subject, body)
     
     # Always save state to config file, regardless of notification success
-    # This prevents retry spam if notifications are misconfigured
+    # This prevents duplicate notifications even if retry fails
     # Users can check logs/UI to see if notifications failed
     save_notification_state_to_config(color, brewid)
     
     if not notification_sent:
-        print(f"[LOG] Fermentation completion notification failed for {color}/{brewid}, but state saved to prevent duplicates")
+        # Queue for retry with exponential backoff
+        queue_notification_retry(
+            notification_type='fermentation_completion',
+            subject=subject,
+            body=body,
+            brewid=brewid,
+            color=color
+        )
+        print(f"[LOG] Fermentation completion notification failed for {color}/{brewid}, queued for retry")
 
 def check_signal_loss():
     """
@@ -1543,9 +1564,87 @@ Loss of Signal -- Receiving no tilt readings"""
                 notification_sent = attempt_send_notifications(subject, body)
                 
                 if not notification_sent:
-                    print(f"[LOG] Signal loss notification failed for {color}/{brewid}")
-                    # Note: We keep the flags set even on failure to prevent retry spam
-                    # Signal loss flags are NOT persisted - they reset on restart
+                    # Queue for retry with exponential backoff
+                    queue_notification_retry(
+                        notification_type='signal_loss',
+                        subject=subject,
+                        body=body,
+                        brewid=brewid,
+                        color=color
+                    )
+                    print(f"[LOG] Signal loss notification failed for {color}/{brewid}, queued for retry")
+
+def queue_notification_retry(notification_type, subject, body, brewid, color):
+    """
+    Queue a failed notification for retry with exponential backoff.
+    
+    Args:
+        notification_type: Type of notification (signal_loss, fermentation_start, fermentation_completion)
+        subject: Email/PUSH subject
+        body: Email/PUSH body
+        brewid: Brew ID for deduplication
+        color: Tilt color for deduplication
+    """
+    # Check if this notification is already queued (prevent duplicates in retry queue)
+    for item in notification_retry_queue:
+        if item['notification_type'] == notification_type and item['brewid'] == brewid:
+            # Already queued, don't add again
+            return
+    
+    notification_retry_queue.append({
+        'notification_type': notification_type,
+        'subject': subject,
+        'body': body,
+        'brewid': brewid,
+        'color': color,
+        'retry_count': 0,
+        'last_retry_time': datetime.utcnow(),
+        'created_time': datetime.utcnow()
+    })
+
+def process_notification_retries():
+    """
+    Process the notification retry queue with exponential backoff.
+    Called periodically (every 5 minutes) by the batch monitoring thread.
+    """
+    now = datetime.utcnow()
+    items_to_remove = []
+    
+    for item in notification_retry_queue:
+        retry_count = item['retry_count']
+        last_retry_time = item['last_retry_time']
+        
+        # Check if we've exceeded max retries
+        if retry_count >= NOTIFICATION_MAX_RETRIES:
+            print(f"[LOG] Notification retry limit reached for {item['notification_type']}/{item['brewid']}, giving up")
+            items_to_remove.append(item)
+            continue
+        
+        # Calculate time since last retry
+        elapsed_seconds = (now - last_retry_time).total_seconds()
+        
+        # Get the retry interval for this attempt
+        retry_interval = NOTIFICATION_RETRY_INTERVALS[retry_count] if retry_count < len(NOTIFICATION_RETRY_INTERVALS) else NOTIFICATION_RETRY_INTERVALS[-1]
+        
+        # Check if it's time to retry
+        if elapsed_seconds >= retry_interval:
+            print(f"[LOG] Retrying notification: {item['notification_type']}/{item['brewid']} (attempt {retry_count + 2})")
+            
+            # Attempt to send
+            success = attempt_send_notifications(item['subject'], item['body'])
+            
+            if success:
+                print(f"[LOG] Notification retry successful for {item['notification_type']}/{item['brewid']}")
+                items_to_remove.append(item)
+            else:
+                # Update retry count and time
+                item['retry_count'] += 1
+                item['last_retry_time'] = now
+                print(f"[LOG] Notification retry failed for {item['notification_type']}/{item['brewid']}, will retry again")
+    
+    # Remove successfully sent or expired items
+    for item in items_to_remove:
+        notification_retry_queue.remove(item)
 
 def send_daily_report():
     """
@@ -1974,13 +2073,16 @@ threading.Thread(target=periodic_temp_control, daemon=True).start()
 
 # --- Periodic batch monitoring thread -------------------------------------
 def periodic_batch_monitoring():
-    """Monitor for signal loss and schedule daily reports."""
+    """Monitor for signal loss, schedule daily reports, and process notification retries."""
     last_daily_check = None
     
     while True:
         try:
             # Check for signal loss every 5 minutes
             check_signal_loss()
+            
+            # Process notification retry queue with exponential backoff
+            process_notification_retries()
             
             # Check if it's time for daily reports
             notif_cfg = system_cfg.get('batch_notifications', {})
