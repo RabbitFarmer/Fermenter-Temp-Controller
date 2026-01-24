@@ -1998,8 +1998,11 @@ def dashboard():
 
 @app.route('/system_config')
 def system_config():
-    # Get the tab parameter from query string
+    # Get the tab parameter from query string and validate it
+    VALID_TABS = ['main-settings', 'push-email', 'logging-integrations', 'backup-restore']
     active_tab = request.args.get('tab', 'main-settings')
+    if active_tab not in VALID_TABS:
+        active_tab = 'main-settings'
     
     # Migrate old format to new format if needed
     external_urls = system_cfg.get("external_urls", [])
@@ -2046,8 +2049,11 @@ def update_system_config():
     data = request.form
     old_warn = system_cfg.get('warning_mode', 'NONE')
     
-    # Capture the active tab to return to it after saving
+    # Capture the active tab to return to it after saving (validate against whitelist)
+    VALID_TABS = ['main-settings', 'push-email', 'logging-integrations', 'backup-restore']
     active_tab = data.get('active_tab', 'main-settings')
+    if active_tab not in VALID_TABS:
+        active_tab = 'main-settings'
     
     # Handle password field - only update if provided
     sending_email_password = data.get("sending_email_password", "")

@@ -894,7 +894,7 @@
       togglePushProvider();
       
       // Activate the correct tab based on the server-provided active_tab value
-      var activeTab = '{{ active_tab }}';
+      var activeTab = {{ active_tab | tojson }};
       if (activeTab && activeTab !== 'main-settings') {
         switchToTab(activeTab);
       }

@@ -180,6 +180,63 @@ def test_goodbye_route():
     
     return True
 
+def test_tab_validation():
+    """Test that invalid tab values are rejected and default to main-settings"""
+    print("\nTest 5: tab parameter validation")
+    
+    try:
+        from app import app
+        
+        with app.test_client() as client:
+            # Test with invalid tab parameter (potential XSS attempt)
+            response = client.get('/system_config?tab=<script>alert(1)</script>')
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+            
+            # Verify the malicious script is NOT in the response
+            assert b'<script>alert(1)</script>' not in response.data, \
+                "Malicious script found in response - XSS vulnerability!"
+            print("  ✓ PASS: Malicious script rejected")
+            
+            # Test with another invalid tab value
+            response = client.get('/system_config?tab=invalid-tab-name')
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+            
+            # Should default to main-settings tab being active
+            assert b'class="tab-button active"' in response.data, \
+                "No active tab button found"
+            print("  ✓ PASS: Invalid tab value handled gracefully")
+            
+            # Test form submission with invalid active_tab
+            form_data = {
+                'active_tab': '<script>alert(2)</script>',
+                'brewery_name': 'Test',
+                'warning_mode': 'NONE',
+            }
+            
+            response = client.post('/update_system_config', 
+                                 data=form_data,
+                                 follow_redirects=False)
+            
+            assert response.status_code == 302, f"Expected redirect (302), got {response.status_code}"
+            location = response.headers.get('Location', '')
+            
+            # Should redirect to main-settings (default) since invalid tab was provided
+            assert 'tab=main-settings' in location, \
+                f"Expected redirect to main-settings, got: {location}"
+            print("  ✓ PASS: Invalid form active_tab validated correctly")
+            
+    except ImportError as e:
+        print(f"  ✗ FAIL: Could not import app: {e}")
+        return False
+    except AssertionError as e:
+        print(f"  ✗ FAIL: {e}")
+        return False
+    except Exception as e:
+        print(f"  ✗ ERROR: {e}")
+        return False
+    
+    return True
+
 def main():
     print("=" * 70)
     print("Integration Tests for System Settings Fixes")
@@ -190,6 +247,7 @@ def main():
         test_update_system_config_redirect,
         test_external_refresh_rate_preservation,
         test_goodbye_route,
+        test_tab_validation,
     ]
     
     results = []
