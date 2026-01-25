@@ -9,11 +9,11 @@ This project is a Raspberry Pi-based fermentation monitor and temperature contro
 - Web dashboard for monitoring and configuration (Flask)
 - Batch history and temperature logging to JSONL/CSV
 - **Email/Push notifications for fermentation status and temperature alerts**
-  - Temperature control alerts (temp out of range, Kasa plug failures)
+  - Temperature control alerts (temp out of range, heating/cooling events, Kasa plug failures)
   - Batch alerts (signal loss, fermentation starting, daily reports)
   - Configurable notification settings per event type
   - See [NOTIFICATIONS.md](NOTIFICATIONS.md) for detailed configuration guide
-  - See [Notification Types](#notification-types) section below for complete list of 7 notification types
+  - See [Notification Types](#notification-types) section below for complete list of 11 notification types
 
 ## Demo Data
 
@@ -193,7 +193,7 @@ Batch notifications monitor fermentation progress and tilt signal status:
 
 ### Temperature Control Notifications
 
-Temperature control notifications alert when temperatures exceed limits or when Kasa smart plugs fail to respond:
+Temperature control notifications alert when temperatures exceed limits, when heating/cooling equipment changes state, or when Kasa smart plugs fail to respond:
 
 3. **Temperature Below Low Limit** - Sent when current temperature drops below the configured low limit
    - Subject: `{Brewery Name} - Temperature Control Alert`
@@ -205,13 +205,33 @@ Temperature control notifications alert when temperatures exceed limits or when 
    - Includes: Current temperature, High limit setting, Tilt color
    - Configurable: `enable_temp_above_high_limit` in temperature control notifications settings
 
-5. **Kasa Plug Connection Failure** - Sent when a Kasa smart plug fails to respond or connection is lost
+5. **Heating On** - Sent when the heating control is activated
+   - Subject: `{Brewery Name} - Temperature Control Alert`
+   - Includes: Current temperature, Low limit setting, Tilt color
+   - Configurable: `enable_heating_on` in temperature control notifications settings (disabled by default)
+
+6. **Heating Off** - Sent when the heating control is deactivated
+   - Subject: `{Brewery Name} - Temperature Control Alert`
+   - Includes: Current temperature, Tilt color
+   - Configurable: `enable_heating_off` in temperature control notifications settings (disabled by default)
+
+7. **Cooling On** - Sent when the cooling control is activated
+   - Subject: `{Brewery Name} - Temperature Control Alert`
+   - Includes: Current temperature, High limit setting, Tilt color
+   - Configurable: `enable_cooling_on` in temperature control notifications settings (disabled by default)
+
+8. **Cooling Off** - Sent when the cooling control is deactivated
+   - Subject: `{Brewery Name} - Temperature Control Alert`
+   - Includes: Current temperature, Tilt color
+   - Configurable: `enable_cooling_off` in temperature control notifications settings (disabled by default)
+
+9. **Kasa Plug Connection Failure** - Sent when a Kasa smart plug fails to respond or connection is lost
    - Subject: `{Brewery Name} - Kasa Plug Connection Failure`
    - Includes: Mode (Heating/Cooling), Plug URL, Error message, Tilt color
    - Configurable: `enable_kasa_error` in temperature control notifications settings
    - Note: Helps alert when heating/cooling equipment becomes unreachable
 
-**Note:** Heating On/Off and Cooling On/Off events are logged to the temperature control chart for information but are NOT sent as email/push notifications.
+**Note:** Heating On/Off and Cooling On/Off notifications are disabled by default to avoid notification overload, but users can enable them if desired. These events are always logged to the temperature chart regardless of notification settings.
 
 ### Notification Delivery Methods
 

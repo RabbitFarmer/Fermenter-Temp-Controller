@@ -310,13 +310,24 @@
             <td><input type="checkbox" name="enable_temp_above_high_limit" id="enable_temp_above_high_limit" {% if system_settings.get('temp_control_notifications', {}).get('enable_temp_above_high_limit', True) %}checked{% endif %}></td>
           </tr>
           <tr>
-            <td><label for="enable_kasa_error"><b>Kasa Plug Connection Failure</b></label></td>
-            <td><input type="checkbox" name="enable_kasa_error" id="enable_kasa_error" {% if system_settings.get('temp_control_notifications', {}).get('enable_kasa_error', True) %}checked{% endif %}></td>
+            <td><label for="enable_heating_on"><b>Heating Turned On</b></label></td>
+            <td><input type="checkbox" name="enable_heating_on" id="enable_heating_on" {% if system_settings.get('temp_control_notifications', {}).get('enable_heating_on', False) %}checked{% endif %}></td>
           </tr>
           <tr>
-            <td colspan="2" style="text-align: center; font-style: italic; padding: 10px; color: #666;">
-              Note: Heating On/Off and Cooling On/Off events are logged to the temperature chart but not sent as notifications.
-            </td>
+            <td><label for="enable_heating_off"><b>Heating Turned Off</b></label></td>
+            <td><input type="checkbox" name="enable_heating_off" id="enable_heating_off" {% if system_settings.get('temp_control_notifications', {}).get('enable_heating_off', False) %}checked{% endif %}></td>
+          </tr>
+          <tr>
+            <td><label for="enable_cooling_on"><b>Cooling Turned On</b></label></td>
+            <td><input type="checkbox" name="enable_cooling_on" id="enable_cooling_on" {% if system_settings.get('temp_control_notifications', {}).get('enable_cooling_on', False) %}checked{% endif %}></td>
+          </tr>
+          <tr>
+            <td><label for="enable_cooling_off"><b>Cooling Turned Off</b></label></td>
+            <td><input type="checkbox" name="enable_cooling_off" id="enable_cooling_off" {% if system_settings.get('temp_control_notifications', {}).get('enable_cooling_off', False) %}checked{% endif %}></td>
+          </tr>
+          <tr>
+            <td><label for="enable_kasa_error"><b>Kasa Plug Connection Failure</b></label></td>
+            <td><input type="checkbox" name="enable_kasa_error" id="enable_kasa_error" {% if system_settings.get('temp_control_notifications', {}).get('enable_kasa_error', True) %}checked{% endif %}></td>
           </tr>
         </table>
 
