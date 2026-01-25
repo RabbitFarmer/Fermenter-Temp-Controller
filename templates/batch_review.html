@@ -151,7 +151,7 @@
           {% endfor %}
           
           {% set display_limit = 50 %}
-          {% set reversed_samples = sample_data|reverse %}
+          {% set reversed_samples = sample_data|reverse|list %}
           {% for sample in reversed_samples[:display_limit] %}
           <tr>
             <td>{{ sample.timestamp or 'N/A' }}</td>
