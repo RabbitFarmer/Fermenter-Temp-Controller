@@ -1203,6 +1203,9 @@ def send_temp_control_notification(event_type, temp, low_limit, high_limit, tilt
     """
     Send notifications for temperature control events if enabled in settings.
     Uses the pending queue system with deduplication to prevent duplicate alerts.
+    
+    Note: This only handles temp_below_low_limit and temp_above_high_limit.
+    Heating/cooling on/off events are logged to chart only, not sent as notifications.
     """
     # Get temp control notification settings
     temp_notif_cfg = system_cfg.get('temp_control_notifications', {})
@@ -1218,10 +1221,6 @@ def send_temp_control_notification(event_type, temp, low_limit, high_limit, tilt
     caption_map = {
         'temp_below_low_limit': f'Temperature Below Low Limit - Current: {temp:.1f}°F, Low Limit: {low_limit:.1f}°F',
         'temp_above_high_limit': f'Temperature Above High Limit - Current: {temp:.1f}°F, High Limit: {high_limit:.1f}°F',
-        'heating_on': f'Heating Turned On - Current: {temp:.1f}°F, Low Limit: {low_limit:.1f}°F',
-        'heating_off': f'Heating Turned Off - Current: {temp:.1f}°F',
-        'cooling_on': f'Cooling Turned On - Current: {temp:.1f}°F, High Limit: {high_limit:.1f}°F',
-        'cooling_off': f'Cooling Turned Off - Current: {temp:.1f}°F'
     }
     
     caption = caption_map.get(event_type, f'Temperature Control Event: {event_type}')
@@ -1241,6 +1240,50 @@ Tilt Color: {tilt_color}
         subject=subject,
         body=body,
         brewid=tilt_color,  # Use tilt_color as identifier for temp control
+        color=tilt_color
+    )
+
+def send_kasa_error_notification(mode, url, error_msg):
+    """
+    Send notifications for Kasa plug connection failures if enabled in settings.
+    Uses the pending queue system with deduplication to prevent duplicate alerts.
+    
+    Args:
+        mode: 'heating' or 'cooling'
+        url: IP address or hostname of the Kasa plug
+        error_msg: Error message from the connection failure
+    """
+    # Get temp control notification settings
+    temp_notif_cfg = system_cfg.get('temp_control_notifications', {})
+    
+    # Check if Kasa error notifications are enabled
+    if not temp_notif_cfg.get('enable_kasa_error', True):
+        return
+    
+    brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
+    tilt_color = temp_cfg.get('tilt_color', '')
+    now = datetime.utcnow()
+    
+    mode_name = 'Heating' if mode == 'heating' else 'Cooling'
+    
+    subject = f"{brewery_name} - Kasa Plug Connection Failure"
+    body = f"""Brewery Name: {brewery_name}
+Date: {now.strftime('%Y-%m-%d')}
+Time: {now.strftime('%H:%M:%S')}
+Tilt Color: {tilt_color}
+Mode: {mode_name}
+Plug URL: {url}
+
+Failed to connect to Kasa plug.
+Error: {error_msg}"""
+    
+    # Queue notification with 10-second delay for deduplication
+    # Use combination of mode and url as unique identifier
+    queue_pending_notification(
+        notification_type='kasa_error',
+        subject=subject,
+        body=body,
+        brewid=f"{mode}_{url}",  # Unique identifier for this specific plug and mode
         color=tilt_color
     )
 
@@ -2022,11 +2065,12 @@ def kasa_result_listener():
                     temp_cfg["heating_error_msg"] = ""
                     event = "heating_on" if action == 'on' else "heating_off"
                     append_control_log(event, {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
-                    # Send notification if enabled
-                    send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
+                    # Heating on/off events are only logged to chart, NOT sent as notifications
                 else:
                     temp_cfg["heating_error"] = True
                     temp_cfg["heating_error_msg"] = result.get('error', '') or ''
+                    # Send notification for Kasa connection failure if enabled
+                    send_kasa_error_notification('heating', url, result.get('error', ''))
             elif mode == 'cooling':
                 temp_cfg["cooler_pending"] = False
                 if success:
@@ -2035,11 +2079,12 @@ def kasa_result_listener():
                     temp_cfg["cooling_error_msg"] = ""
                     event = "cooling_on" if action == 'on' else "cooling_off"
                     append_control_log(event, {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
-                    # Send notification if enabled
-                    send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
+                    # Cooling on/off events are only logged to chart, NOT sent as notifications
                 else:
                     temp_cfg["cooling_error"] = True
                     temp_cfg["cooling_error_msg"] = result.get('error', '') or ''
+                    # Send notification for Kasa connection failure if enabled
+                    send_kasa_error_notification('cooling', url, result.get('error', ''))
         except Exception:
             continue
 
@@ -2378,10 +2423,7 @@ def update_system_config():
     temp_control_notif = {
         'enable_temp_below_low_limit': 'enable_temp_below_low_limit' in data,
         'enable_temp_above_high_limit': 'enable_temp_above_high_limit' in data,
-        'enable_heating_on': 'enable_heating_on' in data,
-        'enable_heating_off': 'enable_heating_off' in data,
-        'enable_cooling_on': 'enable_cooling_on' in data,
-        'enable_cooling_off': 'enable_cooling_off' in data,
+        'enable_kasa_error': 'enable_kasa_error' in data,
     }
     system_cfg['temp_control_notifications'] = temp_control_notif
     
