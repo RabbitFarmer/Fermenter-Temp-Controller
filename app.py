@@ -2950,6 +2950,12 @@ def batch_history():
 @app.route('/batch_review/<brewid>')
 def batch_review(brewid):
     """Display detailed review of a specific batch by brewid."""
+    # Sanitize brewid to prevent directory traversal attacks
+    # Only allow alphanumeric characters and hyphens
+    import re
+    if not re.match(r'^[a-zA-Z0-9\-_]+$', brewid):
+        return "Invalid batch ID", 400
+    
     # Find the batch in batch_history files
     batch_info = None
     color = None
@@ -2977,7 +2983,7 @@ def batch_review(brewid):
     batch_data = []
     batch_file = None
     
-    # Check with glob pattern for files matching the brewid
+    # Check with glob pattern for files matching the brewid (now sanitized)
     batch_files = glob_func(f'batches/*{brewid}*.jsonl')
     
     if batch_files:
@@ -3061,7 +3067,6 @@ def calculate_batch_statistics(batch_data, batch_info):
     timestamps = [s.get('timestamp') for s in samples if s.get('timestamp')]
     if len(timestamps) >= 2:
         try:
-            from datetime import datetime
             start_time = datetime.fromisoformat(timestamps[0].replace('Z', '+00:00'))
             end_time = datetime.fromisoformat(timestamps[-1].replace('Z', '+00:00'))
             duration = end_time - start_time
