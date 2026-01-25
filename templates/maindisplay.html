@@ -261,6 +261,15 @@
     .tc-notification-item.push-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
     .tc-notification-item.email-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
 
+    /* 3-across mode enhancements for temp control card */
+    .display-mode-3 .temp-card-banner .title-line-1 { font-size: 22px; }
+    .display-mode-3 .temp-card-banner .title-line-2 { font-size: 18px; }
+    .display-mode-3 .tc-status { font-size: 22px; }
+    .display-mode-3 .tc-label { font-size: 18px; }
+    .display-mode-3 .tc-value-box { font-size: 22px; min-width: 100px; }
+    .display-mode-3 .tc-value-current { font-size: 32px; }
+    .display-mode-3 .temp-card-assigned-tilt { font-size: 18px; }
+
     /* Small responsive tweaks */
     @media (max-width:720px) {
       .tilt-card.temp-control { width:92%; }
@@ -269,7 +278,7 @@
   </style>
 </head>
 <body>
-  <div class="page-container">
+  <div class="page-container display-mode-{{ system_settings.get('display_mode', '4') }}">
     <header class="site-header">
       <h1 class="dashboard-title">{{ system_settings.brewery_name }}</h1>
       

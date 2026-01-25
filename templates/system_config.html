@@ -130,6 +130,18 @@
           </tr>
           <tr>
             <td>
+              <label for="display_mode"><b>Display Mode</b></label>
+              <div style="font-size:0.85em;color:#666;margin-top:4px;">Number of Tilt cards across the screen. 3-across mode displays larger numbers for distance viewing.</div>
+            </td>
+            <td>
+              <select name="display_mode" id="display_mode">
+                <option value="4" {% if system_settings.get('display_mode','4') == '4' %}selected{% endif %}>4 Across (Default)</option>
+                <option value="3" {% if system_settings.get('display_mode','4') == '3' %}selected{% endif %}>3 Across (Large Numbers)</option>
+              </select>
+            </td>
+          </tr>
+          <tr>
+            <td>
               <label for="update_interval"><b>Update Interval (minutes)</b></label>
               <div style="font-size:0.85em;color:#666;margin-top:4px;">Frequency of control loop checks for temperature adjustments and readings</div>
             </td>

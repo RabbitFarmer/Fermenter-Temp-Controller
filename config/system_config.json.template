@@ -2,6 +2,7 @@
   "brewery_name": "My Fermentorium",
   "brewer_name": "Frank",
   "units": "Fahrenheit",
+  "display_mode": "4",
   "push_provider": "pushover",
   "pushover_user_key": "",
   "pushover_api_token": ""
