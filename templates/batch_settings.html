@@ -117,12 +117,19 @@
 
         {% if batch_history %}
           <div style="margin-top:12px;">
-            <div class="heading">Batch History</div>
+            <div class="heading">Batch History for {{ selected_tilt }}</div>
             <ul>
               {% for b in batch_history %}
-                <li>{{ b.ferm_start_date }} — {{ b.beer_name }} / {{ b.batch_name }} (OG: {{ b.recipe_og or b.actual_og or '--' }})</li>
+                <li>
+                  <a href="{{ url_for('batch_review', brewid=b.brewid) }}" style="text-decoration:none; color:#1a6;">
+                    {{ b.ferm_start_date }} — {{ b.beer_name }} / {{ b.batch_name }} (OG: {{ b.recipe_og or b.actual_og or '--' }})
+                  </a>
+                </li>
               {% endfor %}
             </ul>
+            <div style="margin-top:12px;">
+              <a href="{{ url_for('batch_history') }}" class="btn-action" style="display:inline-block;">View All Batch History</a>
+            </div>
           </div>
         {% endif %}
       </div>
