@@ -18,10 +18,30 @@
     .batch-details { font-size:0.9em; color:#666; }
     .no-history { color:#999; font-style:italic; padding:20px; text-align:center; }
     .btn-action { padding:10px 20px; background-color:#8B4513; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; text-decoration:none; display:inline-block; margin-right:10px; }
-    .btn-sort { padding:8px 16px; background-color:#4CAF50; color:white; border:none; cursor:pointer; font-size:14px; font-weight:bold; border-radius:5px; text-decoration:none; display:inline-block; }
-    .btn-sort:hover { background-color:#45a049; }
     .controls { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px; }
+    .sort-control { display:flex; align-items:center; gap:8px; }
+    .sort-label { font-weight:700; font-size:14px; color:#333; }
+    .sort-select { 
+      padding:8px 12px; 
+      font-size:14px; 
+      font-weight:600;
+      border:2px solid #4CAF50; 
+      border-radius:5px; 
+      background-color:#fff; 
+      color:#333;
+      cursor:pointer;
+      min-width:200px;
+    }
+    .sort-select:hover { background-color:#f0f0f0; }
+    .sort-select:focus { outline:none; border-color:#45a049; }
   </style>
+  <script>
+    function changeSortOrder() {
+      const select = document.getElementById('sortSelect');
+      const sortValue = select.value;
+      window.location.href = '{{ url_for("batch_history") }}?sort=' + sortValue;
+    }
+  </script>
 </head>
 <body>
   <div class="page-container">
@@ -32,16 +52,14 @@
     <div class="history-container">
       <div class="controls">
         <button type="button" onclick="window.location='/'" class="btn-action">Dashboard</button>
-        <div>
-          {% if sort_order == 'newest' %}
-            <a href="{{ url_for('batch_history') }}?sort=oldest" class="btn-sort">
-              📅 Sort: Newest First ▼ (click for oldest first)
-            </a>
-          {% else %}
-            <a href="{{ url_for('batch_history') }}?sort=newest" class="btn-sort">
-              📅 Sort: Oldest First ▲ (click for newest first)
-            </a>
-          {% endif %}
+        <div class="sort-control">
+          <label for="sortSelect" class="sort-label">📅 Sort by:</label>
+          <select id="sortSelect" class="sort-select" onchange="changeSortOrder()">
+            <option value="newest" {% if sort_order == 'newest' %}selected{% endif %}>Date: Newest First</option>
+            <option value="oldest" {% if sort_order == 'oldest' %}selected{% endif %}>Date: Oldest First</option>
+            <option value="beer_name" {% if sort_order == 'beer_name' %}selected{% endif %}>Beer Name (A-Z)</option>
+            <option value="color" {% if sort_order == 'color' %}selected{% endif %}>Tilt Color (A-Z)</option>
+          </select>
         </div>
       </div>
 

@@ -2906,14 +2906,6 @@ def batch_history():
                 with open(batch_history_file, 'r') as f:
                     batches = json.load(f)
                     if batches:
-                        # Sort batches by date
-                        if sort_order == 'newest':
-                            # Most recent first (descending)
-                            batches = sorted(batches, key=lambda x: x.get('ferm_start_date', ''), reverse=True)
-                        else:
-                            # Oldest first (ascending)
-                            batches = sorted(batches, key=lambda x: x.get('ferm_start_date', ''))
-                        
                         colors_with_history.append({
                             'color': color,
                             'count': len(batches),
@@ -2921,6 +2913,33 @@ def batch_history():
                         })
             except Exception:
                 pass
+    
+    # Apply sorting based on sort_order parameter
+    if sort_order == 'newest':
+        # Sort by date, newest first (within each color)
+        for color_data in colors_with_history:
+            color_data['batches'] = sorted(color_data['batches'], 
+                                          key=lambda x: x.get('ferm_start_date', ''), 
+                                          reverse=True)
+    elif sort_order == 'oldest':
+        # Sort by date, oldest first (within each color)
+        for color_data in colors_with_history:
+            color_data['batches'] = sorted(color_data['batches'], 
+                                          key=lambda x: x.get('ferm_start_date', ''))
+    elif sort_order == 'beer_name':
+        # Sort by beer name alphabetically (within each color)
+        for color_data in colors_with_history:
+            color_data['batches'] = sorted(color_data['batches'], 
+                                          key=lambda x: (x.get('beer_name', '').lower(), 
+                                                        x.get('ferm_start_date', '')))
+    elif sort_order == 'color':
+        # Sort colors alphabetically and batches within each color by date (newest first)
+        colors_with_history = sorted(colors_with_history, 
+                                    key=lambda x: x['color'])
+        for color_data in colors_with_history:
+            color_data['batches'] = sorted(color_data['batches'], 
+                                          key=lambda x: x.get('ferm_start_date', ''), 
+                                          reverse=True)
     
     return render_template('batch_history_select.html',
                          colors_with_history=colors_with_history,
@@ -2959,7 +2978,6 @@ def batch_review(brewid):
     batch_file = None
     
     # Check with glob pattern for files matching the brewid
-    from glob import glob as glob_func
     batch_files = glob_func(f'batches/*{brewid}*.jsonl')
     
     if batch_files:
