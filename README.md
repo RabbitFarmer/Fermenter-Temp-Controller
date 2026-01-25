@@ -13,6 +13,7 @@ This project is a Raspberry Pi-based fermentation monitor and temperature contro
   - Batch alerts (signal loss, fermentation starting, daily reports)
   - Configurable notification settings per event type
   - See [NOTIFICATIONS.md](NOTIFICATIONS.md) for detailed configuration guide
+  - See [Notification Types](#notification-types) section below for complete list
 
 ## Demo Data
 
@@ -161,6 +162,94 @@ The system provides predefined field maps for common services and allows custom 
 
 **Request Timeout:**
 The Request Timeout setting (default: 8 seconds) controls how long the system will wait for a response from the external service before timing out. This prevents the system from hanging if the external service is slow or unavailable.
+
+## Notification Types
+
+The system can send notifications via Email and/or Push (Pushover or ntfy) for various fermentation and temperature control events. All notifications (except test notifications) use a common notification system with deduplication to prevent duplicate alerts.
+
+### Batch Notifications
+
+Batch notifications monitor fermentation progress and tilt signal status:
+
+1. **Loss of Signal** - Sent when no Tilt readings have been received for the configured timeout period (default: 30 minutes)
+   - Subject: `{Brewery Name} - Loss of Signal`
+   - Includes: Brewery name, Tilt color, Beer name, Date/Time
+   - Configurable: `enable_loss_of_signal` in batch notifications settings
+
+2. **Fermentation Started** - Sent when gravity drops 0.010+ points from original gravity across 3 consecutive readings
+   - Subject: `{Brewery Name} - Fermentation Started`
+   - Includes: Brewery name, Tilt color, Beer name, Starting gravity, Current gravity
+   - Configurable: `enable_fermentation_starting` in batch notifications settings
+
+3. **Fermentation Completion** - Sent when gravity has been stable (±0.002) for 24 hours
+   - Subject: `{Brewery Name} - Fermentation Completion`
+   - Includes: Brewery name, Tilt color, Beer name, Final gravity, Apparent attenuation
+   - Configurable: `enable_fermentation_completion` in batch notifications settings
+
+4. **Daily Report** - Sent once per day at a configured time with fermentation progress
+   - Subject: `{Brewery Name} - Daily Report`
+   - Includes: Starting gravity, Current gravity, Net change, Change since yesterday
+   - Configurable: `enable_daily_report` and `daily_report_time` in batch notifications settings
+
+### Temperature Control Notifications
+
+Temperature control notifications alert when temperatures exceed limits or when heating/cooling equipment changes state:
+
+5. **Temperature Below Low Limit** - Sent when current temperature drops below the configured low limit
+   - Subject: `{Brewery Name} - Temperature Control Alert`
+   - Includes: Current temperature, Low limit setting, Tilt color
+   - Configurable: `enable_temp_below_low_limit` in temperature control notifications settings
+
+6. **Temperature Above High Limit** - Sent when current temperature rises above the configured high limit
+   - Subject: `{Brewery Name} - Temperature Control Alert`
+   - Includes: Current temperature, High limit setting, Tilt color
+   - Configurable: `enable_temp_above_high_limit` in temperature control notifications settings
+
+7. **Heating On** - Sent when the heating control is activated
+   - Subject: `{Brewery Name} - Temperature Control Alert`
+   - Includes: Current temperature, Low limit setting, Tilt color
+   - Configurable: `enable_heating_on` in temperature control notifications settings
+
+8. **Heating Off** - Sent when the heating control is deactivated
+   - Subject: `{Brewery Name} - Temperature Control Alert`
+   - Includes: Current temperature, Tilt color
+   - Configurable: `enable_heating_off` in temperature control notifications settings
+
+9. **Cooling On** - Sent when the cooling control is activated
+   - Subject: `{Brewery Name} - Temperature Control Alert`
+   - Includes: Current temperature, High limit setting, Tilt color
+   - Configurable: `enable_cooling_on` in temperature control notifications settings
+
+10. **Cooling Off** - Sent when the cooling control is deactivated
+    - Subject: `{Brewery Name} - Temperature Control Alert`
+    - Includes: Current temperature, Tilt color
+    - Configurable: `enable_cooling_off` in temperature control notifications settings
+
+### Notification Delivery Methods
+
+- **Email** - SMTP-based email notifications (supports Gmail, custom SMTP servers)
+- **Push** - Mobile push notifications via:
+  - **Pushover** - Paid service ($5 one-time per platform, very reliable)
+  - **ntfy** - Free, open-source, self-hostable alternative
+- **Both** - Send via both Email and Push simultaneously
+
+### Notification Deduplication
+
+All notifications use a 10-second pending queue with deduplication to prevent duplicate alerts. If the same notification is triggered multiple times within 10 seconds (e.g., from rapid BLE updates), only the first notification will be sent.
+
+### Retry Mechanism
+
+Failed notifications are automatically retried with exponential backoff:
+- First retry: After 5 minutes
+- Second retry: After 30 minutes
+- Maximum retries: 2 (total of 3 attempts including initial send)
+
+### Configuration
+
+Notification settings can be configured via the web dashboard:
+- Navigate to **System Settings** → **Push/Email** tab for delivery method settings
+- Navigate to **Batch Settings** for batch notification preferences
+- Navigate to **Temp Control Settings** for temperature control notification preferences
 
 ## Contributing
 
