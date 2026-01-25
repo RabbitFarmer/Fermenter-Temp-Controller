@@ -1202,6 +1202,7 @@ def send_warning(subject, body):
 def send_temp_control_notification(event_type, temp, low_limit, high_limit, tilt_color):
     """
     Send notifications for temperature control events if enabled in settings.
+    Uses the pending queue system with deduplication to prevent duplicate alerts.
     """
     # Get temp control notification settings
     temp_notif_cfg = system_cfg.get('temp_control_notifications', {})
@@ -1233,7 +1234,15 @@ Tilt Color: {tilt_color}
 
 {caption}"""
     
-    attempt_send_notifications(subject, body)
+    # Queue notification with 10-second delay for deduplication
+    # Use tilt_color as brewid since temp control is per-tilt
+    queue_pending_notification(
+        notification_type=event_type,
+        subject=subject,
+        body=body,
+        brewid=tilt_color,  # Use tilt_color as identifier for temp control
+        color=tilt_color
+    )
 
 def save_notification_state_to_config(color, brewid):
     """
