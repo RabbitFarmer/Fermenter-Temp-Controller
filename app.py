@@ -2893,6 +2893,9 @@ def temp_report():
 @app.route('/batch_history')
 def batch_history():
     """Display batch history selection page - list all colors with batch history."""
+    # Get sort order from query parameter (default: newest first)
+    sort_order = request.args.get('sort', 'newest')
+    
     colors_with_history = []
     
     # Check each color for batch history
@@ -2903,6 +2906,14 @@ def batch_history():
                 with open(batch_history_file, 'r') as f:
                     batches = json.load(f)
                     if batches:
+                        # Sort batches by date
+                        if sort_order == 'newest':
+                            # Most recent first (descending)
+                            batches = sorted(batches, key=lambda x: x.get('ferm_start_date', ''), reverse=True)
+                        else:
+                            # Oldest first (ascending)
+                            batches = sorted(batches, key=lambda x: x.get('ferm_start_date', ''))
+                        
                         colors_with_history.append({
                             'color': color,
                             'count': len(batches),
@@ -2913,7 +2924,8 @@ def batch_history():
     
     return render_template('batch_history_select.html',
                          colors_with_history=colors_with_history,
-                         color_map=COLOR_MAP)
+                         color_map=COLOR_MAP,
+                         sort_order=sort_order)
 
 
 @app.route('/batch_review/<brewid>')

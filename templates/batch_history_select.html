@@ -17,7 +17,10 @@
     .batch-name { font-weight:700; font-size:1.1em; margin-bottom:4px; }
     .batch-details { font-size:0.9em; color:#666; }
     .no-history { color:#999; font-style:italic; padding:20px; text-align:center; }
-    .btn-action { padding:10px 20px; background-color:#8B4513; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; text-decoration:none; display:inline-block; }
+    .btn-action { padding:10px 20px; background-color:#8B4513; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; text-decoration:none; display:inline-block; margin-right:10px; }
+    .btn-sort { padding:8px 16px; background-color:#4CAF50; color:white; border:none; cursor:pointer; font-size:14px; font-weight:bold; border-radius:5px; text-decoration:none; display:inline-block; }
+    .btn-sort:hover { background-color:#45a049; }
+    .controls { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px; }
   </style>
 </head>
 <body>
@@ -27,8 +30,19 @@
     </header>
 
     <div class="history-container">
-      <div style="text-align:center; margin-bottom:20px;">
+      <div class="controls">
         <button type="button" onclick="window.location='/'" class="btn-action">Dashboard</button>
+        <div>
+          {% if sort_order == 'newest' %}
+            <a href="{{ url_for('batch_history') }}?sort=oldest" class="btn-sort">
+              📅 Sort: Newest First ▼ (click for oldest first)
+            </a>
+          {% else %}
+            <a href="{{ url_for('batch_history') }}?sort=newest" class="btn-sort">
+              📅 Sort: Oldest First ▲ (click for newest first)
+            </a>
+          {% endif %}
+        </div>
       </div>
 
       {% if not colors_with_history %}
