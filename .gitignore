@@ -46,3 +46,4 @@ env/
 # OS files
 .DS_Store
 Thumbs.db
+demo_server.py

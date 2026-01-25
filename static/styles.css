@@ -17,6 +17,14 @@
   --panel-border: #cfdbe0;
 }
 
+/* 3-across display mode variables */
+.display-mode-3 {
+  --card-width: 400px;
+  --metric-number-size: 32px;
+  --temp-number-size: 48px;
+  --card-gap: 32px;
+}
+
 /* Page container */
 .page-container {
   max-width: var(--page-max-width);
@@ -119,6 +127,14 @@
   vertical-align:middle;
 }
 .metric-number { display:inline-block; }
+
+/* 3-across display mode enhancements */
+.display-mode-3 .tilt-banner { font-size: 24px; padding: 18px; }
+.display-mode-3 .tilt-metrics.restore .label { font-size: 20px; font-weight: 800; }
+.display-mode-3 .tilt-metrics.restore th.right-header { font-size: 16px; }
+/* Recipe column numbers remain smaller in 3-across mode */
+.display-mode-3 .tilt-metrics.restore td:nth-child(2) .metric-number { font-size: 18px; }
+/* Actual numbers use the larger metric-number-size defined in CSS variables */
 
 /* Footer and chart pill */
 .tilt-footer-colored { padding:12px; font-size:14px; position:relative; overflow:visible; }

@@ -2391,6 +2391,7 @@ def update_system_config():
         "mobile": data.get("mobile", ""),
         "timezone": data.get("timezone", ""),
         "timestamp_format": data.get("timestamp_format", ""),
+        "display_mode": data.get("display_mode", "4"),
         "update_interval": data.get("update_interval", "1"),
         "temp_logging_interval": data.get("temp_logging_interval", system_cfg.get('temp_logging_interval', 10)),
         "external_refresh_rate": data.get("external_refresh_rate", system_cfg.get("external_refresh_rate", "15")),
