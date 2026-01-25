@@ -123,6 +123,19 @@
               yaxis: 'y2',
             };
             
+            // Calculate dynamic gravity range with padding
+            const validGravities = gravities.filter(g => g && g > 0);
+            let gravityRange = [0.990, 1.100]; // Default range
+            if (validGravities.length > 0) {
+              const minGrav = Math.min(...validGravities);
+              const maxGrav = Math.max(...validGravities);
+              const padding = (maxGrav - minGrav) * 0.1 || 0.010; // 10% padding or minimum 0.010
+              gravityRange = [
+                Math.max(0.990, minGrav - padding),
+                Math.min(1.150, maxGrav + padding)
+              ];
+            }
+            
             const layout = {
               title: {
                 text: '{{ metadata.beer_name }} - Fermentation Progress',
@@ -144,7 +157,7 @@
                 tickfont: { color: '#E69D00' },
                 overlaying: 'y',
                 side: 'right',
-                range: [0.990, 1.100],
+                range: gravityRange,
               },
               showlegend: true,
               legend: { 
@@ -163,7 +176,11 @@
             if (validGravities.length > 0) {
               const og = validGravities[0];
               const fg = validGravities[validGravities.length - 1];
-              const abv = ((og - fg) * 131.25).toFixed(1);
+              
+              // ABV calculation using standard formula: (OG - FG) * 131.25
+              // This is a widely-used approximation for alcohol by volume percentage
+              const ABV_CONVERSION_FACTOR = 131.25;
+              const abv = ((og - fg) * ABV_CONVERSION_FACTOR).toFixed(1);
               
               document.getElementById('og').textContent = og.toFixed(3);
               document.getElementById('fg').textContent = fg.toFixed(3);

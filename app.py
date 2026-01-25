@@ -3500,7 +3500,8 @@ def batch_history_detail(brewid):
         for filename in os.listdir(BATCHES_DIR):
             if not filename.endswith('.jsonl'):
                 continue
-            if brewid in filename:
+            # Match brewid more precisely - either exact filename match or starts with brewid
+            if filename == f"{brewid}.jsonl" or filename.startswith(f"{brewid}_") or f"_{brewid}_" in filename:
                 batch_file = os.path.join(BATCHES_DIR, filename)
                 break
     
