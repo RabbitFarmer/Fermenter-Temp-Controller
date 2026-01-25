@@ -39,7 +39,12 @@ def parse_timestamp(ts_str):
         try:
             dt = datetime.strptime(ts_str.replace('+00:00', '+0000'), fmt)
             # Convert to UTC ISO format
-            return dt.strftime("%Y-%m-%dT%H:%M:%SZ") if dt.tzinfo else ts_str.replace('T', 'T').split('.')[0] + 'Z'
+            if dt.tzinfo:
+                return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+            else:
+                # For naive datetime, just format without microseconds and add Z
+                base_time = ts_str.split('.')[0]
+                return f"{base_time}Z"
         except ValueError:
             continue
     return ts_str
@@ -192,7 +197,9 @@ def main():
     
     # Create output filename
     if args.beer_name:
-        safe_beer_name = args.beer_name.replace(' ', '_').replace('-', '_')
+        # Sanitize filename: keep only alphanumeric and underscores
+        import re
+        safe_beer_name = re.sub(r'[^a-zA-Z0-9_]', '_', args.beer_name)
         # Get date from first entry
         if len(jsonl_entries) > 0:
             metadata = jsonl_entries[0]

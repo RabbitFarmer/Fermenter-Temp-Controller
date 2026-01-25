@@ -67,8 +67,10 @@ def main():
         gravity_drop = first.get('gravity', 0) - last.get('gravity', 0)
         print(f"Total Gravity Drop: {gravity_drop:.3f}")
         
-        # Calculate approximate ABV (simple formula)
-        abv = gravity_drop * 131.25
+        # Calculate approximate ABV using standard formula
+        # ABV = (OG - FG) * 131.25 (simplified formula for quick estimation)
+        ABV_MULTIPLIER = 131.25
+        abv = gravity_drop * ABV_MULTIPLIER
         print(f"Estimated ABV:      {abv:.1f}%")
         print()
     
