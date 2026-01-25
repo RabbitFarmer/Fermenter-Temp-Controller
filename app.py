@@ -24,6 +24,7 @@ import threading
 import time
 from collections import deque, defaultdict
 from datetime import datetime
+from glob import glob as glob_func
 from math import ceil
 from multiprocessing import Process, Queue
 from urllib.parse import urlparse
@@ -2945,15 +2946,9 @@ def batch_review(brewid):
     batch_data = []
     batch_file = None
     
-    # Try different possible batch file patterns
-    possible_files = [
-        f'batches/{brewid}.jsonl',
-        f'batches/batch_{color}_{brewid}*.jsonl'
-    ]
-    
-    # Also check with glob pattern for files matching the brewid
-    import glob
-    batch_files = glob.glob(f'batches/*{brewid}*.jsonl')
+    # Check with glob pattern for files matching the brewid
+    from glob import glob as glob_func
+    batch_files = glob_func(f'batches/*{brewid}*.jsonl')
     
     if batch_files:
         batch_file = batch_files[0]
