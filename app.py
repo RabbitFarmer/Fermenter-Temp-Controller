@@ -464,6 +464,10 @@ NOTIFICATION_MAX_RETRIES = 2  # Maximum retry attempts (total: 1 initial + 2 ret
 NOTIFICATION_RETRY_INTERVALS = [300, 1800]  # Retry after 5 minutes, then 30 minutes (in seconds)
 notification_retry_queue = []  # Queue of failed notifications pending retry
 
+# Pending notification queue (for deduplication)
+NOTIFICATION_PENDING_DELAY_SECONDS = 10  # Delay before sending to allow deduplication
+pending_notifications = []  # Queue of notifications pending send with 10-second delay
+
 def generate_brewid(beer_name, batch_name, date_str):
     id_str = f"{beer_name}-{batch_name}-{date_str}"
     return hashlib.sha256(id_str.encode('utf-8')).hexdigest()[:8]
@@ -1198,6 +1202,10 @@ def send_warning(subject, body):
 def send_temp_control_notification(event_type, temp, low_limit, high_limit, tilt_color):
     """
     Send notifications for temperature control events if enabled in settings.
+    Uses the pending queue system with deduplication to prevent duplicate alerts.
+    
+    Handles all temperature control events: temp limits, heating/cooling on/off.
+    Users can individually enable/disable each notification type.
     """
     # Get temp control notification settings
     temp_notif_cfg = system_cfg.get('temp_control_notifications', {})
@@ -1216,7 +1224,7 @@ def send_temp_control_notification(event_type, temp, low_limit, high_limit, tilt
         'heating_on': f'Heating Turned On - Current: {temp:.1f}°F, Low Limit: {low_limit:.1f}°F',
         'heating_off': f'Heating Turned Off - Current: {temp:.1f}°F',
         'cooling_on': f'Cooling Turned On - Current: {temp:.1f}°F, High Limit: {high_limit:.1f}°F',
-        'cooling_off': f'Cooling Turned Off - Current: {temp:.1f}°F'
+        'cooling_off': f'Cooling Turned Off - Current: {temp:.1f}°F',
     }
     
     caption = caption_map.get(event_type, f'Temperature Control Event: {event_type}')
@@ -1229,7 +1237,59 @@ Tilt Color: {tilt_color}
 
 {caption}"""
     
-    attempt_send_notifications(subject, body)
+    # Queue notification with 10-second delay for deduplication
+    # Use tilt_color as brewid since temp control is per-tilt
+    queue_pending_notification(
+        notification_type=event_type,
+        subject=subject,
+        body=body,
+        brewid=tilt_color,  # Use tilt_color as identifier for temp control
+        color=tilt_color
+    )
+
+def send_kasa_error_notification(mode, url, error_msg):
+    """
+    Send notifications for Kasa plug connection failures if enabled in settings.
+    Uses the pending queue system with deduplication to prevent duplicate alerts.
+    
+    Args:
+        mode: 'heating' or 'cooling'
+        url: IP address or hostname of the Kasa plug
+        error_msg: Error message from the connection failure
+    """
+    # Get temp control notification settings
+    temp_notif_cfg = system_cfg.get('temp_control_notifications', {})
+    
+    # Check if Kasa error notifications are enabled
+    if not temp_notif_cfg.get('enable_kasa_error', True):
+        return
+    
+    brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
+    tilt_color = temp_cfg.get('tilt_color', '')
+    now = datetime.utcnow()
+    
+    mode_name = 'Heating' if mode == 'heating' else 'Cooling'
+    
+    subject = f"{brewery_name} - Kasa Plug Connection Failure"
+    body = f"""Brewery Name: {brewery_name}
+Date: {now.strftime('%Y-%m-%d')}
+Time: {now.strftime('%H:%M:%S')}
+Tilt Color: {tilt_color}
+Mode: {mode_name}
+Plug URL: {url}
+
+Failed to connect to Kasa plug.
+Error: {error_msg}"""
+    
+    # Queue notification with 10-second delay for deduplication
+    # Use combination of mode and url as unique identifier
+    queue_pending_notification(
+        notification_type='kasa_error',
+        subject=subject,
+        body=body,
+        brewid=f"{mode}_{url}",  # Unique identifier for this specific plug and mode
+        color=tilt_color
+    )
 
 def save_notification_state_to_config(color, brewid):
     """
@@ -1391,24 +1451,19 @@ Fermentation has started.
 Gravity at start: {starting_gravity:.3f}
 Gravity now: {current_gravity:.3f}"""
         
-        # Attempt to send notification(s) based on warning_mode (EMAIL/PUSH/BOTH)
-        notification_sent = attempt_send_notifications(subject, body)
-        
         # Always save state to config file, regardless of notification success
         # This prevents duplicate notifications even if retry fails
         # Users can check logs/UI to see if notifications failed
         save_notification_state_to_config(color, brewid)
         
-        if not notification_sent:
-            # Queue for retry with exponential backoff
-            queue_notification_retry(
-                notification_type='fermentation_start',
-                subject=subject,
-                body=body,
-                brewid=brewid,
-                color=color
-            )
-            print(f"[LOG] Fermentation start notification failed for {color}/{brewid}, queued for retry")
+        # Queue notification with 10-second delay for deduplication
+        queue_pending_notification(
+            notification_type='fermentation_start',
+            subject=subject,
+            body=body,
+            brewid=brewid,
+            color=color
+        )
 
 def check_fermentation_completion(color, brewid, cfg, state):
     """
@@ -1492,24 +1547,19 @@ Gravity has been stable for 24 hours: {current_gravity:.3f}"""
         except (ValueError, TypeError):
             pass
     
-    # Attempt to send notification(s) based on warning_mode (EMAIL/PUSH/BOTH)
-    notification_sent = attempt_send_notifications(subject, body)
-    
     # Always save state to config file, regardless of notification success
     # This prevents duplicate notifications even if retry fails
     # Users can check logs/UI to see if notifications failed
     save_notification_state_to_config(color, brewid)
     
-    if not notification_sent:
-        # Queue for retry with exponential backoff
-        queue_notification_retry(
-            notification_type='fermentation_completion',
-            subject=subject,
-            body=body,
-            brewid=brewid,
-            color=color
-        )
-        print(f"[LOG] Fermentation completion notification failed for {color}/{brewid}, queued for retry")
+    # Queue notification with 10-second delay for deduplication
+    queue_pending_notification(
+        notification_type='fermentation_completion',
+        subject=subject,
+        body=body,
+        brewid=brewid,
+        color=color
+    )
 
 def check_signal_loss():
     """
@@ -1544,9 +1594,9 @@ def check_signal_loss():
                     break
             
             if color and cfg:
-                # Set flags BEFORE sending to prevent race condition with duplicate notifications
+                # Set flags BEFORE queueing to prevent race condition with duplicate notifications
                 # This ensures that even if check_signal_loss is called multiple times rapidly,
-                # only the first call will proceed to send the notification
+                # only the first call will proceed to queue the notification
                 state['signal_lost'] = True
                 state['signal_loss_notified'] = True
                 
@@ -1561,19 +1611,14 @@ Date/Time: {now.strftime('%Y-%m-%d %H:%M:%S')}
 
 Loss of Signal -- Receiving no tilt readings"""
                 
-                # Attempt to send notification(s) based on warning_mode (EMAIL/PUSH/BOTH)
-                notification_sent = attempt_send_notifications(subject, body)
-                
-                if not notification_sent:
-                    # Queue for retry with exponential backoff
-                    queue_notification_retry(
-                        notification_type='signal_loss',
-                        subject=subject,
-                        body=body,
-                        brewid=brewid,
-                        color=color
-                    )
-                    print(f"[LOG] Signal loss notification failed for {color}/{brewid}, queued for retry")
+                # Queue notification with 10-second delay for deduplication
+                queue_pending_notification(
+                    notification_type='signal_loss',
+                    subject=subject,
+                    body=body,
+                    brewid=brewid,
+                    color=color
+                )
 
 def queue_notification_retry(notification_type, subject, body, brewid, color):
     """
@@ -1646,6 +1691,83 @@ def process_notification_retries():
     # Remove successfully sent or expired items
     for item in items_to_remove:
         notification_retry_queue.remove(item)
+
+def queue_pending_notification(notification_type, subject, body, brewid, color):
+    """
+    Queue a notification in the pending queue with deduplication.
+    
+    This implements a 10-second delay before sending notifications to prevent duplicates.
+    If the same notification is already pending, it will not be added again.
+    
+    Args:
+        notification_type: Type of notification (signal_loss, fermentation_start, fermentation_completion)
+        subject: Email/PUSH subject
+        body: Email/PUSH body
+        brewid: Brew ID for deduplication
+        color: Tilt color for deduplication
+    """
+    # Check if this notification is already pending (prevent duplicates)
+    for item in pending_notifications:
+        if item['notification_type'] == notification_type and item['brewid'] == brewid:
+            # Already pending, don't add again
+            print(f"[LOG] Notification {notification_type}/{brewid} already pending, skipping duplicate")
+            return
+    
+    # Add to pending queue
+    pending_notifications.append({
+        'notification_type': notification_type,
+        'subject': subject,
+        'body': body,
+        'brewid': brewid,
+        'color': color,
+        'queued_time': datetime.utcnow()
+    })
+    print(f"[LOG] Queued {notification_type}/{brewid} notification for sending in {NOTIFICATION_PENDING_DELAY_SECONDS} seconds")
+
+def process_pending_notifications():
+    """
+    Process the pending notification queue.
+    
+    Sends notifications that have been pending for at least NOTIFICATION_PENDING_DELAY_SECONDS.
+    This provides a window for deduplication to work - if multiple identical notifications
+    are triggered within the delay window, only the first one will be sent.
+    
+    Called periodically (every 5 minutes) by the batch monitoring thread.
+    """
+    now = datetime.utcnow()
+    items_to_remove = []
+    
+    for item in pending_notifications:
+        queued_time = item['queued_time']
+        
+        # Calculate time since queued
+        elapsed_seconds = (now - queued_time).total_seconds()
+        
+        # Check if it's time to send (after the delay period)
+        if elapsed_seconds >= NOTIFICATION_PENDING_DELAY_SECONDS:
+            print(f"[LOG] Sending pending notification: {item['notification_type']}/{item['brewid']}")
+            
+            # Attempt to send
+            success = attempt_send_notifications(item['subject'], item['body'])
+            
+            if success:
+                print(f"[LOG] Pending notification sent successfully for {item['notification_type']}/{item['brewid']}")
+                items_to_remove.append(item)
+            else:
+                # Failed to send - queue for retry
+                print(f"[LOG] Pending notification failed for {item['notification_type']}/{item['brewid']}, queuing for retry")
+                queue_notification_retry(
+                    notification_type=item['notification_type'],
+                    subject=item['subject'],
+                    body=item['body'],
+                    brewid=item['brewid'],
+                    color=item['color']
+                )
+                items_to_remove.append(item)
+    
+    # Remove sent or failed items
+    for item in items_to_remove:
+        pending_notifications.remove(item)
 
 def send_daily_report():
     """
@@ -1947,11 +2069,13 @@ def kasa_result_listener():
                     temp_cfg["heating_error_msg"] = ""
                     event = "heating_on" if action == 'on' else "heating_off"
                     append_control_log(event, {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
-                    # Send notification if enabled
+                    # Send notification if enabled (user can choose to enable/disable)
                     send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
                 else:
                     temp_cfg["heating_error"] = True
                     temp_cfg["heating_error_msg"] = result.get('error', '') or ''
+                    # Send notification for Kasa connection failure if enabled
+                    send_kasa_error_notification('heating', url, result.get('error', ''))
             elif mode == 'cooling':
                 temp_cfg["cooler_pending"] = False
                 if success:
@@ -1960,11 +2084,13 @@ def kasa_result_listener():
                     temp_cfg["cooling_error_msg"] = ""
                     event = "cooling_on" if action == 'on' else "cooling_off"
                     append_control_log(event, {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
-                    # Send notification if enabled
+                    # Send notification if enabled (user can choose to enable/disable)
                     send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
                 else:
                     temp_cfg["cooling_error"] = True
                     temp_cfg["cooling_error_msg"] = result.get('error', '') or ''
+                    # Send notification for Kasa connection failure if enabled
+                    send_kasa_error_notification('cooling', url, result.get('error', ''))
         except Exception:
             continue
 
@@ -2081,6 +2207,9 @@ def periodic_batch_monitoring():
         try:
             # Check for signal loss every 5 minutes
             check_signal_loss()
+            
+            # Process pending notifications (10-second delay for deduplication)
+            process_pending_notifications()
             
             # Process notification retry queue with exponential backoff
             process_notification_retries()
@@ -2304,6 +2433,7 @@ def update_system_config():
         'enable_heating_off': 'enable_heating_off' in data,
         'enable_cooling_on': 'enable_cooling_on' in data,
         'enable_cooling_off': 'enable_cooling_off' in data,
+        'enable_kasa_error': 'enable_kasa_error' in data,
     }
     system_cfg['temp_control_notifications'] = temp_control_notif
     
