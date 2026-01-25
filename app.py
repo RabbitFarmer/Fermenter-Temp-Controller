@@ -2889,6 +2889,164 @@ def temp_report():
                            at_end=at_end)
 
 
+@app.route('/batch_history')
+def batch_history():
+    """Display batch history selection page - list all colors with batch history."""
+    colors_with_history = []
+    
+    # Check each color for batch history
+    for color in TILT_UUIDS.values():
+        batch_history_file = f'batches/batch_history_{color}.json'
+        if os.path.exists(batch_history_file):
+            try:
+                with open(batch_history_file, 'r') as f:
+                    batches = json.load(f)
+                    if batches:
+                        colors_with_history.append({
+                            'color': color,
+                            'count': len(batches),
+                            'batches': batches
+                        })
+            except Exception:
+                pass
+    
+    return render_template('batch_history_select.html',
+                         colors_with_history=colors_with_history,
+                         color_map=COLOR_MAP)
+
+
+@app.route('/batch_review/<brewid>')
+def batch_review(brewid):
+    """Display detailed review of a specific batch by brewid."""
+    # Find the batch in batch_history files
+    batch_info = None
+    color = None
+    
+    for c in TILT_UUIDS.values():
+        batch_history_file = f'batches/batch_history_{c}.json'
+        if os.path.exists(batch_history_file):
+            try:
+                with open(batch_history_file, 'r') as f:
+                    batches = json.load(f)
+                    for b in batches:
+                        if b.get('brewid') == brewid:
+                            batch_info = b
+                            color = c
+                            break
+            except Exception:
+                pass
+        if batch_info:
+            break
+    
+    if not batch_info:
+        return "Batch not found", 404
+    
+    # Load batch data from JSONL file
+    batch_data = []
+    batch_file = None
+    
+    # Try different possible batch file patterns
+    possible_files = [
+        f'batches/{brewid}.jsonl',
+        f'batches/batch_{color}_{brewid}*.jsonl'
+    ]
+    
+    # Also check with glob pattern for files matching the brewid
+    import glob
+    batch_files = glob.glob(f'batches/*{brewid}*.jsonl')
+    
+    if batch_files:
+        batch_file = batch_files[0]
+        try:
+            with open(batch_file, 'r') as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            entry = json.loads(line)
+                            batch_data.append(entry)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+    
+    # Calculate statistics from batch data
+    stats = calculate_batch_statistics(batch_data, batch_info)
+    
+    return render_template('batch_review.html',
+                         batch=batch_info,
+                         color=color,
+                         batch_data=batch_data,
+                         stats=stats,
+                         color_map=COLOR_MAP)
+
+
+def calculate_batch_statistics(batch_data, batch_info):
+    """Calculate statistics from batch data."""
+    stats = {
+        'total_readings': len(batch_data),
+        'duration_days': None,
+        'start_gravity': None,
+        'end_gravity': None,
+        'gravity_change': None,
+        'start_temp': None,
+        'end_temp': None,
+        'avg_temp': None,
+        'min_temp': None,
+        'max_temp': None,
+        'estimated_abv': None
+    }
+    
+    if not batch_data:
+        return stats
+    
+    # Extract sample data
+    samples = []
+    for entry in batch_data:
+        if entry.get('event') in ['sample', 'SAMPLE', 'tilt_reading']:
+            payload = entry.get('payload', entry)
+            samples.append(payload)
+    
+    if not samples:
+        return stats
+    
+    # Calculate temperature statistics
+    temps = [s.get('temp_f') for s in samples if s.get('temp_f') is not None]
+    if temps:
+        stats['avg_temp'] = round(sum(temps) / len(temps), 1)
+        stats['min_temp'] = min(temps)
+        stats['max_temp'] = max(temps)
+        stats['start_temp'] = temps[0]
+        stats['end_temp'] = temps[-1]
+    
+    # Calculate gravity statistics
+    gravities = [s.get('gravity') for s in samples if s.get('gravity') is not None]
+    if gravities:
+        stats['start_gravity'] = gravities[0]
+        stats['end_gravity'] = gravities[-1]
+        stats['gravity_change'] = round(gravities[0] - gravities[-1], 3)
+    
+    # Calculate ABV if we have actual_og
+    actual_og = batch_info.get('actual_og')
+    if actual_og and gravities:
+        final_gravity = gravities[-1]
+        # ABV = (OG - FG) * 131.25
+        stats['estimated_abv'] = round((actual_og - final_gravity) * 131.25, 2)
+    
+    # Calculate duration
+    timestamps = [s.get('timestamp') for s in samples if s.get('timestamp')]
+    if len(timestamps) >= 2:
+        try:
+            from datetime import datetime
+            start_time = datetime.fromisoformat(timestamps[0].replace('Z', '+00:00'))
+            end_time = datetime.fromisoformat(timestamps[-1].replace('Z', '+00:00'))
+            duration = end_time - start_time
+            stats['duration_days'] = duration.days
+        except Exception:
+            pass
+    
+    return stats
+
+
 @app.route('/export_temp_log', methods=['GET', 'POST'])
 def export_temp_log():
     return redirect('/temp_config')

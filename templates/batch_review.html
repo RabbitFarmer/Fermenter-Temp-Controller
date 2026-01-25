@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Batch Review: {{ batch.beer_name }}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    .review-container { max-width:1200px; margin:18px auto; padding:18px; background:#fff; border-radius:8px; box-shadow:0 1px 6px rgba(0,0,0,0.04); }
+    .heading { font-weight:900; margin-bottom:12px; font-size:1.8em; color:#1a6; }
+    .subheading { font-weight:700; margin-top:20px; margin-bottom:8px; font-size:1.3em; color:#333; }
+    .info-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:12px; margin-bottom:20px; }
+    .info-card { padding:12px; background:#f9f9f9; border-radius:6px; border-left:4px solid #1a6; }
+    .info-label { font-weight:700; color:#666; font-size:0.9em; }
+    .info-value { font-size:1.1em; margin-top:4px; }
+    .stats-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:20px; }
+    .stat-card { padding:12px; background:#fff; border:1px solid #ddd; border-radius:6px; text-align:center; }
+    .stat-value { font-size:1.8em; font-weight:700; color:#1a6; }
+    .stat-label { font-size:0.9em; color:#666; margin-top:4px; }
+    .data-table { width:100%; border-collapse:collapse; margin-top:12px; }
+    .data-table th { background:#1a6; color:#fff; padding:10px; text-align:left; }
+    .data-table td { padding:8px; border-bottom:1px solid #eee; }
+    .data-table tr:nth-child(even) { background:#f9f9f9; }
+    .btn-action { padding:10px 20px; background-color:#8B4513; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; text-decoration:none; display:inline-block; margin-right:10px; }
+    .btn-print { padding:10px 20px; background-color:#4CAF50; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; text-decoration:none; display:inline-block; }
+    .no-print { }
+    
+    /* Print styles for PDF export */
+    @media print {
+      .no-print { display:none !important; }
+      .review-container { box-shadow:none; margin:0; padding:10px; }
+      .page-container { margin:0; padding:0; }
+      body { background:#fff; }
+      .data-table { page-break-inside:avoid; }
+      .info-grid, .stats-grid { page-break-inside:avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-container">
+    <div class="review-container">
+      <div class="no-print" style="margin-bottom:20px;">
+        <button type="button" onclick="window.location='/batch_history'" class="btn-action">← Back to History</button>
+        <button type="button" onclick="window.print()" class="btn-print">Print / Export PDF</button>
+      </div>
+
+      <div class="heading">{{ batch.beer_name or 'Unnamed Beer' }}</div>
+      <div style="font-size:1.2em; color:#666; margin-bottom:20px;">{{ batch.batch_name or 'Batch' }}</div>
+
+      <div class="subheading">Batch Information</div>
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="info-label">Tilt Color</div>
+          <div class="info-value" style="color: {{ color_map.get(color, '#333') }}; font-weight:700;">{{ color }}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">Brew ID</div>
+          <div class="info-value">{{ batch.brewid[:16] if batch.brewid else 'N/A' }}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">Fermentation Start Date</div>
+          <div class="info-value">{{ batch.ferm_start_date or 'N/A' }}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">Recipe ABV</div>
+          <div class="info-value">{{ batch.recipe_abv if batch.recipe_abv is not none else 'N/A' }}%</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">Recipe Original Gravity</div>
+          <div class="info-value">{{ batch.recipe_og if batch.recipe_og is not none else 'N/A' }}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">Recipe Final Gravity</div>
+          <div class="info-value">{{ batch.recipe_fg if batch.recipe_fg is not none else 'N/A' }}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">Measured Original Gravity</div>
+          <div class="info-value">{{ batch.actual_og if batch.actual_og is not none else 'N/A' }}</div>
+        </div>
+      </div>
+
+      {% if stats.total_readings > 0 %}
+      <div class="subheading">Fermentation Statistics</div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">{{ stats.total_readings }}</div>
+          <div class="stat-label">Total Readings</div>
+        </div>
+        {% if stats.duration_days is not none %}
+        <div class="stat-card">
+          <div class="stat-value">{{ stats.duration_days }}</div>
+          <div class="stat-label">Duration (days)</div>
+        </div>
+        {% endif %}
+        {% if stats.start_gravity is not none %}
+        <div class="stat-card">
+          <div class="stat-value">{{ "%.3f"|format(stats.start_gravity) }}</div>
+          <div class="stat-label">Starting Gravity</div>
+        </div>
+        {% endif %}
+        {% if stats.end_gravity is not none %}
+        <div class="stat-card">
+          <div class="stat-value">{{ "%.3f"|format(stats.end_gravity) }}</div>
+          <div class="stat-label">Final Gravity</div>
+        </div>
+        {% endif %}
+        {% if stats.gravity_change is not none %}
+        <div class="stat-card">
+          <div class="stat-value">{{ "%.3f"|format(stats.gravity_change) }}</div>
+          <div class="stat-label">Gravity Change</div>
+        </div>
+        {% endif %}
+        {% if stats.estimated_abv is not none %}
+        <div class="stat-card">
+          <div class="stat-value">{{ "%.2f"|format(stats.estimated_abv) }}%</div>
+          <div class="stat-label">Estimated ABV</div>
+        </div>
+        {% endif %}
+        {% if stats.avg_temp is not none %}
+        <div class="stat-card">
+          <div class="stat-value">{{ "%.1f"|format(stats.avg_temp) }}°F</div>
+          <div class="stat-label">Average Temperature</div>
+        </div>
+        {% endif %}
+        {% if stats.min_temp is not none and stats.max_temp is not none %}
+        <div class="stat-card">
+          <div class="stat-value">{{ stats.min_temp }}°F - {{ stats.max_temp }}°F</div>
+          <div class="stat-label">Temperature Range</div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="subheading">Fermentation Data Summary</div>
+      <p style="color:#666; font-size:0.9em;">Showing recent data points (most recent first)</p>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Temperature (°F)</th>
+            <th>Gravity</th>
+            <th>RSSI</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set sample_data = [] %}
+          {% for entry in batch_data %}
+            {% if entry.event in ['sample', 'SAMPLE', 'tilt_reading'] %}
+              {% set payload = entry.payload if entry.payload else entry %}
+              {% set _ = sample_data.append(payload) %}
+            {% endif %}
+          {% endfor %}
+          
+          {% set display_limit = 50 %}
+          {% set reversed_samples = sample_data|reverse %}
+          {% for sample in reversed_samples[:display_limit] %}
+          <tr>
+            <td>{{ sample.timestamp or 'N/A' }}</td>
+            <td>{{ sample.temp_f if sample.temp_f is not none else 'N/A' }}</td>
+            <td>{{ "%.3f"|format(sample.gravity) if sample.gravity is not none else 'N/A' }}</td>
+            <td>{{ sample.rssi if sample.rssi is not none else 'N/A' }}</td>
+          </tr>
+          {% endfor %}
+          
+          {% if sample_data|length > display_limit %}
+          <tr>
+            <td colspan="4" style="text-align:center; font-style:italic; color:#999;">
+              Showing {{ display_limit }} of {{ sample_data|length }} total readings
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="subheading">No Data Available</div>
+      <p style="color:#999; font-style:italic;">No fermentation data found for this batch.</p>
+      {% endif %}
+
+      <div class="no-print" style="margin-top:30px;">
+        <button type="button" onclick="window.location='/batch_history'" class="btn-action">← Back to History</button>
+        <button type="button" onclick="window.print()" class="btn-print">Print / Export PDF</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

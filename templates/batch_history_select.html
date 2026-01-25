@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Batch History</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    .history-container { max-width:1200px; margin:18px auto; padding:18px; background:#fff; border-radius:8px; box-shadow:0 1px 6px rgba(0,0,0,0.04); }
+    .heading { font-weight:900; margin-bottom:16px; font-size:1.5em; color:#1a6; }
+    .color-section { margin-bottom:24px; padding:16px; border-radius:8px; border:2px solid #ddd; }
+    .color-header { font-weight:700; font-size:1.2em; margin-bottom:12px; padding:8px; border-radius:6px; }
+    .batch-list { list-style:none; padding:0; }
+    .batch-item { padding:12px; margin:8px 0; background:#f9f9f9; border-radius:6px; border-left:4px solid #1a6; }
+    .batch-item:hover { background:#f0f0f0; }
+    .batch-link { text-decoration:none; color:#333; display:block; }
+    .batch-name { font-weight:700; font-size:1.1em; margin-bottom:4px; }
+    .batch-details { font-size:0.9em; color:#666; }
+    .no-history { color:#999; font-style:italic; padding:20px; text-align:center; }
+    .btn-action { padding:10px 20px; background-color:#8B4513; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; text-decoration:none; display:inline-block; }
+  </style>
+</head>
+<body>
+  <div class="page-container">
+    <header class="site-header">
+      <h1 class="dashboard-title">BATCH HISTORY</h1>
+    </header>
+
+    <div class="history-container">
+      <div style="text-align:center; margin-bottom:20px;">
+        <button type="button" onclick="window.location='/'" class="btn-action">Dashboard</button>
+      </div>
+
+      {% if not colors_with_history %}
+        <div class="no-history">
+          No batch history found. Start a new batch to begin tracking fermentation history.
+        </div>
+      {% else %}
+        {% for color_data in colors_with_history %}
+          <div class="color-section">
+            <div class="color-header" style="background-color: {{ color_map.get(color_data.color, '#e9eef0') }}; {% if color_data.color in ['Black', 'Purple', 'Blue', 'Green', 'Red'] %}color: #fff;{% endif %}">
+              {{ color_data.color }} Tilt ({{ color_data.count }} batch{{ 'es' if color_data.count != 1 else '' }})
+            </div>
+            
+            <ul class="batch-list">
+              {% for batch in color_data.batches %}
+                <li class="batch-item">
+                  <a href="{{ url_for('batch_review', brewid=batch.brewid) }}" class="batch-link">
+                    <div class="batch-name">{{ batch.beer_name or 'Unnamed Beer' }} - {{ batch.batch_name or 'Batch' }}</div>
+                    <div class="batch-details">
+                      Started: {{ batch.ferm_start_date or 'Unknown' }} • 
+                      Brew ID: {{ batch.brewid[:8] if batch.brewid else 'N/A' }} • 
+                      {% if batch.actual_og %}OG: {{ batch.actual_og }}{% elif batch.recipe_og %}Recipe OG: {{ batch.recipe_og }}{% endif %}
+                    </div>
+                  </a>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>
