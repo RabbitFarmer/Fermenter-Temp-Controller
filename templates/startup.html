@@ -42,10 +42,6 @@
       opacity: 0.9;
       animation: fadeIn 1.5s ease-in;
     }
-    .dots {
-      display: inline-block;
-      animation: ellipsis 1.5s infinite;
-    }
     @keyframes fadeIn {
       from {
         opacity: 0;
@@ -73,12 +69,13 @@
       }
     }
     @keyframes ellipsis {
-      0% { content: ''; }
-      25% { content: '.'; }
-      50% { content: '..'; }
-      75% { content: '...'; }
-      100% { content: ''; }
+      0%, 20% { opacity: 0; }
+      40% { opacity: 1; }
+      100% { opacity: 0; }
     }
+    .dot1 { animation: ellipsis 1.4s infinite 0s; }
+    .dot2 { animation: ellipsis 1.4s infinite 0.2s; }
+    .dot3 { animation: ellipsis 1.4s infinite 0.4s; }
     .spinner {
       margin: 40px auto 0;
       width: 80px;
@@ -100,17 +97,30 @@
     }
   </style>
   <script>
-    // Auto-refresh to check if app is ready
-    setTimeout(function() {
-      window.location.href = '/';
-    }, 3000); // Check every 3 seconds
+    // Poll to check if app is ready, redirect when available
+    function checkAppReady() {
+      fetch('/')
+        .then(response => {
+          if (response.ok) {
+            window.location.href = '/';
+          } else {
+            setTimeout(checkAppReady, 2000);
+          }
+        })
+        .catch(() => {
+          setTimeout(checkAppReady, 2000);
+        });
+    }
+    
+    // Start checking after initial delay
+    setTimeout(checkAppReady, 3000);
   </script>
 </head>
 <body>
   <div class="startup-container">
     <img src="/static/beer-stein.svg" alt="Beer Stein" class="beer-icon">
     <h1 class="startup-title">It's Coming</h1>
-    <p class="startup-message">Please wait 15 seconds<span class="dots">...</span></p>
+    <p class="startup-message">Please wait, starting up<span class="dot1">.</span><span class="dot2">.</span><span class="dot3">.</span></p>
     <div class="spinner">
       <div class="spinner-ring"></div>
     </div>
