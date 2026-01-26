@@ -3190,9 +3190,13 @@ def calculate_batch_statistics(batch_data, batch_info):
     # Calculate ABV if we have actual_og
     actual_og = batch_info.get('actual_og')
     if actual_og and gravities:
-        final_gravity = gravities[-1]
-        # ABV = (OG - FG) * 131.25
-        stats['estimated_abv'] = round((actual_og - final_gravity) * 131.25, 2)
+        try:
+            og_float = float(actual_og)
+            final_gravity = gravities[-1]
+            # ABV = (OG - FG) * 131.25
+            stats['estimated_abv'] = round((og_float - final_gravity) * 131.25, 2)
+        except (ValueError, TypeError):
+            pass
     
     # Calculate duration
     timestamps = [s.get('timestamp') for s in samples if s.get('timestamp')]
