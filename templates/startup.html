@@ -98,7 +98,17 @@
   </style>
   <script>
     // Poll to check if app is ready, redirect when available
+    let attempts = 0;
+    const MAX_ATTEMPTS = 30; // Maximum 60 seconds of polling (30 attempts * 2 seconds)
+    
     function checkAppReady() {
+      attempts++;
+      if (attempts > MAX_ATTEMPTS) {
+        // After max attempts, just try to redirect anyway
+        window.location.href = '/';
+        return;
+      }
+      
       fetch('/')
         .then(response => {
           if (response.ok) {
@@ -112,8 +122,8 @@
         });
     }
     
-    // Start checking after initial delay
-    setTimeout(checkAppReady, 3000);
+    // Start checking after brief initial delay
+    setTimeout(checkAppReady, 2000);
   </script>
 </head>
 <body>
