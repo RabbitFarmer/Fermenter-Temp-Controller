@@ -2284,6 +2284,11 @@ def dashboard():
         live_tilts=live_tilts
     )
 
+@app.route('/startup')
+def startup():
+    """Display startup splash screen"""
+    return render_template('startup.html')
+
 @app.route('/system_config')
 def system_config():
     # Get the tab parameter from query string and validate it
