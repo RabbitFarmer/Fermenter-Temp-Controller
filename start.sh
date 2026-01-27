@@ -1,12 +1,23 @@
 #!/bin/bash
 
+# Fermenter Temp Controller - Start Script
+# Starts the Flask application and opens the browser
+
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
 # Activate virtual environment if it exists
-if [ -d ".venv" ]; then
+if [ -d "venv" ]; then
+    echo "Activating virtual environment..."
+    source venv/bin/activate
+elif [ -d ".venv" ]; then
+    echo "Activating virtual environment (.venv)..."
     source .venv/bin/activate
+else
+    echo "Warning: No virtual environment found (venv/ or .venv/)"
+    echo "It's recommended to use a virtual environment. Run './setup.sh' to create one."
+    echo ""
 fi
 
 # Start the Flask application in the background

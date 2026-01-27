@@ -41,7 +41,23 @@ For more information on importing custom data, see [utils/README.md](utils/READM
 - Bluetooth enabled (for Tilt)
 - TP-Link Kasa plugs for temperature control
 
-### Installation
+### Quick Installation
+
+**Automated Setup (Recommended):**
+```bash
+git clone https://github.com/RabbitFarmer/Fermenter-Temp-Controller.git
+cd Fermenter-Temp-Controller
+./setup.sh
+./start.sh
+```
+
+The setup script will automatically create a virtual environment and install all dependencies.
+
+> **Important for Raspberry Pi Users:** Modern Python installations require using virtual environments. The setup script handles this automatically. See [INSTALLATION.md](INSTALLATION.md) for details.
+
+### Manual Installation
+
+If you prefer to install manually or encounter issues:
 
 1. **Clone the repository:**
    ```bash
@@ -49,11 +65,16 @@ For more information on importing custom data, see [utils/README.md](utils/READM
    cd Fermenter-Temp-Controller
    ```
 
-2. **Set up a Python virtual environment (optional but recommended):**
+2. **Set up a Python virtual environment (REQUIRED on Raspberry Pi):**
    ```bash
    python3 -m venv venv
    source venv/bin/activate
    ```
+   
+   > **Note:** If you get "No module named venv" error, install it first:
+   > ```bash
+   > sudo apt install python3-venv python3-full
+   > ```
 
 3. **Install Python dependencies:**
    ```bash
@@ -73,6 +94,15 @@ For more information on importing custom data, see [utils/README.md](utils/READM
    python3 app.py
    ```
    Then visit `http://<raspberry-pi-ip>:5000` in your browser.
+
+### Troubleshooting Installation
+
+If you encounter errors during installation, see [INSTALLATION.md](INSTALLATION.md) for:
+- **PEP 668 "externally-managed-environment" errors**
+- Bluetooth/BLE setup issues
+- KASA plug configuration
+- Running on system startup
+- Complete troubleshooting guide
 
 ## Configuration
 
