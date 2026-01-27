@@ -12,8 +12,36 @@ fi
 # Start the Flask application in the background
 python3 app.py &
 
-# Wait for the app to start
-sleep 3
+# Wait for the app to be ready by polling the startup endpoint
+echo "Waiting for Flask server to start..."
+MAX_ATTEMPTS=30
+ATTEMPT=0
+while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+    # Try using curl first, fallback to wget, then python
+    if command -v curl > /dev/null; then
+        if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:5000/startup 2>/dev/null | grep -q "200"; then
+            echo "Flask server is ready!"
+            break
+        fi
+    elif command -v wget > /dev/null; then
+        if wget -q --spider --timeout=1 http://127.0.0.1:5000/startup 2>/dev/null; then
+            echo "Flask server is ready!"
+            break
+        fi
+    else
+        # Fallback to python urllib
+        if python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/startup', timeout=1)" 2>/dev/null; then
+            echo "Flask server is ready!"
+            break
+        fi
+    fi
+    ATTEMPT=$((ATTEMPT + 1))
+    sleep 1
+done
+
+if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+    echo "Warning: Flask server did not respond within 30 seconds"
+fi
 
 # Open the startup splash page in the default browser
 if command -v xdg-open > /dev/null; then
