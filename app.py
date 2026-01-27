@@ -1260,6 +1260,12 @@ def send_kasa_error_notification(mode, url, error_msg):
         mode: 'heating' or 'cooling'
         url: IP address or hostname of the Kasa plug
         error_msg: Error message from the connection failure
+        
+    Note:
+        This function accesses temp_cfg which is shared across threads. While there's a 
+        theoretical race condition, the impact is minimal: worst case is a duplicate 
+        notification might be queued (which the pending queue will deduplicate anyway).
+        The alternative of adding locks would add complexity and potential deadlocks.
     """
     # Get temp control notification settings
     temp_notif_cfg = system_cfg.get('temp_control_notifications', {})
