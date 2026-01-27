@@ -19,7 +19,7 @@ ATTEMPT=0
 while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
     # Try using curl first, fallback to wget, then python
     if command -v curl > /dev/null; then
-        if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:5000/startup 2>/dev/null | grep -q "200"; then
+        if curl -s -f http://127.0.0.1:5000/startup >/dev/null 2>&1; then
             echo "Flask server is ready!"
             break
         fi
@@ -30,7 +30,11 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
         fi
     else
         # Fallback to python urllib
-        if python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/startup', timeout=1)" 2>/dev/null; then
+        if python3 -c "try:
+    import urllib.request
+    urllib.request.urlopen('http://127.0.0.1:5000/startup', timeout=1)
+except:
+    exit(1)" 2>/dev/null; then
             echo "Flask server is ready!"
             break
         fi
