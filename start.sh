@@ -29,11 +29,11 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
             break
         fi
     else
-        # Fallback to python urllib
+        # Fallback to python urllib with proper exception handling
         if python3 -c "try:
     import urllib.request
     urllib.request.urlopen('http://127.0.0.1:5000/startup', timeout=1)
-except:
+except (urllib.error.URLError, OSError, ImportError):
     exit(1)" 2>/dev/null; then
             echo "Flask server is ready!"
             break
