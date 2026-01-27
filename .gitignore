@@ -47,3 +47,7 @@ env/
 .DS_Store
 Thumbs.db
 demo_server.py
+
+#wireguard VPN Tunnel Security
+server_private.key
+server_public.key

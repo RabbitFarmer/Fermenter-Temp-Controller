@@ -1,49 +1,56 @@
 #!/bin/bash
 
-# Get the directory where this script is located
+# Get the directory where this script is located and navigate to it
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
-
-# Ensure Python 3.7+ is installed
-if ! python3 -c 'import sys; exit(sys.version_info >= (3,7))'; then
-    echo "Python 3.7 or newer is required. Please install it and try again."
-    exit 1
-fi
-
-# Check port 5000 availability
-if lsof -Pi :5000 -sTCP:LISTEN -t >/dev/null; then
-    echo "Port 5000 is already in use. Please stop the process using it or configure another port."
-    exit 1
-fi
 
 # Create and activate virtual environment if missing
 if [ ! -d ".venv" ]; then
     echo "No virtual environment found. Creating one..."
-    python3 -m venv .venv
-    source .venv/bin/activate
-    if [ -f "requirements.txt" ]; then
-        echo "Installing dependencies..."
-        pip install -r requirements.txt
+    if ! python3 -m venv .venv; then
+        echo "Failed to create a virtual environment. Exiting."
+        exit 1
     fi
-else
-    source .venv/bin/activate
 fi
 
-# Start the Flask application with logging
-python3 app.py > app.log 2>&1 &
+source .venv/bin/activate
+echo "Virtual environment activated."
 
-# Wait for the app to start
-sleep 3
-
-# Open the HTTP URL in the default browser or prompt the user
-if [ -n "$DISPLAY" ]; then
-    if command -v xdg-open > /dev/null; then
-        xdg-open http://127.0.0.1:5000   # For Linux
-    elif command -v open > /dev/null; then
-        open http://127.0.0.1:5000       # For macOS
-    else
-        echo "Please open http://127.0.0.1:5000 in your browser."
+# Install dependencies if 'requirements.txt' exists
+if [ -f "requirements.txt" ]; then
+    echo "Installing dependencies..."
+    if ! pip install -r requirements.txt; then
+        echo "Failed to install dependencies. Exiting."
+        exit 1
     fi
 else
-    echo "GUI not detected. Open http://127.0.0.1:5000 manually in your browser."
+    echo "Warning: requirements.txt not found. Skipping dependency installation."
 fi
+
+# Start the application in the background and log output
+echo "Starting the application..."
+if ! (python3 app.py > app.log 2>&1 &); then
+    echo "Failed to start the application. See app.log for details."
+    exit 1
+fi
+
+# Wait for the application to start (adjust timing if needed)
+sleep 5
+
+# Verify the application started successfully
+if ! curl -s http://127.0.0.1:5000; then
+    echo "Error: The application failed to start!"
+    exit 1
+fi
+
+# Open the application in the default web browser
+echo "Opening the application in your default browser..."
+if command -v xdg-open > /dev/null; then
+    xdg-open http://127.0.0.1:5000   # Linux
+elif command -v open > /dev/null; then
+    open http://127.0.0.1:5000       # macOS
+else
+    echo "Please open http://127.0.0.1:5000 in your browser manually."
+fi
+
+echo "The application is now running."

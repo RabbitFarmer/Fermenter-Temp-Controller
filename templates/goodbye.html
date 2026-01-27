@@ -36,8 +36,9 @@
       animation: fadeIn 1.5s ease-in;
     }
     .beer-icon {
-      font-size: 6em;
-      margin: 30px 0;
+      width: 150px;
+      height: 150px;
+      margin: 30px auto;
       animation: bounce 2s infinite;
     }
     @keyframes fadeIn {
@@ -70,7 +71,7 @@
 </head>
 <body>
   <div class="goodbye-container">
-    <div class="beer-icon">🍺</div>
+    <img src="/static/beer-stein.svg" alt="Beer Stein" class="beer-icon">
     <h1 class="goodbye-title">Goodbye!</h1>
     <p class="goodbye-message">{{ brewery_name }} is shutting down.</p>
     <p class="goodbye-message">See you next brew!</p>
