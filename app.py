@@ -3414,6 +3414,7 @@ def live_snapshot():
             "low_limit": temp_cfg.get("low_limit"),
             "high_limit": temp_cfg.get("high_limit"),
             "tilt_color": temp_cfg.get("tilt_color", ""),
+            "tilt_color_code": COLOR_MAP.get(temp_cfg.get("tilt_color", ""), ""),
             "heater_on": temp_cfg.get("heater_on"),
             "cooler_on": temp_cfg.get("cooler_on"),
             "heater_pending": temp_cfg.get("heater_pending"),
