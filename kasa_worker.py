@@ -143,6 +143,30 @@ def kasa_worker(cmd_queue, result_queue):
             time.sleep(0.5)
             continue
 
+async def kasa_query_state(url):
+    """
+    Query the current state of a plug without changing it.
+    Returns:
+      (is_on, error) tuple where:
+        - is_on is True/False if successful, None if failed
+        - error is None on success, error string on failure
+    """
+    if PlugClass is None:
+        return None, "kasa plug class not available"
+
+    try:
+        plug = PlugClass(url)
+        await asyncio.wait_for(plug.update(), timeout=6)
+        is_on = getattr(plug, "is_on", None)
+        if is_on is None:
+            return None, "Unable to determine plug state"
+        print(f"[kasa_worker] queried state at {url}: {'ON' if is_on else 'OFF'}")
+        return is_on, None
+    except Exception as e:
+        err = f"Failed to query plug at {url}: {e}"
+        log_error(err)
+        return None, err
+
 async def kasa_control(url, action, mode):
     """
     Perform the plug action and verify resulting state.

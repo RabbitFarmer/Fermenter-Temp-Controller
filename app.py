@@ -49,9 +49,10 @@ except Exception:
     COLOR_MAP = {}
 
 try:
-    from kasa_worker import kasa_worker
+    from kasa_worker import kasa_worker, kasa_query_state
 except Exception:
     kasa_worker = None
+    kasa_query_state = None
 
 try:
     import requests
@@ -2318,6 +2319,64 @@ def kasa_result_listener():
             continue
 
 threading.Thread(target=kasa_result_listener, daemon=True).start()
+
+# --- Startup plug state synchronization -------------------------------------
+def sync_plug_states_at_startup():
+    """
+    Synchronize stored plug states with actual plug states at startup.
+    This prevents displaying stale state from the last shutdown.
+    """
+    if kasa_query_state is None:
+        print("[LOG] kasa_query_state not available, skipping startup sync")
+        return
+    
+    heating_url = temp_cfg.get("heating_plug", "")
+    cooling_url = temp_cfg.get("cooling_plug", "")
+    enable_heating = temp_cfg.get("enable_heating", False)
+    enable_cooling = temp_cfg.get("enable_cooling", False)
+    
+    print("[LOG] Syncing plug states at startup...")
+    
+    # Query heating plug state
+    if enable_heating and heating_url:
+        try:
+            import asyncio
+            is_on, error = asyncio.run(kasa_query_state(heating_url))
+            if error is None:
+                temp_cfg["heater_on"] = is_on
+                print(f"[LOG] Heating plug state synced: {'ON' if is_on else 'OFF'}")
+            else:
+                # If we can't query the state, assume it's off for safety
+                temp_cfg["heater_on"] = False
+                print(f"[LOG] Failed to query heating plug state: {error}, assuming OFF")
+        except Exception as e:
+            temp_cfg["heater_on"] = False
+            print(f"[LOG] Error querying heating plug: {e}, assuming OFF")
+    else:
+        temp_cfg["heater_on"] = False
+    
+    # Query cooling plug state
+    if enable_cooling and cooling_url:
+        try:
+            import asyncio
+            is_on, error = asyncio.run(kasa_query_state(cooling_url))
+            if error is None:
+                temp_cfg["cooler_on"] = is_on
+                print(f"[LOG] Cooling plug state synced: {'ON' if is_on else 'OFF'}")
+            else:
+                # If we can't query the state, assume it's off for safety
+                temp_cfg["cooler_on"] = False
+                print(f"[LOG] Failed to query cooling plug state: {error}, assuming OFF")
+        except Exception as e:
+            temp_cfg["cooler_on"] = False
+            print(f"[LOG] Error querying cooling plug: {e}, assuming OFF")
+    else:
+        temp_cfg["cooler_on"] = False
+    
+    print("[LOG] Plug state synchronization complete")
+
+# Call sync function at startup
+sync_plug_states_at_startup()
 
 # --- Offsite push helpers (kept, forwarding enabled) -----------------------
 def get_predefined_field_maps():
