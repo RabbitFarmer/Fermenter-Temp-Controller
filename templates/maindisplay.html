@@ -708,10 +708,11 @@
           if (tc.heating_error || tc.cooling_error) {
             notifications.push('<div class="tc-notification-item kasa-error">Kasa Connection Lost</div>');
           }
-          if (tc.push_error) {
-            notifications.push('<div class="tc-notification-item push-error">Push Error</div>');
+          const warningMode = (tc.warning_mode || '').toUpperCase();
+          if (tc.push_error && (warningMode === 'PUSH' || warningMode === 'BOTH')) {
+            notifications.push('<div class="tc-notification-item push-error">Push Notifications Error</div>');
           }
-          if (tc.email_error) {
+          if (tc.email_error && (warningMode === 'EMAIL' || warningMode === 'BOTH')) {
             notifications.push('<div class="tc-notification-item email-error">eMail Error</div>');
           }
           
