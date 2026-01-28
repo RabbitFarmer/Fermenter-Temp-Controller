@@ -52,10 +52,18 @@ def save_json(filepath, data):
 
 def append_control_log(event_type, payload):
     """Append event to control log (simulating app.py behavior)."""
+    # Simulate the actual app.py behavior which creates a flat entry object
+    # The actual app formats the entry with all fields at the top level
     entry = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "event": event_type,
-        "payload": payload
+        "event": event_type if event_type == "SAMPLE" else event_type,
+        "tilt_color": payload.get("tilt_color", ""),
+        "brewid": payload.get("brewid", ""),
+        "temp_f": payload.get("temp_f"),
+        "gravity": payload.get("gravity"),
+        "low_limit": payload.get("low_limit"),
+        "current_temp": payload.get("current_temp"),
+        "high_limit": payload.get("high_limit")
     }
     os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
     with open(LOG_PATH, 'a') as f:
@@ -82,9 +90,8 @@ def rotate_and_archive_old_history(color, old_brewid, old_cfg):
                     if obj.get('event') != 'SAMPLE':
                         remaining_lines.append(line)
                         continue
-                    payload = obj.get('payload') or obj
-                    # Check if this sample belongs to the old batch
-                    if isinstance(payload, dict) and payload.get('brewid') == old_brewid:
+                    # obj is a flat structure with all fields at the top level
+                    if isinstance(obj, dict) and obj.get('brewid') == old_brewid:
                         with open(safe_archive, 'a') as af:
                             af.write(json.dumps(obj) + "\n")
                         moved += 1
