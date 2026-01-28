@@ -6,6 +6,101 @@
   <link rel="stylesheet" href="/static/styles.css">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <script>
+    async function testKasaPlugs() {
+      const heatingUrl = document.getElementById('heating_plug').value;
+      const coolingUrl = document.getElementById('cooling_plug').value;
+      const resultsDiv = document.getElementById('test_results');
+      const resultsContent = document.getElementById('test_results_content');
+      
+      resultsDiv.style.display = 'block';
+      resultsContent.innerHTML = '<p>Testing plugs...</p>';
+      
+      try {
+        const response = await fetch('/test_kasa_plugs', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            heating_url: heatingUrl,
+            cooling_url: coolingUrl
+          })
+        });
+        
+        const data = await response.json();
+        resultsContent.innerHTML = ''; // Clear previous content
+        
+        if (data.heating) {
+          const p = document.createElement('p');
+          const strong = document.createElement('strong');
+          strong.textContent = 'Heating Plug (' + (heatingUrl || 'not set') + '): ';
+          p.appendChild(strong);
+          
+          const status = document.createElement('span');
+          status.textContent = data.heating.success ? '✓ Success' : '✗ Failed';
+          status.style.color = data.heating.success ? 'green' : 'red';
+          p.appendChild(status);
+          
+          if (data.heating.error) {
+            const errorSpan = document.createElement('span');
+            errorSpan.textContent = data.heating.error;
+            errorSpan.style.color = 'red';
+            errorSpan.style.fontSize = '0.9em';
+            p.appendChild(document.createElement('br'));
+            p.appendChild(errorSpan);
+          }
+          
+          resultsContent.appendChild(p);
+        }
+        
+        if (data.cooling) {
+          const p = document.createElement('p');
+          const strong = document.createElement('strong');
+          strong.textContent = 'Cooling Plug (' + (coolingUrl || 'not set') + '): ';
+          p.appendChild(strong);
+          
+          const status = document.createElement('span');
+          status.textContent = data.cooling.success ? '✓ Success' : '✗ Failed';
+          status.style.color = data.cooling.success ? 'green' : 'red';
+          p.appendChild(status);
+          
+          if (data.cooling.error) {
+            const errorSpan = document.createElement('span');
+            errorSpan.textContent = data.cooling.error;
+            errorSpan.style.color = 'red';
+            errorSpan.style.fontSize = '0.9em';
+            p.appendChild(document.createElement('br'));
+            p.appendChild(errorSpan);
+          }
+          
+          resultsContent.appendChild(p);
+        }
+      } catch (error) {
+        resultsContent.innerHTML = '';
+        const p = document.createElement('p');
+        p.textContent = 'Error: ' + error.message;
+        p.style.color = 'red';
+        resultsContent.appendChild(p);
+      }
+    }
+  </script>
+  
+  <script>
+    // On page load, check if there are any KASA URLs stored from scan results
+    window.addEventListener('DOMContentLoaded', function() {
+      const heatingUrl = localStorage.getItem('kasa_heating_url');
+      const coolingUrl = localStorage.getItem('kasa_cooling_url');
+      
+      if (heatingUrl) {
+        document.getElementById('heating_plug').value = heatingUrl;
+        localStorage.removeItem('kasa_heating_url');
+      }
+      
+      if (coolingUrl) {
+        document.getElementById('cooling_plug').value = coolingUrl;
+        localStorage.removeItem('kasa_cooling_url');
+      }
+    });
   </script>
 
   <style>
@@ -88,6 +183,12 @@
 
           <div class="form-row" style="margin-top:12px;">
             <a href="/scan_kasa_plugs" class="btn">Scan Kasa Plugs</a>
+            <button type="button" class="btn" style="margin-left:8px;" onclick="testKasaPlugs()">KASA Test</button>
+          </div>
+          
+          <div id="test_results" style="margin-top:12px; padding:8px; border:1px solid #ccc; border-radius:4px; background:#f9f9f9; display:none;">
+            <h3 style="margin:0 0 8px 0; font-size:14px;">Test Results:</h3>
+            <div id="test_results_content"></div>
           </div>
         </form>
       </div>
