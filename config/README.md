@@ -82,5 +82,6 @@ General system settings.
 - `brewery_name`: Your brewery name
 - `brewer_name`: Your name
 - `units`: Temperature units ("Fahrenheit" or "Celsius")
+- `tilt_inactivity_timeout_minutes`: Time in minutes after which a Tilt is considered inactive if no data is received (default: 60). Inactive Tilts are hidden from the main display.
 
 Additional fields can be added through the web interface for notifications, logging, etc.
