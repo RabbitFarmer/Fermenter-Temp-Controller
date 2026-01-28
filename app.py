@@ -3328,6 +3328,39 @@ def scan_kasa_plugs():
     return render_template("kasa_scan_results.html", devices=devices, error=None)
 
 
+def format_kasa_error(error_msg, device_url):
+    """Format KASA error messages to be more user-friendly"""
+    error_str = str(error_msg)
+    
+    # Connection refused errors (port closed, device not listening)
+    if 'Errno 111' in error_str or 'Connect call failed' in error_str or 'Connection refused' in error_str:
+        return f"Cannot connect to device. Please check: (1) Device is powered on, (2) IP address {device_url} is correct, (3) Device is on the same network"
+    
+    # Timeout errors
+    if 'TimeoutError' in error_str or 'timed out' in error_str.lower():
+        return f"Connection timed out. Device may be unreachable or turned off"
+    
+    # Host unreachable
+    if 'Errno 113' in error_str or 'No route to host' in error_str:
+        return f"Network error: No route to {device_url}. Check network configuration"
+    
+    # Name resolution errors
+    if 'Name or service not known' in error_str or 'getaddrinfo failed' in error_str:
+        return f"Cannot resolve hostname: {device_url}. Use IP address instead"
+    
+    # Permission errors
+    if 'Errno 13' in error_str or 'Permission denied' in error_str:
+        return "Permission denied. Network configuration issue"
+    
+    # Default: return a simplified version
+    # Try to extract the most relevant part
+    if 'Unable to connect' in error_str:
+        # Already formatted nicely by kasa library
+        return error_str.split('\n')[0]  # Just first line
+    
+    return error_str
+
+
 @app.route('/test_kasa_plugs', methods=['POST'])
 def test_kasa_plugs():
     """Test connection to configured KASA plugs"""
@@ -3351,7 +3384,7 @@ def test_kasa_plugs():
                 asyncio.run(asyncio.wait_for(plug.update(), timeout=6))
                 results['heating'] = {'success': True, 'error': None}
             except Exception as e:
-                results['heating'] = {'success': False, 'error': str(e)}
+                results['heating'] = {'success': False, 'error': format_kasa_error(e, heating_url)}
         
         # Test cooling plug if URL is provided
         if cooling_url:
@@ -3360,7 +3393,7 @@ def test_kasa_plugs():
                 asyncio.run(asyncio.wait_for(plug.update(), timeout=6))
                 results['cooling'] = {'success': True, 'error': None}
             except Exception as e:
-                results['cooling'] = {'success': False, 'error': str(e)}
+                results['cooling'] = {'success': False, 'error': format_kasa_error(e, cooling_url)}
         
         return jsonify(results)
     except Exception as e:
