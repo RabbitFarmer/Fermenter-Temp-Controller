@@ -2163,6 +2163,13 @@ def temperature_control_logic():
     midpoint = None
     if isinstance(low, (int, float)) and isinstance(high, (int, float)):
         midpoint = (low + high) / 2.0
+        
+        # Safety check: Ensure low_limit is less than high_limit
+        if low >= high:
+            temp_cfg["status"] = "Configuration Error: Low limit must be less than high limit"
+            control_heating("off")
+            control_cooling("off")
+            return
 
     # Heating control with hysteresis:
     # - Turn ON when temp <= low_limit
@@ -2217,6 +2224,22 @@ def temperature_control_logic():
         current_action = "Heating"
     elif temp_cfg.get("cooler_on"):
         current_action = "Cooling"
+    
+    # Safety check: Both heating and cooling should never be ON simultaneously
+    if enable_heat and enable_cool:
+        if temp_cfg.get("heater_on") and temp_cfg.get("cooler_on"):
+            # This should never happen, but if it does, turn both off for safety
+            control_heating("off")
+            control_cooling("off")
+            temp_cfg["status"] = "Safety Error: Both heating and cooling were ON"
+            append_control_log("temp_control_safety_shutdown", {
+                "tilt_color": temp_cfg.get("tilt_color", ""),
+                "reason": "Both heating and cooling active simultaneously",
+                "low_limit": low,
+                "high_limit": high,
+                "current_temp": temp
+            })
+            return
 
     try:
         if isinstance(low, (int, float)) and isinstance(high, (int, float)) and (low <= temp <= high):
