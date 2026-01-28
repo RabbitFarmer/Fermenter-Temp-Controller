@@ -2374,6 +2374,19 @@ def sync_plug_states_at_startup():
         temp_cfg["cooler_on"] = False
     
     print("[LOG] Plug state synchronization complete")
+    
+    # Log the startup sync to the control log
+    try:
+        append_control_log("startup_plug_sync", {
+            "heater_on": temp_cfg.get("heater_on"),
+            "cooler_on": temp_cfg.get("cooler_on"),
+            "enable_heating": enable_heating,
+            "enable_cooling": enable_cooling,
+            "heating_url": heating_url if enable_heating else "",
+            "cooling_url": cooling_url if enable_cooling else ""
+        })
+    except Exception as e:
+        print(f"[LOG] Failed to log startup sync: {e}")
 
 # Call sync function at startup
 sync_plug_states_at_startup()
