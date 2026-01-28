@@ -21,7 +21,7 @@ except ImportError:
         
         # Check if this is a localhost address - this is a common configuration mistake
         if device_url.startswith('127.') or device_url == 'localhost':
-            return f"❌ Invalid IP address: {device_url} is a localhost address. KASA plugs require a real network IP address (e.g., 192.168.1.100). Check your router's DHCP client list or use the Kasa mobile app to find the plug's actual IP address."
+            return f"❌ Invalid IP address: {device_url} is a localhost address. KASA plugs require a real network IP address (typically 192.168.x.x or 10.0.x.x). Check your router's DHCP client list or use the Kasa mobile app to find the plug's actual IP address."
         
         # Connection refused errors (port closed, device not listening)
         if 'Errno 111' in error_str or 'Connect call failed' in error_str or 'Connection refused' in error_str:
@@ -63,7 +63,7 @@ def test_localhost_address_error():
     assert 'localhost address' in result.lower()
     assert '127.0.0.208' in result
     assert 'network ip' in result.lower()
-    assert '192.168' in result  # Should suggest example IP
+    assert '192.168' in result or '10.0' in result  # Should mention typical network ranges
     
     print("✓ Localhost address test passed\n")
 
