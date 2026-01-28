@@ -34,12 +34,19 @@ if ! (python3 app.py > app.log 2>&1 &); then
     exit 1
 fi
 
-# Wait for the application to start (adjust timing if needed)
-sleep 5
+# Wait for the application to start with retries
+RETRIES=10
+for i in $(seq 1 $RETRIES); do
+    echo "Checking if the application is running... Attempt $i/$RETRIES"
+    if curl -s http://127.0.0.1:5000 > /dev/null; then
+        echo "The application is running!"
+        break
+    fi
+    sleep 2
+done
 
-# Verify the application started successfully
-if ! curl -s http://127.0.0.1:5000; then
-    echo "Error: The application failed to start!"
+if ! curl -s http://127.0.0.1:5000 > /dev/null; then
+    echo "Error: The application never responded after $((RETRIES * 2)) seconds."
     exit 1
 fi
 
