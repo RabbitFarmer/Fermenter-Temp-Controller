@@ -32,17 +32,41 @@
             margin-bottom: 1em;
             font-size: 14px;
         }
+        .success-message {
+            padding: 12px;
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            margin-bottom: 1em;
+            font-size: 14px;
+            display: none;
+        }
     </style>
     <script>
         function setPlug(type, url) {
             // Store the URL in localStorage to be retrieved by temp_control_config page
             localStorage.setItem('kasa_' + type + '_url', url);
-            alert(type.charAt(0).toUpperCase() + type.slice(1) + ' plug URL set to: ' + url + '\n\nClick "Back to Temperature Control Config" and the URL will be populated.');
+            
+            // Show success message instead of alert
+            const successMsg = document.getElementById('successMessage');
+            const typeCapitalized = type.charAt(0).toUpperCase() + type.slice(1);
+            successMsg.textContent = typeCapitalized + ' plug URL set to: ' + url + '. Click "Back to Temperature Control Config" to apply.';
+            successMsg.style.display = 'block';
+            
+            // Scroll to success message
+            successMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            
+            // Hide message after 5 seconds
+            setTimeout(function() {
+                successMsg.style.display = 'none';
+            }, 5000);
         }
     </script>
 </head>
 <body>
     <h2>Kasa Plugs Found:</h2>
+    
+    <div id="successMessage" class="success-message"></div>
+    
     {% if error %}
         <div class="error">Error scanning: {{ error }}</div>
     {% endif %}
@@ -56,8 +80,8 @@
                 <span class="plug-alias">{{ name }}</span>
                 <span class="plug-ip">({{ ip }})</span>
                 <span class="plug-actions">
-                    <button onclick="setPlug('heating', '{{ ip }}')">Set as Heating</button>
-                    <button onclick="setPlug('cooling', '{{ ip }}')">Set as Cooling</button>
+                    <button onclick="setPlug('heating', this.getAttribute('data-ip'))" data-ip="{{ ip }}">Set as Heating</button>
+                    <button onclick="setPlug('cooling', this.getAttribute('data-ip'))" data-ip="{{ ip }}">Set as Cooling</button>
                 </span>
             </li>
         {% endfor %}

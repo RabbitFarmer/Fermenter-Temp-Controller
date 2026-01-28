@@ -3338,10 +3338,15 @@ def test_kasa_plugs():
         
         results = {}
         
+        # Import once at function level
+        try:
+            from kasa.iot import IotPlug
+        except ImportError:
+            return jsonify({'error': 'KASA library not available'}), 500
+        
         # Test heating plug if URL is provided
         if heating_url:
             try:
-                from kasa.iot import IotPlug
                 plug = IotPlug(heating_url)
                 asyncio.run(asyncio.wait_for(plug.update(), timeout=6))
                 results['heating'] = {'success': True, 'error': None}
@@ -3351,7 +3356,6 @@ def test_kasa_plugs():
         # Test cooling plug if URL is provided
         if cooling_url:
             try:
-                from kasa.iot import IotPlug
                 plug = IotPlug(cooling_url)
                 asyncio.run(asyncio.wait_for(plug.update(), timeout=6))
                 results['cooling'] = {'success': True, 'error': None}

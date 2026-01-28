@@ -28,31 +28,59 @@
         });
         
         const data = await response.json();
-        let html = '';
+        resultsContent.innerHTML = ''; // Clear previous content
         
         if (data.heating) {
-          const status = data.heating.success ? '✓ Success' : '✗ Failed';
-          const color = data.heating.success ? 'green' : 'red';
-          html += `<p><strong>Heating Plug (${heatingUrl || 'not set'}):</strong> <span style="color:${color}">${status}</span>`;
+          const p = document.createElement('p');
+          const strong = document.createElement('strong');
+          strong.textContent = 'Heating Plug (' + (heatingUrl || 'not set') + '): ';
+          p.appendChild(strong);
+          
+          const status = document.createElement('span');
+          status.textContent = data.heating.success ? '✓ Success' : '✗ Failed';
+          status.style.color = data.heating.success ? 'green' : 'red';
+          p.appendChild(status);
+          
           if (data.heating.error) {
-            html += `<br><span style="color:red; font-size:0.9em;">${data.heating.error}</span>`;
+            const errorSpan = document.createElement('span');
+            errorSpan.textContent = data.heating.error;
+            errorSpan.style.color = 'red';
+            errorSpan.style.fontSize = '0.9em';
+            p.appendChild(document.createElement('br'));
+            p.appendChild(errorSpan);
           }
-          html += '</p>';
+          
+          resultsContent.appendChild(p);
         }
         
         if (data.cooling) {
-          const status = data.cooling.success ? '✓ Success' : '✗ Failed';
-          const color = data.cooling.success ? 'green' : 'red';
-          html += `<p><strong>Cooling Plug (${coolingUrl || 'not set'}):</strong> <span style="color:${color}">${status}</span>`;
+          const p = document.createElement('p');
+          const strong = document.createElement('strong');
+          strong.textContent = 'Cooling Plug (' + (coolingUrl || 'not set') + '): ';
+          p.appendChild(strong);
+          
+          const status = document.createElement('span');
+          status.textContent = data.cooling.success ? '✓ Success' : '✗ Failed';
+          status.style.color = data.cooling.success ? 'green' : 'red';
+          p.appendChild(status);
+          
           if (data.cooling.error) {
-            html += `<br><span style="color:red; font-size:0.9em;">${data.cooling.error}</span>`;
+            const errorSpan = document.createElement('span');
+            errorSpan.textContent = data.cooling.error;
+            errorSpan.style.color = 'red';
+            errorSpan.style.fontSize = '0.9em';
+            p.appendChild(document.createElement('br'));
+            p.appendChild(errorSpan);
           }
-          html += '</p>';
+          
+          resultsContent.appendChild(p);
         }
-        
-        resultsContent.innerHTML = html;
       } catch (error) {
-        resultsContent.innerHTML = `<p style="color:red">Error: ${error.message}</p>`;
+        resultsContent.innerHTML = '';
+        const p = document.createElement('p');
+        p.textContent = 'Error: ' + error.message;
+        p.style.color = 'red';
+        resultsContent.appendChild(p);
       }
     }
   </script>
