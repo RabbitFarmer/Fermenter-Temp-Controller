@@ -60,8 +60,10 @@ If a Tilt is inactive (not transmitting data):
 
 If the Tilt assigned to temperature control becomes inactive (exceeds timeout):
 - **ALL Kasa plugs are immediately turned OFF** (both heating and cooling)
+- **A safety notification is sent** (email/push) alerting you of the shutdown
 - Status changes to "Control Tilt Inactive - Safety Shutdown"
-- A safety shutdown event is logged
+- Safety shutdown event is logged to the temperature control log
+- The actual plug OFF events are also logged to the chart
 - Normal operation resumes automatically when the Tilt starts transmitting again
 
 This prevents runaway heating/cooling when the monitoring Tilt fails (dead battery, out of range, etc.).

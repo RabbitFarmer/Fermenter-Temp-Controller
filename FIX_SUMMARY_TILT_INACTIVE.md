@@ -94,8 +94,10 @@ Updated `config/README.md` to document the new setting:
 ### Safety Feature: Automatic Shutdown
 - **CRITICAL**: If the Tilt assigned to temperature control becomes inactive (beyond timeout):
   - All Kasa plugs (heating and cooling) are **immediately turned OFF**
+  - **A safety notification is sent** (email/push) to alert you of the shutdown
   - Status changes to "Control Tilt Inactive - Safety Shutdown"
-  - A safety shutdown event is logged to the control log
+  - Safety shutdown event is logged to the control log
+  - The actual plug OFF events are also logged to the chart
   - Normal operation resumes automatically when Tilt starts transmitting again
 - This prevents runaway heating/cooling when monitoring Tilt fails (battery dead, out of range, etc.)
 - Safety check only applies when a Tilt is assigned to temperature control

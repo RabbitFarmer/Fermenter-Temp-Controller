@@ -1302,6 +1302,60 @@ Tilt Color: {tilt_color}
         color=tilt_color
     )
 
+def send_safety_shutdown_notification(tilt_color, low_limit, high_limit):
+    """
+    Send notification when control Tilt becomes inactive and safety shutdown is triggered.
+    Uses the pending queue system with deduplication to prevent duplicate alerts.
+    
+    Args:
+        tilt_color: The color of the Tilt that went offline
+        low_limit: Current low temperature limit
+        high_limit: Current high temperature limit
+    """
+    # Get temp control notification settings
+    temp_notif_cfg = system_cfg.get('temp_control_notifications', {})
+    
+    # Check if safety shutdown notifications are enabled (default to True for safety)
+    if not temp_notif_cfg.get('enable_safety_shutdown', True):
+        return
+    
+    brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
+    timeout_minutes = int(system_cfg.get('tilt_inactivity_timeout_minutes', 30))
+    now = datetime.utcnow()
+    
+    subject = f"{brewery_name} - SAFETY SHUTDOWN: Control Tilt Offline"
+    body = f"""CRITICAL SAFETY ALERT
+
+Brewery Name: {brewery_name}
+Date: {now.strftime('%Y-%m-%d')}
+Time: {now.strftime('%H:%M:%S')}
+Tilt Color: {tilt_color}
+
+SAFETY SHUTDOWN TRIGGERED
+
+The Tilt assigned to temperature control has not transmitted data for more than {timeout_minutes} minutes.
+
+All Kasa plugs have been automatically turned OFF to prevent runaway heating/cooling.
+
+Current Settings:
+- Low Limit: {low_limit:.1f}°F
+- High Limit: {high_limit:.1f}°F
+
+Action Required:
+1. Check Tilt battery
+2. Verify Tilt is in range
+3. Confirm Bluetooth connectivity
+4. Temperature control will resume automatically when Tilt starts transmitting"""
+    
+    # Queue notification with 10-second delay for deduplication
+    queue_pending_notification(
+        notification_type='safety_shutdown',
+        subject=subject,
+        body=body,
+        brewid=tilt_color,
+        color=tilt_color
+    )
+
 def send_kasa_error_notification(mode, url, error_msg):
     """
     Send notifications for Kasa plug connection failures if enabled in settings.
@@ -2078,15 +2132,19 @@ def temperature_control_logic():
         control_heating("off")
         control_cooling("off")
         temp_cfg["status"] = "Control Tilt Inactive - Safety Shutdown"
-        # Log this safety event
+        # Log this safety event and send notification
         if not temp_cfg.get("safety_shutdown_logged"):
+            tilt_color = temp_cfg.get("tilt_color", "")
             append_control_log("temp_control_safety_shutdown", {
-                "tilt_color": temp_cfg.get("tilt_color", ""),
+                "tilt_color": tilt_color,
                 "reason": "Control Tilt inactive beyond timeout",
                 "low_limit": low,
                 "high_limit": high
             })
             temp_cfg["safety_shutdown_logged"] = True
+            
+            # Send safety shutdown notification
+            send_safety_shutdown_notification(tilt_color, low, high)
         return
     else:
         # Reset the safety shutdown flag when Tilt becomes active again

@@ -23,7 +23,8 @@ def test_safety_shutdown():
         system_cfg, 
         temp_cfg,
         update_live_tilt,
-        temperature_control_logic
+        temperature_control_logic,
+        pending_notifications
     )
     
     print("=" * 80)
@@ -97,6 +98,9 @@ def test_safety_shutdown():
         temp_cfg['heater_on'] = True
         temp_cfg['cooler_on'] = False
         
+        # Clear any pending notifications from previous test runs
+        pending_notifications.clear()
+        
         # Run temperature control - should trigger safety shutdown
         temperature_control_logic()
         
@@ -116,6 +120,12 @@ def test_safety_shutdown():
         assert temp_cfg.get('safety_shutdown_logged'), \
             "Safety shutdown should be logged"
         print(f"✓ Safety shutdown event logged")
+        
+        # Verify notification was queued
+        safety_notifications = [n for n in pending_notifications if n.get('notification_type') == 'safety_shutdown']
+        assert len(safety_notifications) > 0, \
+            "Safety shutdown notification should be queued"
+        print(f"✓ Safety shutdown notification queued")
         
         print("\n[TEST 3] Control Tilt Returns - Normal Operation Resumes")
         print("-" * 80)
@@ -164,6 +174,7 @@ def test_safety_shutdown():
         print("\nSummary:")
         print("  - Active control Tilt: Normal temperature control operation")
         print("  - Inactive control Tilt: Safety shutdown triggered, all plugs OFF")
+        print("  - Safety shutdown notification: Queued and ready to send")
         print("  - Control Tilt returns: Normal operation resumes")
         print("  - No control Tilt: No safety check performed")
         print(f"\nDefault timeout: {system_cfg.get('tilt_inactivity_timeout_minutes')} minutes")
@@ -172,6 +183,7 @@ def test_safety_shutdown():
         
     finally:
         # Restore original values
+        pending_notifications.clear()
         live_tilts.clear()
         live_tilts.update(original_tilts)
         temp_cfg.clear()
