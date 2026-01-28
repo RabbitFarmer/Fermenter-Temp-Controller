@@ -82,6 +82,6 @@ General system settings.
 - `brewery_name`: Your brewery name
 - `brewer_name`: Your name
 - `units`: Temperature units ("Fahrenheit" or "Celsius")
-- `tilt_inactivity_timeout_minutes`: Time in minutes after which a Tilt is considered inactive if no data is received (default: 60). Inactive Tilts are hidden from the main display.
+- `tilt_inactivity_timeout_minutes`: Time in minutes after which a Tilt is considered inactive if no data is received (default: 30). Inactive Tilts are hidden from the main display. **SAFETY FEATURE**: If the Tilt assigned to temperature control becomes inactive, all Kasa plugs are automatically turned OFF to prevent runaway heating/cooling.
 
 Additional fields can be added through the web interface for notifications, logging, etc.

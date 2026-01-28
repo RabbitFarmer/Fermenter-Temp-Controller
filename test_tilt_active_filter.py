@@ -19,7 +19,7 @@ class MockConfig(dict):
 
 # Simulate system_cfg
 system_cfg = MockConfig({
-    'tilt_inactivity_timeout_minutes': 60
+    'tilt_inactivity_timeout_minutes': 30
 })
 
 # Simulate live_tilts with different timestamps
@@ -114,35 +114,35 @@ def run_tests():
     print(f"✓ Green tilt is active (10 minutes ago)")
     print(f"✓ Orange tilt is inactive (3 hours ago)")
     
-    # Test 4: Tilt at exactly timeout boundary (59 minutes)
-    print("\nTest 4: Tilt at timeout boundary (59 minutes)")
+    # Test 4: Tilt at timeout boundary (29 minutes with 30 min timeout)
+    print("\nTest 4: Tilt at timeout boundary (29 minutes)")
     live_tilts.clear()
-    timestamp_59min = (now - timedelta(minutes=59)).replace(microsecond=0).isoformat() + "Z"
+    timestamp_29min = (now - timedelta(minutes=29)).replace(microsecond=0).isoformat() + "Z"
     live_tilts['Purple'] = {
-        'timestamp': timestamp_59min,
+        'timestamp': timestamp_29min,
         'temp_f': 66.0,
         'gravity': 1.052
     }
     active = get_active_tilts()
     assert 'Purple' in active, "Tilt within timeout should be active"
-    print(f"✓ Purple tilt is active (59 minutes ago)")
+    print(f"✓ Purple tilt is active (29 minutes ago)")
     
-    # Test 5: Tilt just past timeout boundary (61 minutes)
-    print("\nTest 5: Tilt past timeout boundary (61 minutes)")
+    # Test 5: Tilt just past timeout boundary (31 minutes with 30 min timeout)
+    print("\nTest 5: Tilt past timeout boundary (31 minutes)")
     live_tilts.clear()
-    timestamp_61min = (now - timedelta(minutes=61)).replace(microsecond=0).isoformat() + "Z"
+    timestamp_31min = (now - timedelta(minutes=31)).replace(microsecond=0).isoformat() + "Z"
     live_tilts['Black'] = {
-        'timestamp': timestamp_61min,
+        'timestamp': timestamp_31min,
         'temp_f': 67.0,
         'gravity': 1.049
     }
     active = get_active_tilts()
     assert 'Black' not in active, "Tilt past timeout should be inactive"
-    print(f"✓ Black tilt is inactive (61 minutes ago)")
+    print(f"✓ Black tilt is inactive (31 minutes ago)")
     
-    # Test 6: Custom timeout (30 minutes)
-    print("\nTest 6: Custom timeout (30 minutes)")
-    system_cfg['tilt_inactivity_timeout_minutes'] = 30
+    # Test 6: Custom timeout (60 minutes)
+    print("\nTest 6: Custom timeout (60 minutes)")
+    system_cfg['tilt_inactivity_timeout_minutes'] = 60
     live_tilts.clear()
     timestamp_45min = (now - timedelta(minutes=45)).replace(microsecond=0).isoformat() + "Z"
     live_tilts['Yellow'] = {
@@ -151,11 +151,11 @@ def run_tests():
         'gravity': 1.051
     }
     active = get_active_tilts()
-    assert 'Yellow' not in active, "Tilt should be inactive with 30 minute timeout"
-    print(f"✓ Yellow tilt is inactive with 30 minute timeout (45 minutes ago)")
+    assert 'Yellow' in active, "Tilt should be active with 60 minute timeout"
+    print(f"✓ Yellow tilt is active with 60 minute timeout (45 minutes ago)")
     
     # Reset timeout
-    system_cfg['tilt_inactivity_timeout_minutes'] = 60
+    system_cfg['tilt_inactivity_timeout_minutes'] = 30
     
     # Test 7: Tilt with no timestamp - should be included for safety
     print("\nTest 7: Tilt with no timestamp")
@@ -176,7 +176,7 @@ def run_tests():
     print("- Tilts active within timeout window are shown")
     print("- Tilts inactive beyond timeout window are hidden")
     print("- Timeout is configurable via system_config")
-    print(f"- Default timeout: 60 minutes")
+    print(f"- Default timeout: 30 minutes")
     print(f"- Current timeout: {system_cfg.get('tilt_inactivity_timeout_minutes')} minutes")
 
 if __name__ == '__main__':

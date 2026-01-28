@@ -237,6 +237,7 @@ ALLOWED_EVENTS = {
     "temp_control_mode": "MODE_SELECTED",
     "temp_control_mode_changed": "MODE_CHANGED",
     "temp_control_started": "TEMP CONTROL STARTED",
+    "temp_control_safety_shutdown": "SAFETY SHUTDOWN - CONTROL TILT INACTIVE",
 }
 
 # Create a set of allowed event values for O(1) lookup performance
@@ -501,8 +502,8 @@ def get_active_tilts():
     Returns:
         dict: Dictionary of active tilts (those within the inactivity timeout)
     """
-    # Get timeout from system config, default to 60 minutes
-    timeout_minutes = int(system_cfg.get('tilt_inactivity_timeout_minutes', 60))
+    # Get timeout from system config, default to 30 minutes
+    timeout_minutes = int(system_cfg.get('tilt_inactivity_timeout_minutes', 30))
     now = datetime.utcnow()
     active_tilts = {}
     
@@ -535,6 +536,22 @@ def get_current_temp_for_control_tilt():
         if info.get("temp_f") is not None:
             return info.get("temp_f")
     return None
+
+def is_control_tilt_active():
+    """
+    Check if the Tilt assigned to temperature control is currently active.
+    
+    Returns:
+        bool: True if the control Tilt is active (within timeout), False otherwise
+    """
+    control_color = temp_cfg.get("tilt_color")
+    if not control_color:
+        # No Tilt assigned to temp control
+        return False
+    
+    # Check if the control Tilt is in the active tilts list
+    active_tilts = get_active_tilts()
+    return control_color in active_tilts
 
 def log_tilt_reading(color, gravity, temp_f, rssi):
     """
@@ -2054,6 +2071,27 @@ def temperature_control_logic():
         temp_cfg["last_logged_high_limit"] = high
         temp_cfg["last_logged_enable_heating"] = enable_heat
         temp_cfg["last_logged_enable_cooling"] = enable_cool
+
+    # SAFETY: Check if control Tilt is active (within timeout)
+    # If the Tilt assigned to temp control is inactive, turn off all plugs immediately
+    if temp_cfg.get("tilt_color") and not is_control_tilt_active():
+        control_heating("off")
+        control_cooling("off")
+        temp_cfg["status"] = "Control Tilt Inactive - Safety Shutdown"
+        # Log this safety event
+        if not temp_cfg.get("safety_shutdown_logged"):
+            append_control_log("temp_control_safety_shutdown", {
+                "tilt_color": temp_cfg.get("tilt_color", ""),
+                "reason": "Control Tilt inactive beyond timeout",
+                "low_limit": low,
+                "high_limit": high
+            })
+            temp_cfg["safety_shutdown_logged"] = True
+        return
+    else:
+        # Reset the safety shutdown flag when Tilt becomes active again
+        if temp_cfg.get("safety_shutdown_logged"):
+            temp_cfg["safety_shutdown_logged"] = False
 
     if temp is None:
         control_heating("off")

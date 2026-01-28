@@ -1,7 +1,7 @@
 # Quick Reference: Tilt Inactivity Timeout
 
 ## What Changed?
-Tilts that haven't sent data for a while (default: 60 minutes) are now automatically hidden from the main display.
+Tilts that haven't sent data for a while (default: 30 minutes) are now automatically hidden from the main display.
 
 ## Why?
 Previously, if a Tilt stopped working (dead battery, out of range, etc.), it would remain on the display indefinitely showing stale data. This fix ensures only active Tilts are shown.
@@ -12,15 +12,15 @@ Edit `config/system_config.json` to adjust the timeout:
 
 ```json
 {
-  "tilt_inactivity_timeout_minutes": 60
+  "tilt_inactivity_timeout_minutes": 30
 }
 ```
 
 ### Recommended Values
 - **15 minutes**: Quick detection (good for testing/debugging)
-- **30 minutes**: Normal detection
-- **60 minutes**: Default (recommended)
-- **120 minutes**: Extended (for Tilts with slow reporting)
+- **30 minutes**: Default (recommended)
+- **60 minutes**: Extended detection
+- **120 minutes**: Very extended (for Tilts with slow reporting)
 
 ## How It Works
 
@@ -31,31 +31,45 @@ Edit `config/system_config.json` to adjust the timeout:
 
 ## Example Timeline
 
-With default 60 minute timeout:
+With default 30 minute timeout:
 
 ```
 10:00 AM - Red Tilt broadcasts data → SHOWN on display
-10:30 AM - Red Tilt stops broadcasting (battery dies)
-11:00 AM - Red Tilt still SHOWN (30 minutes since last reading)
-11:30 AM - Red Tilt HIDDEN from display (60 minutes since last reading)
-12:00 PM - Red Tilt still hidden
+10:20 AM - Red Tilt stops broadcasting (battery dies)
+10:40 AM - Red Tilt HIDDEN from display (30 minutes since last reading, timeout reached)
+11:00 AM - Red Tilt still hidden
 ...
 2:00 PM - Replace battery, Red Tilt starts broadcasting → SHOWN again
 ```
 
 ## What's Not Affected
 
-- **Logging**: All data is still logged to files
-- **Temperature Control**: Temperature control continues to work
-- **Historical Data**: Charts and reports still show all historical data
-- **Notifications**: Signal loss notifications still work
+- **Historical Data**: Charts and reports still show all historical data from when the Tilt was active
+- **Notifications**: Signal loss notifications still work as configured
 
-Only the **display** filters out inactive Tilts.
+## Important Note
+
+If a Tilt is inactive (not transmitting data):
+- **NO new data is being logged** - there's no data to log
+- **Temperature control will not work** for that Tilt - there's no current temperature reading
+- The Tilt is hidden from display until it starts transmitting again
+
+## SAFETY FEATURE: Temperature Control Shutdown
+
+**Critical Safety Behavior:**
+
+If the Tilt assigned to temperature control becomes inactive (exceeds timeout):
+- **ALL Kasa plugs are immediately turned OFF** (both heating and cooling)
+- Status changes to "Control Tilt Inactive - Safety Shutdown"
+- A safety shutdown event is logged
+- Normal operation resumes automatically when the Tilt starts transmitting again
+
+This prevents runaway heating/cooling when the monitoring Tilt fails (dead battery, out of range, etc.).
 
 ## Troubleshooting
 
 ### Tilt disappeared from display
-- Check if it's been more than 60 minutes since last reading
+- Check if it's been more than 30 minutes since last reading
 - Battery might be dead
 - Tilt might be out of Bluetooth range
 - Check Bluetooth logs for errors
@@ -76,7 +90,7 @@ For developers and advanced users:
 - Function: `get_active_tilts()` in `app.py`
 - Affects routes: `/`, `/live_snapshot`, `/batch_settings`, `/temp_config`
 - Config key: `system_cfg['tilt_inactivity_timeout_minutes']`
-- Default: 60 minutes
+- Default: 30 minutes
 - Timestamp format: ISO 8601 UTC
 
 See `FIX_SUMMARY_TILT_INACTIVE.md` for complete technical details.

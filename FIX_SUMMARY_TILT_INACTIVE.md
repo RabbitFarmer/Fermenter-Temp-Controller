@@ -57,19 +57,19 @@ Added `tilt_inactivity_timeout_minutes` to `system_config.json.template`:
 }
 ```
 
-**Default**: 60 minutes (1 hour)
+**Default**: 30 minutes
 
 Users can adjust this timeout based on their needs:
 - 15 minutes: Quick detection for debugging
-- 30 minutes: Normal operation
-- 60 minutes: Default (good balance)
-- 120 minutes: Extended for slow-reporting Tilts
+- 30 minutes: Default (recommended)
+- 60 minutes: Extended detection
+- 120 minutes: Very extended for slow-reporting Tilts
 
 ### 4. Documentation
 Updated `config/README.md` to document the new setting:
 ```
 - `tilt_inactivity_timeout_minutes`: Time in minutes after which a Tilt is 
-  considered inactive if no data is received (default: 60). Inactive Tilts 
+  considered inactive if no data is received (default: 30). Inactive Tilts 
   are hidden from the main display.
 ```
 
@@ -83,10 +83,22 @@ Updated `config/README.md` to document the new setting:
 5. Frontend displays only active Tilts
 
 ### Important Notes
-- The raw `live_tilts` dictionary still contains ALL Tilt data
-- This is important for temperature control and logging
-- Only the **display** filters out inactive Tilts
-- Logging and control continue to work even for inactive Tilts
+- The raw `live_tilts` dictionary still contains the last known data for each Tilt
+- When a Tilt is inactive (not transmitting):
+  - **NO new data is being logged** - there's nothing to log
+  - **Temperature control will not work** for that Tilt - no current temperature available
+  - The Tilt is hidden from the display
+- Only the **display** filters out inactive Tilts to show what's currently active
+- The last known values remain in memory until new data arrives or the app restarts
+
+### Safety Feature: Automatic Shutdown
+- **CRITICAL**: If the Tilt assigned to temperature control becomes inactive (beyond timeout):
+  - All Kasa plugs (heating and cooling) are **immediately turned OFF**
+  - Status changes to "Control Tilt Inactive - Safety Shutdown"
+  - A safety shutdown event is logged to the control log
+  - Normal operation resumes automatically when Tilt starts transmitting again
+- This prevents runaway heating/cooling when monitoring Tilt fails (battery dead, out of range, etc.)
+- Safety check only applies when a Tilt is assigned to temperature control
 
 ### Timezone Handling
 - Uses naive UTC datetimes consistently (matches existing codebase)
@@ -136,9 +148,9 @@ Time: 2:00 PM - Red Tilt STILL SHOWS on main display (INCORRECT)
 ### After Fix
 ```
 Time: 10:00 AM - Red Tilt sends data
-Time: 12:00 PM - Red Tilt stops sending data
-Time: 11:00 AM - Red Tilt STILL SHOWS (within 60 min timeout)
-Time: 1:00 PM - Red Tilt HIDDEN from display (beyond 60 min timeout) ✓
+Time: 10:15 AM - Red Tilt stops sending data
+Time: 10:45 AM - Red Tilt HIDDEN from display (30 min timeout reached) ✓
+Time: 2:00 PM - Replace battery, Red Tilt starts broadcasting → SHOWN again
 ```
 
 ## Files Changed
@@ -164,8 +176,8 @@ Time: 1:00 PM - Red Tilt HIDDEN from display (beyond 60 min timeout) ✓
 ## Backward Compatibility
 
 ✓ **Fully backward compatible**
-- Existing installations get default 60 minute timeout
-- If setting is missing, defaults to 60 minutes
+- Existing installations get default 30 minute timeout
+- If setting is missing, defaults to 30 minutes
 - No database migrations required
 - No breaking changes to API
 
@@ -179,7 +191,7 @@ Possible future improvements:
 
 ## Summary
 
-The issue has been completely resolved. Tilts that haven't sent data for the configured timeout period (default: 60 minutes) are now automatically hidden from the main display and API endpoints. The solution is:
+The issue has been completely resolved. Tilts that haven't sent data for the configured timeout period (default: 30 minutes) are now automatically hidden from the main display and API endpoints. The solution is:
 
 - ✓ Minimal changes to codebase
 - ✓ Fully tested

@@ -6,5 +6,5 @@
   "push_provider": "pushover",
   "pushover_user_key": "",
   "pushover_api_token": "",
-  "tilt_inactivity_timeout_minutes": 60
+  "tilt_inactivity_timeout_minutes": 30
 }
