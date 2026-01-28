@@ -3739,60 +3739,72 @@ def chart_data_for(tilt_color):
     if tilt_color and tilt_color not in tilt_cfg:
         return jsonify({"tilt_color": tilt_color, "points": [], "truncated": False, "matched": 0})
 
-
     brewid = tilt_cfg.get(tilt_color, {}).get('brewid')
-
-
+    
     points = deque(maxlen=limit) if (not all_flag and limit is not None) else []
     matched = 0
-
-
-    if os.path.exists(LOG_PATH):
-        try:
-            with open(LOG_PATH, 'r') as f:
-                for line in f:
-                    if not line:
-                        continue
-                    try:
-                        obj = json.loads(line)
-                    except Exception:
-                        continue
-                    if obj.get('event') != 'tilt_reading' and obj.get('event') != 'SAMPLE':
-                        continue
-                    payload = obj.get('payload') or obj or {}
-                    if brewid:
-                        if payload.get('brewid') != brewid:
-                            # if payload doesn't contain brewid but contains tilt_color, try matching that
-                            if payload.get('tilt_color') and payload.get('tilt_color') != tilt_color:
-                                continue
-                        # else matched by brewid
-                    matched += 1
-                    ts = payload.get('timestamp')
-                    tf = payload.get('temp_f') if payload.get('temp_f') is not None else payload.get('current_temp')
-                    g = payload.get('gravity')
-                    try:
-                        ts_str = str(ts) if ts is not None else None
-                    except Exception:
-                        ts_str = None
-                    try:
-                        temp_num = float(tf) if (tf is not None and tf != '') else None
-                    except Exception:
-                        temp_num = None
-                    try:
-                        grav_num = float(g) if (g is not None and g != '') else None
-                    except Exception:
-                        grav_num = None
-                    entry = {"timestamp": ts_str, "temp_f": temp_num, "gravity": grav_num}
-                    if isinstance(points, deque):
-                        points.append(entry)
-                    else:
-                        points.append(entry)
-                        if len(points) > MAX_ALL_LIMIT:
-                            points.pop(0)
-        except Exception as e:
-            print(f"[LOG] Error reading log for chart_data: {e}")
-
-
+    
+    # Find batch file(s) for this brewid
+    batch_files = []
+    if brewid:
+        batch_files = glob_func(f'batches/*{brewid}*.jsonl')
+    
+    if batch_files:
+        # Read from batch file(s)
+        for batch_file in batch_files:
+            try:
+                with open(batch_file, 'r') as f:
+                    for line in f:
+                        if not line.strip():
+                            continue
+                        try:
+                            obj = json.loads(line)
+                        except Exception:
+                            continue
+                        
+                        # Handle both event/payload format and direct object format
+                        # New format: {"event": "sample", "payload": {...}}
+                        # Legacy format: {"timestamp": ..., "gravity": ..., "temp_f": ...}
+                        if obj.get('event') == 'sample':
+                            payload = obj.get('payload', {})
+                        elif obj.get('event') == 'batch_metadata':
+                            # Skip metadata entries
+                            continue
+                        elif 'timestamp' in obj or 'gravity' in obj or 'temp_f' in obj:
+                            # Legacy format - direct object
+                            payload = obj
+                        else:
+                            # Unknown format, skip
+                            continue
+                        
+                        matched += 1
+                        ts = payload.get('timestamp')
+                        tf = payload.get('temp_f') if payload.get('temp_f') is not None else payload.get('current_temp')
+                        g = payload.get('gravity')
+                        
+                        try:
+                            ts_str = str(ts) if ts is not None else None
+                        except Exception:
+                            ts_str = None
+                        try:
+                            temp_num = float(tf) if (tf is not None and tf != '') else None
+                        except Exception:
+                            temp_num = None
+                        try:
+                            grav_num = float(g) if (g is not None and g != '') else None
+                        except Exception:
+                            grav_num = None
+                        
+                        entry = {"timestamp": ts_str, "temp_f": temp_num, "gravity": grav_num}
+                        if isinstance(points, deque):
+                            points.append(entry)
+                        else:
+                            points.append(entry)
+                            if len(points) > MAX_ALL_LIMIT:
+                                points.pop(0)
+            except Exception as e:
+                print(f"[LOG] Error reading batch file {batch_file} for chart_data: {e}")
+    
     if isinstance(points, deque):
         pts = list(points)
         truncated = (matched > len(pts))
