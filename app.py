@@ -237,6 +237,7 @@ ALLOWED_EVENTS = {
     "temp_control_mode": "MODE_SELECTED",
     "temp_control_mode_changed": "MODE_CHANGED",
     "temp_control_started": "TEMP CONTROL STARTED",
+    "temp_control_safety_shutdown": "SAFETY SHUTDOWN - CONTROL TILT INACTIVE",
 }
 
 # Create a set of allowed event values for O(1) lookup performance
@@ -494,6 +495,39 @@ def update_live_tilt(color, gravity, temp_f, rssi):
         "original_gravity": cfg.get("actual_og", 0),
     }
 
+def get_active_tilts():
+    """
+    Filter live_tilts to only include tilts that have sent data recently.
+    
+    Returns:
+        dict: Dictionary of active tilts (those within the inactivity timeout)
+    """
+    # Get timeout from system config, default to 30 minutes
+    timeout_minutes = int(system_cfg.get('tilt_inactivity_timeout_minutes', 30))
+    now = datetime.utcnow()
+    active_tilts = {}
+    
+    for color, info in live_tilts.items():
+        timestamp_str = info.get('timestamp')
+        if not timestamp_str:
+            # No timestamp means we can't determine activity - exclude for safety
+            continue
+        
+        try:
+            # Parse ISO 8601 timestamp (remove 'Z' suffix for naive UTC datetime)
+            # This is consistent with how timestamps are created: datetime.utcnow().isoformat() + "Z"
+            timestamp = datetime.fromisoformat(timestamp_str.rstrip('Z'))
+            
+            elapsed_minutes = (now - timestamp).total_seconds() / 60.0
+            
+            if elapsed_minutes < timeout_minutes:
+                active_tilts[color] = info
+        except Exception as e:
+            # Unable to parse timestamp - likely corrupted data, exclude from display
+            print(f"[LOG] Error parsing timestamp for {color}: {e}, excluding from active tilts")
+    
+    return active_tilts
+
 def get_current_temp_for_control_tilt():
     color = temp_cfg.get("tilt_color")
     if color and color in live_tilts:
@@ -502,6 +536,22 @@ def get_current_temp_for_control_tilt():
         if info.get("temp_f") is not None:
             return info.get("temp_f")
     return None
+
+def is_control_tilt_active():
+    """
+    Check if the Tilt assigned to temperature control is currently active.
+    
+    Returns:
+        bool: True if the control Tilt is active (within timeout), False otherwise
+    """
+    control_color = temp_cfg.get("tilt_color")
+    if not control_color:
+        # No Tilt assigned to temp control
+        return False
+    
+    # Check if the control Tilt is in the active tilts list
+    active_tilts = get_active_tilts()
+    return control_color in active_tilts
 
 def log_tilt_reading(color, gravity, temp_f, rssi):
     """
@@ -1249,6 +1299,60 @@ Tilt Color: {tilt_color}
         subject=subject,
         body=body,
         brewid=tilt_color,  # Use tilt_color as identifier for temp control
+        color=tilt_color
+    )
+
+def send_safety_shutdown_notification(tilt_color, low_limit, high_limit):
+    """
+    Send notification when control Tilt becomes inactive and safety shutdown is triggered.
+    Uses the pending queue system with deduplication to prevent duplicate alerts.
+    
+    Args:
+        tilt_color: The color of the Tilt that went offline
+        low_limit: Current low temperature limit
+        high_limit: Current high temperature limit
+    """
+    # Get temp control notification settings
+    temp_notif_cfg = system_cfg.get('temp_control_notifications', {})
+    
+    # Check if safety shutdown notifications are enabled (default to True for safety)
+    if not temp_notif_cfg.get('enable_safety_shutdown', True):
+        return
+    
+    brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
+    timeout_minutes = int(system_cfg.get('tilt_inactivity_timeout_minutes', 30))
+    now = datetime.utcnow()
+    
+    subject = f"{brewery_name} - SAFETY SHUTDOWN: Control Tilt Offline"
+    body = f"""CRITICAL SAFETY ALERT
+
+Brewery Name: {brewery_name}
+Date: {now.strftime('%Y-%m-%d')}
+Time: {now.strftime('%H:%M:%S')}
+Tilt Color: {tilt_color}
+
+SAFETY SHUTDOWN TRIGGERED
+
+The Tilt assigned to temperature control has not transmitted data for more than {timeout_minutes} minutes.
+
+All Kasa plugs have been automatically turned OFF to prevent runaway heating/cooling.
+
+Current Settings:
+- Low Limit: {low_limit:.1f}°F
+- High Limit: {high_limit:.1f}°F
+
+Action Required:
+1. Check Tilt battery
+2. Verify Tilt is in range
+3. Confirm Bluetooth connectivity
+4. Temperature control will resume automatically when Tilt starts transmitting"""
+    
+    # Queue notification with 10-second delay for deduplication
+    queue_pending_notification(
+        notification_type='safety_shutdown',
+        subject=subject,
+        body=body,
+        brewid=tilt_color,
         color=tilt_color
     )
 
@@ -2022,6 +2126,31 @@ def temperature_control_logic():
         temp_cfg["last_logged_enable_heating"] = enable_heat
         temp_cfg["last_logged_enable_cooling"] = enable_cool
 
+    # SAFETY: Check if control Tilt is active (within timeout)
+    # If the Tilt assigned to temp control is inactive, turn off all plugs immediately
+    if temp_cfg.get("tilt_color") and not is_control_tilt_active():
+        control_heating("off")
+        control_cooling("off")
+        temp_cfg["status"] = "Control Tilt Inactive - Safety Shutdown"
+        # Log this safety event and send notification
+        if not temp_cfg.get("safety_shutdown_logged"):
+            tilt_color = temp_cfg.get("tilt_color", "")
+            append_control_log("temp_control_safety_shutdown", {
+                "tilt_color": tilt_color,
+                "reason": "Control Tilt inactive beyond timeout",
+                "low_limit": low,
+                "high_limit": high
+            })
+            temp_cfg["safety_shutdown_logged"] = True
+            
+            # Send safety shutdown notification
+            send_safety_shutdown_notification(tilt_color, low, high)
+        return
+    else:
+        # Reset the safety shutdown flag when Tilt becomes active again
+        if temp_cfg.get("safety_shutdown_logged"):
+            temp_cfg["safety_shutdown_logged"] = False
+
     if temp is None:
         control_heating("off")
         control_cooling("off")
@@ -2314,14 +2443,16 @@ threading.Thread(target=ble_loop, daemon=True).start()
 # --- Flask routes ---------------------------------------------------------
 @app.route('/')
 def dashboard():
+    # Only show active tilts on the main display
+    active_tilts = get_active_tilts()
     return render_template('maindisplay.html',
         system_settings=system_cfg,
         tilt_cfg=tilt_cfg,
         COLOR_MAP=COLOR_MAP,
-        tilts=live_tilts,
+        tilts=active_tilts,
         tilt_status=tilt_status,
         temp_control=temp_cfg,
-        live_tilts=live_tilts
+        live_tilts=active_tilts
     )
 
 @app.route('/startup')
@@ -2863,12 +2994,13 @@ def batch_settings():
         except Exception:
             batch_history = []
     all_colors = list(TILT_UUIDS.values())
-    active_colors = list(live_tilts.keys())
+    active_tilts = get_active_tilts()
+    active_colors = list(active_tilts.keys())
     return render_template('batch_settings.html',
         tilt_cfg=tilt_cfg,
         tilt_colors=all_colors,
         active_colors=active_colors,
-        live_tilts=live_tilts,
+        live_tilts=active_tilts,
         selected_tilt=selected,
         selected_config=config,
         system_settings=system_cfg,
@@ -2880,13 +3012,14 @@ def batch_settings():
 @app.route('/temp_config')
 def temp_config():
     report_colors = list(tilt_cfg.keys())
+    active_tilts = get_active_tilts()
     return render_template('temp_control_config.html',
         temp_control=temp_cfg,
         tilt_cfg=tilt_cfg,
         system_settings=system_cfg,
         batch_cfg=tilt_cfg,
         report_colors=report_colors,
-        live_tilts=live_tilts
+        live_tilts=active_tilts
     )
 
 
@@ -3435,7 +3568,9 @@ def live_snapshot():
             "email_error": temp_cfg.get('email_error', False)
         }
     }
-    for color, info in live_tilts.items():
+    # Only include active tilts (those that have sent data recently)
+    active_tilts = get_active_tilts()
+    for color, info in active_tilts.items():
         snapshot["live_tilts"][color] = {
             "gravity": info.get("gravity"),
             "temp_f": info.get("temp_f"),
