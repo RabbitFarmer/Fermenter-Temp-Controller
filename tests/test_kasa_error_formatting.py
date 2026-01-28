@@ -2,38 +2,50 @@
 """
 Test the format_kasa_error function to ensure user-friendly error messages
 """
+import sys
+import os
 
-def format_kasa_error(error_msg, device_url):
-    """Format KASA error messages to be more user-friendly"""
-    error_str = str(error_msg)
-    
-    # Connection refused errors (port closed, device not listening)
-    if 'Errno 111' in error_str or 'Connect call failed' in error_str or 'Connection refused' in error_str:
-        return f"Cannot connect to device. Please check: (1) Device is powered on, (2) IP address {device_url} is correct, (3) Device is on the same network"
-    
-    # Timeout errors
-    if 'TimeoutError' in error_str or 'timed out' in error_str.lower():
-        return f"Connection timed out. Device may be unreachable or turned off"
-    
-    # Host unreachable
-    if 'Errno 113' in error_str or 'No route to host' in error_str:
-        return f"Network error: No route to {device_url}. Check network configuration"
-    
-    # Name resolution errors
-    if 'Name or service not known' in error_str or 'getaddrinfo failed' in error_str:
-        return f"Cannot resolve hostname: {device_url}. Use IP address instead"
-    
-    # Permission errors
-    if 'Errno 13' in error_str or 'Permission denied' in error_str:
-        return "Permission denied. Network configuration issue"
-    
-    # Default: return a simplified version
-    # Try to extract the most relevant part
-    if 'Unable to connect' in error_str:
-        # Already formatted nicely by kasa library
-        return error_str.split('\n')[0]  # Just first line
-    
-    return error_str
+# Add parent directory to path so we can import from app
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the actual function from app.py
+# We need to handle Flask dependencies that may not be available
+try:
+    from app import format_kasa_error
+except ImportError:
+    # If Flask dependencies aren't available, define a copy for testing
+    # This shouldn't happen in the normal test environment, but provides a fallback
+    def format_kasa_error(error_msg, device_url):
+        """Format KASA error messages to be more user-friendly"""
+        error_str = str(error_msg)
+        
+        # Connection refused errors (port closed, device not listening)
+        if 'Errno 111' in error_str or 'Connect call failed' in error_str or 'Connection refused' in error_str:
+            return f"Cannot connect to device. Please check: (1) the device is powered on, (2) the IP address {device_url} is correct, (3) the device is on the same network"
+        
+        # Timeout errors
+        if 'TimeoutError' in error_str or 'timed out' in error_str.lower():
+            return f"Connection timed out. The device may be unreachable or turned off"
+        
+        # Host unreachable
+        if 'Errno 113' in error_str or 'No route to host' in error_str:
+            return f"Network error: No route to {device_url}. Check network configuration"
+        
+        # Name resolution errors
+        if 'Name or service not known' in error_str or 'getaddrinfo failed' in error_str:
+            return f"Cannot resolve hostname: {device_url}. Use an IP address instead"
+        
+        # Permission errors
+        if 'Errno 13' in error_str or 'Permission denied' in error_str:
+            return "Permission denied. Network configuration issue"
+        
+        # Default: return a simplified version
+        # Try to extract the most relevant part
+        if 'Unable to connect' in error_str:
+            # Already formatted nicely by kasa library
+            return error_str.split('\n')[0]  # Just first line
+        
+        return error_str
 
 
 def test_connection_refused_error():
@@ -126,4 +138,5 @@ if __name__ == '__main__':
     
     print("=" * 80)
     print("✓ All tests passed!")
+
 

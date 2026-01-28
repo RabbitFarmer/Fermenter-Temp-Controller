@@ -3334,11 +3334,11 @@ def format_kasa_error(error_msg, device_url):
     
     # Connection refused errors (port closed, device not listening)
     if 'Errno 111' in error_str or 'Connect call failed' in error_str or 'Connection refused' in error_str:
-        return f"Cannot connect to device. Please check: (1) Device is powered on, (2) IP address {device_url} is correct, (3) Device is on the same network"
+        return f"Cannot connect to device. Please check: (1) the device is powered on, (2) the IP address {device_url} is correct, (3) the device is on the same network"
     
     # Timeout errors
     if 'TimeoutError' in error_str or 'timed out' in error_str.lower():
-        return f"Connection timed out. Device may be unreachable or turned off"
+        return f"Connection timed out. The device may be unreachable or turned off"
     
     # Host unreachable
     if 'Errno 113' in error_str or 'No route to host' in error_str:
@@ -3346,7 +3346,7 @@ def format_kasa_error(error_msg, device_url):
     
     # Name resolution errors
     if 'Name or service not known' in error_str or 'getaddrinfo failed' in error_str:
-        return f"Cannot resolve hostname: {device_url}. Use IP address instead"
+        return f"Cannot resolve hostname: {device_url}. Use an IP address instead"
     
     # Permission errors
     if 'Errno 13' in error_str or 'Permission denied' in error_str:
