@@ -42,6 +42,16 @@
       background: #fff;
     }
 
+    /* Colored bubble for tilt color name */
+    .tilt-color-bubble {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 900;
+      margin-left: 4px;
+      border: 2px solid #888;
+    }
+
     .tc-status {
       color: var(--status-red);
       font-weight: 900;
@@ -74,7 +84,7 @@
       margin-top: 10px;
       text-align: center;
       font-weight: 900;
-      font-size: 16px;
+      font-size: 18px;
       padding: 4px 6px;
       min-height: 28px;
       line-height: 1.2;
@@ -306,8 +316,6 @@
           </div>
 
           <div class="temp-card-body">
-            <div id="temp_control_status_top" class="tc-status" style="display: {% if temp_control.temp_control_active %}block{% else %}none{% endif %};">{{ temp_control.status or '' }}</div>
-
             <div id="temp_control_readings" class="tc-grid" role="group" aria-label="Temperature limits">
               <div class="tc-label">HIGH LIMIT</div>
               <div style="text-align:right;">
@@ -331,11 +339,13 @@
               </div>
             </div>
 
+            <div id="temp_control_status_top" class="tc-status" style="display: {% if temp_control.temp_control_active %}block{% else %}none{% endif %};">{{ temp_control.status or '' }}</div>
+
             <div id="tc_notifications" class="tc-notifications" style="display: {% if temp_control.temp_control_active %}flex{% else %}none{% endif %};" aria-live="polite" role="status"></div>
           </div>
 
           <div class="temp-card-assigned-tilt">
-            ASSIGNED TILT — {% if temp_control.temp_control_active %}{{ (temp_control.tilt_color or '—') }}{% else %}—{% endif %}
+            <span id="temp_control_assigned_tilt_text">ASSIGNED TILT — {% if temp_control.temp_control_active %}{% set tilt_color_value = temp_control.tilt_color or '—' %}{% if tilt_color_value != '—' %}<span class="tilt-color-bubble" style="background-color: {{ COLOR_MAP.get(tilt_color_value, 'transparent') }}; color: {% if tilt_color_value in ['Yellow', 'Pink', 'Green'] %}black{% else %}white{% endif %};">{{ tilt_color_value }}</span>{% else %}{{ tilt_color_value }}{% endif %}{% else %}—{% endif %}</span>
           </div>
 
           <div class="temp-card-footer">
@@ -661,7 +671,13 @@
         // Update assigned tilt text
         if (assignedTiltText) {
           const tiltColor = tc.tilt_color || '—';
-          assignedTiltText.textContent = `ASSIGNED TILT — ${tiltColor}`;
+          if (tiltColor === '—') {
+            assignedTiltText.innerHTML = 'ASSIGNED TILT — —';
+          } else {
+            const colorCode = tc.tilt_color_code || 'transparent';
+            const textColor = (tiltColor === 'Yellow' || tiltColor === 'Pink' || tiltColor === 'Green') ? 'black' : 'white';
+            assignedTiltText.innerHTML = `ASSIGNED TILT — <span class="tilt-color-bubble" style="background-color: ${colorCode}; color: ${textColor};">${tiltColor}</span>`;
+          }
         }
 
         let tempToUse = null;
@@ -726,7 +742,7 @@
         
         // Blank assigned tilt
         if (assignedTiltText) {
-          assignedTiltText.textContent = 'ASSIGNED TILT — —';
+          assignedTiltText.innerHTML = 'ASSIGNED TILT — —';
         }
       }
 
