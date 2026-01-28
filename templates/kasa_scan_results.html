@@ -11,7 +11,35 @@
         .plug-ip { font-family: monospace; color: #444; }
         .error { color: red; margin-bottom: 1em; }
         .back-link { display: inline-block; margin-top: 2em; }
+        .plug-actions { margin-left: 12px; }
+        .plug-actions button { 
+            padding: 4px 8px; 
+            margin-left: 4px; 
+            border: 1px solid #888; 
+            background: #4CAF50; 
+            color: white; 
+            border-radius: 3px; 
+            cursor: pointer; 
+            font-size: 12px;
+        }
+        .plug-actions button:hover { 
+            background: #45a049; 
+        }
+        .info-message {
+            padding: 12px;
+            background: #e7f3fe;
+            border-left: 4px solid #2196F3;
+            margin-bottom: 1em;
+            font-size: 14px;
+        }
     </style>
+    <script>
+        function setPlug(type, url) {
+            // Store the URL in localStorage to be retrieved by temp_control_config page
+            localStorage.setItem('kasa_' + type + '_url', url);
+            alert(type.charAt(0).toUpperCase() + type.slice(1) + ' plug URL set to: ' + url + '\n\nClick "Back to Temperature Control Config" and the URL will be populated.');
+        }
+    </script>
 </head>
 <body>
     <h2>Kasa Plugs Found:</h2>
@@ -19,11 +47,18 @@
         <div class="error">Error scanning: {{ error }}</div>
     {% endif %}
     {% if devices %}
+        <div class="info-message">
+            Click "Set as Heating" or "Set as Cooling" to populate the URL in the Temperature Control settings.
+        </div>
         <ul>
         {% for ip, name in devices.items() %}
             <li>
                 <span class="plug-alias">{{ name }}</span>
                 <span class="plug-ip">({{ ip }})</span>
+                <span class="plug-actions">
+                    <button onclick="setPlug('heating', '{{ ip }}')">Set as Heating</button>
+                    <button onclick="setPlug('cooling', '{{ ip }}')">Set as Cooling</button>
+                </span>
             </li>
         {% endfor %}
         </ul>

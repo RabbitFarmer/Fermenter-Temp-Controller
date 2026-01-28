@@ -1914,6 +1914,10 @@ def control_heating(state):
     if not enabled or not url:
         temp_cfg["heater_pending"] = False
         temp_cfg["heater_on"] = False
+        # Clear heating errors when heating is disabled
+        temp_cfg["heating_error"] = False
+        temp_cfg["heating_error_msg"] = ""
+        temp_cfg["heating_error_notified"] = False
         return
     if not _should_send_kasa_command(url, state):
         return
@@ -1927,6 +1931,10 @@ def control_cooling(state):
     if not enabled or not url:
         temp_cfg["cooler_pending"] = False
         temp_cfg["cooler_on"] = False
+        # Clear cooling errors when cooling is disabled
+        temp_cfg["cooling_error"] = False
+        temp_cfg["cooling_error_msg"] = ""
+        temp_cfg["cooling_error_notified"] = False
         return
     if not _should_send_kasa_command(url, state):
         return
@@ -3318,6 +3326,42 @@ def scan_kasa_plugs():
         devices = {}
         print(f"[LOG] Kasa scan failed: {e}")
     return render_template("kasa_scan_results.html", devices=devices, error=None)
+
+
+@app.route('/test_kasa_plugs', methods=['POST'])
+def test_kasa_plugs():
+    """Test connection to configured KASA plugs"""
+    try:
+        data = request.get_json()
+        heating_url = data.get('heating_url', '').strip()
+        cooling_url = data.get('cooling_url', '').strip()
+        
+        results = {}
+        
+        # Test heating plug if URL is provided
+        if heating_url:
+            try:
+                from kasa.iot import IotPlug
+                plug = IotPlug(heating_url)
+                asyncio.run(asyncio.wait_for(plug.update(), timeout=6))
+                results['heating'] = {'success': True, 'error': None}
+            except Exception as e:
+                results['heating'] = {'success': False, 'error': str(e)}
+        
+        # Test cooling plug if URL is provided
+        if cooling_url:
+            try:
+                from kasa.iot import IotPlug
+                plug = IotPlug(cooling_url)
+                asyncio.run(asyncio.wait_for(plug.update(), timeout=6))
+                results['cooling'] = {'success': True, 'error': None}
+            except Exception as e:
+                results['cooling'] = {'success': False, 'error': str(e)}
+        
+        return jsonify(results)
+    except Exception as e:
+        print(f"[LOG] Error testing KASA plugs: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/live_snapshot')
