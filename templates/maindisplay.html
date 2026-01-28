@@ -652,18 +652,6 @@
       const toggleSwitch = document.getElementById('temp_control_toggle');
       const assignedTiltText = document.querySelector('.temp-card-assigned-tilt');
 
-      // Tilt color map
-      const tiltColorMap = {
-        'Red': '#ff0000',
-        'Green': '#00ff00',
-        'Black': '#000000',
-        'Purple': '#800080',
-        'Orange': '#ffa500',
-        'Blue': '#0000ff',
-        'Yellow': '#ffff00',
-        'Pink': '#ffc0cb'
-      };
-
       // Update toggle switch state from server
       const isActive = tc.temp_control_active || false;
       if (toggleSwitch && tc.temp_control_active !== undefined) {
@@ -686,7 +674,7 @@
           if (tiltColor === '—') {
             assignedTiltText.innerHTML = 'ASSIGNED TILT — —';
           } else {
-            const colorCode = tiltColorMap[tiltColor] || 'transparent';
+            const colorCode = tc.tilt_color_code || 'transparent';
             const textColor = (tiltColor === 'Yellow' || tiltColor === 'Pink' || tiltColor === 'Green') ? 'black' : 'white';
             assignedTiltText.innerHTML = `ASSIGNED TILT — <span class="tilt-color-bubble" style="background-color: ${colorCode}; color: ${textColor};">${tiltColor}</span>`;
           }
@@ -754,7 +742,7 @@
         
         // Blank assigned tilt
         if (assignedTiltText) {
-          assignedTiltText.textContent = 'ASSIGNED TILT — —';
+          assignedTiltText.innerHTML = 'ASSIGNED TILT — —';
         }
       }
 
