@@ -19,6 +19,10 @@ except ImportError:
         """Format KASA error messages to be more user-friendly"""
         error_str = str(error_msg)
         
+        # Check if this is a localhost address - this is a common configuration mistake
+        if device_url.startswith('127.') or device_url == 'localhost':
+            return f"❌ Invalid IP address: {device_url} is a localhost address. KASA plugs require a real network IP address (e.g., 192.168.1.100). Check your router's DHCP client list or use the Kasa mobile app to find the plug's actual IP address."
+        
         # Connection refused errors (port closed, device not listening)
         if 'Errno 111' in error_str or 'Connect call failed' in error_str or 'Connection refused' in error_str:
             return f"Cannot connect to device. Please check: (1) the device is powered on, (2) the IP address {device_url} is correct, (3) the device is on the same network"
@@ -48,10 +52,26 @@ except ImportError:
         return error_str
 
 
+def test_localhost_address_error():
+    """Test that localhost addresses are detected and explained"""
+    error_msg = "Unable to connect to the device: 127.0.0.208:9999: [Errno 111] Connect call failed ('127.0.0.208', 9999)"
+    result = format_kasa_error(error_msg, '127.0.0.208')
+    
+    print(f"Input:  {error_msg}")
+    print(f"Output: {result}")
+    
+    assert 'localhost address' in result.lower()
+    assert '127.0.0.208' in result
+    assert 'network ip' in result.lower()
+    assert '192.168' in result  # Should suggest example IP
+    
+    print("✓ Localhost address test passed\n")
+
+
 def test_connection_refused_error():
     """Test that connection refused errors are formatted nicely"""
-    error_msg = "Unable to connect to the device: 127.0.0.1:9999: [Errno 111] Connect call failed ('127.0.0.1', 9999)"
-    result = format_kasa_error(error_msg, '127.0.0.1')
+    error_msg = "Unable to connect to the device: 192.168.1.100:9999: [Errno 111] Connect call failed ('192.168.1.100', 9999)"
+    result = format_kasa_error(error_msg, '192.168.1.100')
     
     print(f"Input:  {error_msg}")
     print(f"Output: {result}")
@@ -60,7 +80,7 @@ def test_connection_refused_error():
     assert 'Cannot connect' in result
     assert 'powered on' in result
     assert 'IP address' in result
-    assert '127.0.0.1' in result
+    assert '192.168.1.100' in result
     
     # Should NOT contain the technical errno details
     assert '[Errno 111]' not in result
@@ -130,6 +150,7 @@ if __name__ == '__main__':
     print("Testing KASA error message formatting...\n")
     print("=" * 80)
     
+    test_localhost_address_error()
     test_connection_refused_error()
     test_timeout_error()
     test_host_unreachable_error()

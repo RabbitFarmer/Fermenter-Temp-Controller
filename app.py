@@ -3332,6 +3332,10 @@ def format_kasa_error(error_msg, device_url):
     """Format KASA error messages to be more user-friendly"""
     error_str = str(error_msg)
     
+    # Check if this is a localhost address - this is a common configuration mistake
+    if device_url.startswith('127.') or device_url == 'localhost':
+        return f"❌ Invalid IP address: {device_url} is a localhost address. KASA plugs require a real network IP address (e.g., 192.168.1.100). Check your router's DHCP client list or use the Kasa mobile app to find the plug's actual IP address."
+    
     # Connection refused errors (port closed, device not listening)
     if 'Errno 111' in error_str or 'Connect call failed' in error_str or 'Connection refused' in error_str:
         return f"Cannot connect to device. Please check: (1) the device is powered on, (2) the IP address {device_url} is correct, (3) the device is on the same network"
