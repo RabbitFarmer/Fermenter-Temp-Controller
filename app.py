@@ -610,7 +610,7 @@ def rotate_and_archive_old_history(color, old_brewid, old_cfg):
                         remaining_lines.append(line)
                         continue
                     payload = obj or {}
-                    if isinstance(payload, dict) and payload.get('tilt_color') and old_cfg.get('brewid') == old_brewid:
+                    if isinstance(payload, dict) and payload.get('brewid') == old_brewid:
                         with open(safe_archive, 'a') as af:
                             af.write(json.dumps(obj) + "\n")
                         moved += 1
@@ -622,7 +622,9 @@ def rotate_and_archive_old_history(color, old_brewid, old_cfg):
         except Exception as e:
             print(f"[LOG] Error rewriting main log after archive: {e}")
 
-        append_control_log("temp_control_mode_changed", {"tilt_color": color, "low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit")})
+        # Only log mode change if we actually archived samples
+        if moved > 0:
+            append_control_log("temp_control_mode_changed", {"tilt_color": color, "low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit")})
         return True
     except Exception as e:
         print(f"[LOG] rotate_and_archive_old_history error: {e}")
