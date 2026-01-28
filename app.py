@@ -2158,34 +2158,65 @@ def temperature_control_logic():
         return
 
     current_action = None
+    
+    # Calculate midpoint for hysteresis control
+    midpoint = None
+    if isinstance(low, (int, float)) and isinstance(high, (int, float)):
+        midpoint = (low + high) / 2.0
 
-    if enable_heat and temp < low:
-        control_heating("on")
-        current_action = "Heating"
-        # Log with trigger when temp goes below low limit
-        if temp_cfg.get("below_limit_trigger_armed") and is_monitoring_active:
-            append_control_log("temp_below_low_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
-            temp_cfg["below_limit_logged"] = True
-            # Send notification if enabled
-            send_temp_control_notification("temp_below_low_limit", temp, low, high, temp_cfg.get("tilt_color", ""))
-            temp_cfg["below_limit_trigger_armed"] = False
-            temp_cfg["above_limit_trigger_armed"] = False  # Ensure above is disarmed
+    # Heating control with hysteresis:
+    # - Turn ON when temp <= low_limit
+    # - Turn OFF when temp >= midpoint
+    if enable_heat:
+        if temp <= low:
+            # Temperature at or below low limit - turn heating ON
+            control_heating("on")
+            current_action = "Heating"
+            # Log with trigger when temp goes below low limit
+            if temp_cfg.get("below_limit_trigger_armed") and is_monitoring_active:
+                append_control_log("temp_below_low_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
+                temp_cfg["below_limit_logged"] = True
+                # Send notification if enabled
+                send_temp_control_notification("temp_below_low_limit", temp, low, high, temp_cfg.get("tilt_color", ""))
+                temp_cfg["below_limit_trigger_armed"] = False
+                temp_cfg["above_limit_trigger_armed"] = False  # Ensure above is disarmed
+        elif midpoint is not None and temp >= midpoint:
+            # Temperature at or above midpoint - turn heating OFF
+            control_heating("off")
+        # else: temperature is between low and midpoint - maintain current state
+        # (don't change heating state, let it continue)
     else:
         control_heating("off")
 
-    if enable_cool and temp > high:
-        control_cooling("on")
-        current_action = "Cooling"
-        # Log with trigger when temp goes above high limit
-        if temp_cfg.get("above_limit_trigger_armed") and is_monitoring_active:
-            append_control_log("temp_above_high_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
-            temp_cfg["above_limit_logged"] = True
-            # Send notification if enabled
-            send_temp_control_notification("temp_above_high_limit", temp, low, high, temp_cfg.get("tilt_color", ""))
-            temp_cfg["above_limit_trigger_armed"] = False
-            temp_cfg["below_limit_trigger_armed"] = False  # Ensure below is disarmed
+    # Cooling control with hysteresis:
+    # - Turn ON when temp >= high_limit
+    # - Turn OFF when temp <= midpoint
+    if enable_cool:
+        if temp >= high:
+            # Temperature at or above high limit - turn cooling ON
+            control_cooling("on")
+            current_action = "Cooling"
+            # Log with trigger when temp goes above high limit
+            if temp_cfg.get("above_limit_trigger_armed") and is_monitoring_active:
+                append_control_log("temp_above_high_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
+                temp_cfg["above_limit_logged"] = True
+                # Send notification if enabled
+                send_temp_control_notification("temp_above_high_limit", temp, low, high, temp_cfg.get("tilt_color", ""))
+                temp_cfg["above_limit_trigger_armed"] = False
+                temp_cfg["below_limit_trigger_armed"] = False  # Ensure below is disarmed
+        elif midpoint is not None and temp <= midpoint:
+            # Temperature at or below midpoint - turn cooling OFF
+            control_cooling("off")
+        # else: temperature is between midpoint and high - maintain current state
+        # (don't change cooling state, let it continue)
     else:
         control_cooling("off")
+    
+    # Update current_action based on actual plug state
+    if temp_cfg.get("heater_on"):
+        current_action = "Heating"
+    elif temp_cfg.get("cooler_on"):
+        current_action = "Cooling"
 
     try:
         if isinstance(low, (int, float)) and isinstance(high, (int, float)) and (low <= temp <= high):

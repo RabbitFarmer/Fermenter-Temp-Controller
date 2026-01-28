@@ -57,7 +57,27 @@
         if (!response.ok) throw new Error('Failed to fetch data');
 
         const json = await response.json();
-        const dataPoints = json.points || [];
+        let dataPoints = json.points || [];
+        
+        // Normalize data points - handle legacy log format
+        // Old logs have separate 'date' and 'time' fields instead of 'timestamp'
+        dataPoints = dataPoints.map((p) => {
+          let ts = p.timestamp;
+          // If timestamp is missing, construct it from date and time
+          if (!ts && p.date && p.time) {
+            ts = `${p.date}T${p.time}Z`;
+          }
+          // Handle temp_f vs current_temp
+          let temp = p.temp_f;
+          if (temp === null || temp === undefined) {
+            temp = p.current_temp;
+          }
+          return {
+            ...p,
+            timestamp: ts,
+            temp_f: temp
+          };
+        });
         
         // Check if this is temperature control data
         const isTempControl = (tiltColor === 'Fermenter');
