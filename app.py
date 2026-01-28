@@ -494,6 +494,41 @@ def update_live_tilt(color, gravity, temp_f, rssi):
         "original_gravity": cfg.get("actual_og", 0),
     }
 
+def get_active_tilts():
+    """
+    Filter live_tilts to only include tilts that have sent data recently.
+    
+    Returns:
+        dict: Dictionary of active tilts (those within the inactivity timeout)
+    """
+    # Get timeout from system config, default to 60 minutes
+    timeout_minutes = int(system_cfg.get('tilt_inactivity_timeout_minutes', 60))
+    now = datetime.utcnow()
+    active_tilts = {}
+    
+    for color, info in live_tilts.items():
+        timestamp_str = info.get('timestamp')
+        if not timestamp_str:
+            continue
+        
+        try:
+            # Parse ISO 8601 timestamp
+            timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+            # Convert to UTC if it has timezone info
+            if timestamp.tzinfo is not None:
+                timestamp = timestamp.replace(tzinfo=None)
+            
+            elapsed_minutes = (now - timestamp).total_seconds() / 60.0
+            
+            if elapsed_minutes < timeout_minutes:
+                active_tilts[color] = info
+        except Exception as e:
+            # If we can't parse timestamp, include the tilt to be safe
+            print(f"[LOG] Error parsing timestamp for {color}: {e}")
+            active_tilts[color] = info
+    
+    return active_tilts
+
 def get_current_temp_for_control_tilt():
     color = temp_cfg.get("tilt_color")
     if color and color in live_tilts:
@@ -2314,14 +2349,16 @@ threading.Thread(target=ble_loop, daemon=True).start()
 # --- Flask routes ---------------------------------------------------------
 @app.route('/')
 def dashboard():
+    # Only show active tilts on the main display
+    active_tilts = get_active_tilts()
     return render_template('maindisplay.html',
         system_settings=system_cfg,
         tilt_cfg=tilt_cfg,
         COLOR_MAP=COLOR_MAP,
-        tilts=live_tilts,
+        tilts=active_tilts,
         tilt_status=tilt_status,
         temp_control=temp_cfg,
-        live_tilts=live_tilts
+        live_tilts=active_tilts
     )
 
 @app.route('/startup')
@@ -2863,12 +2900,13 @@ def batch_settings():
         except Exception:
             batch_history = []
     all_colors = list(TILT_UUIDS.values())
-    active_colors = list(live_tilts.keys())
+    active_tilts = get_active_tilts()
+    active_colors = list(active_tilts.keys())
     return render_template('batch_settings.html',
         tilt_cfg=tilt_cfg,
         tilt_colors=all_colors,
         active_colors=active_colors,
-        live_tilts=live_tilts,
+        live_tilts=active_tilts,
         selected_tilt=selected,
         selected_config=config,
         system_settings=system_cfg,
@@ -2880,13 +2918,14 @@ def batch_settings():
 @app.route('/temp_config')
 def temp_config():
     report_colors = list(tilt_cfg.keys())
+    active_tilts = get_active_tilts()
     return render_template('temp_control_config.html',
         temp_control=temp_cfg,
         tilt_cfg=tilt_cfg,
         system_settings=system_cfg,
         batch_cfg=tilt_cfg,
         report_colors=report_colors,
-        live_tilts=live_tilts
+        live_tilts=active_tilts
     )
 
 
@@ -3435,7 +3474,9 @@ def live_snapshot():
             "email_error": temp_cfg.get('email_error', False)
         }
     }
-    for color, info in live_tilts.items():
+    # Only include active tilts (those that have sent data recently)
+    active_tilts = get_active_tilts()
+    for color, info in active_tilts.items():
         snapshot["live_tilts"][color] = {
             "gravity": info.get("gravity"),
             "temp_f": info.get("temp_f"),
