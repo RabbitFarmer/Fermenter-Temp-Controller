@@ -509,23 +509,21 @@ def get_active_tilts():
     for color, info in live_tilts.items():
         timestamp_str = info.get('timestamp')
         if not timestamp_str:
+            # No timestamp means we can't determine activity - exclude for safety
             continue
         
         try:
-            # Parse ISO 8601 timestamp
-            timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-            # Convert to UTC if it has timezone info
-            if timestamp.tzinfo is not None:
-                timestamp = timestamp.replace(tzinfo=None)
+            # Parse ISO 8601 timestamp (remove 'Z' suffix for naive UTC datetime)
+            # This is consistent with how timestamps are created: datetime.utcnow().isoformat() + "Z"
+            timestamp = datetime.fromisoformat(timestamp_str.rstrip('Z'))
             
             elapsed_minutes = (now - timestamp).total_seconds() / 60.0
             
             if elapsed_minutes < timeout_minutes:
                 active_tilts[color] = info
         except Exception as e:
-            # If we can't parse timestamp, include the tilt to be safe
-            print(f"[LOG] Error parsing timestamp for {color}: {e}")
-            active_tilts[color] = info
+            # Unable to parse timestamp - likely corrupted data, exclude from display
+            print(f"[LOG] Error parsing timestamp for {color}: {e}, excluding from active tilts")
     
     return active_tilts
 

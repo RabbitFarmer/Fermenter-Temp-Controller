@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """
 Test script to validate the tilt active filter functionality.
+
+NOTE: This file contains a standalone implementation of get_active_tilts()
+that duplicates the logic from app.py. This is intentional for isolated
+unit testing without Flask app dependencies. If the implementation in app.py
+changes, this test should be updated to match the expected behavior.
 """
 
 import sys
@@ -24,6 +29,9 @@ def get_active_tilts():
     """
     Filter live_tilts to only include tilts that have sent data recently.
     
+    NOTE: This is a standalone implementation for testing purposes.
+    It should match the behavior of the same function in app.py.
+    
     Returns:
         dict: Dictionary of active tilts (those within the inactivity timeout)
     """
@@ -35,23 +43,20 @@ def get_active_tilts():
     for color, info in live_tilts.items():
         timestamp_str = info.get('timestamp')
         if not timestamp_str:
+            # No timestamp means we can't determine activity - exclude for safety
             continue
         
         try:
-            # Parse ISO 8601 timestamp
-            timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-            # Convert to UTC if it has timezone info
-            if timestamp.tzinfo is not None:
-                timestamp = timestamp.replace(tzinfo=None)
+            # Parse ISO 8601 timestamp (remove 'Z' suffix for naive UTC datetime)
+            timestamp = datetime.fromisoformat(timestamp_str.rstrip('Z'))
             
             elapsed_minutes = (now - timestamp).total_seconds() / 60.0
             
             if elapsed_minutes < timeout_minutes:
                 active_tilts[color] = info
         except Exception as e:
-            # If we can't parse timestamp, include the tilt to be safe
-            print(f"[LOG] Error parsing timestamp for {color}: {e}")
-            active_tilts[color] = info
+            # Unable to parse timestamp - likely corrupted data, exclude from display
+            print(f"[LOG] Error parsing timestamp for {color}: {e}, excluding from active tilts")
     
     return active_tilts
 
