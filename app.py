@@ -610,7 +610,7 @@ def rotate_and_archive_old_history(color, old_brewid, old_cfg):
                         remaining_lines.append(line)
                         continue
                     payload = obj or {}
-                    if isinstance(payload, dict) and payload.get('tilt_color') and old_cfg.get('brewid') == old_brewid:
+                    if isinstance(payload, dict) and payload.get('brewid') == old_brewid:
                         with open(safe_archive, 'a') as af:
                             af.write(json.dumps(obj) + "\n")
                         moved += 1
