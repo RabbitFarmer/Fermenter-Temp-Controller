@@ -100,20 +100,20 @@ if __name__ == '__main__':
     
     # Test 1: Both plugs are ON
     result1 = test_sync_logic(mock_kasa_query_state_success, "Both plugs ON")
-    assert result1["heater_on"] == True, "Heating should be ON"
-    assert result1["cooler_on"] == True, "Cooling should be ON"
+    assert result1["heater_on"], "Heating should be ON"
+    assert result1["cooler_on"], "Cooling should be ON"
     print("✅ PASS: Correctly detected both plugs ON")
     
     # Test 2: Both plugs are OFF
     result2 = test_sync_logic(mock_kasa_query_state_off, "Both plugs OFF")
-    assert result2["heater_on"] == False, "Heating should be OFF"
-    assert result2["cooler_on"] == False, "Cooling should be OFF"
+    assert not result2["heater_on"], "Heating should be OFF"
+    assert not result2["cooler_on"], "Cooling should be OFF"
     print("✅ PASS: Correctly detected both plugs OFF")
     
     # Test 3: Query fails (connection error)
     result3 = test_sync_logic(mock_kasa_query_state_error, "Query fails")
-    assert result3["heater_on"] == False, "Heating should default to OFF on error"
-    assert result3["cooler_on"] == False, "Cooling should default to OFF on error"
+    assert not result3["heater_on"], "Heating should default to OFF on error"
+    assert not result3["cooler_on"], "Cooling should default to OFF on error"
     print("✅ PASS: Correctly defaulted to OFF on query failure")
     
     print(f"\n{'='*70}")

@@ -2340,7 +2340,6 @@ def sync_plug_states_at_startup():
     # Query heating plug state
     if enable_heating and heating_url:
         try:
-            import asyncio
             is_on, error = asyncio.run(kasa_query_state(heating_url))
             if error is None:
                 temp_cfg["heater_on"] = is_on
@@ -2358,7 +2357,6 @@ def sync_plug_states_at_startup():
     # Query cooling plug state
     if enable_cooling and cooling_url:
         try:
-            import asyncio
             is_on, error = asyncio.run(kasa_query_state(cooling_url))
             if error is None:
                 temp_cfg["cooler_on"] = is_on
