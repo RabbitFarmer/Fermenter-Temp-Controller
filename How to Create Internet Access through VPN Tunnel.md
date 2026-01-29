@@ -67,6 +67,10 @@ Setting up a WireGuard VPN server and client allows secure access to your Raspbe
    ```bash
    sudo iptables -A INPUT -p udp --dport 51820 -j ACCEPT
    ```
+   - Also allow access to the Flask app port (5000) from VPN clients:
+   ```bash
+   sudo iptables -A INPUT -i wg0 -p tcp --dport 5000 -j ACCEPT
+   ```
    - Save the rules:
    ```bash
    sudo iptables-save > /etc/iptables/rules.v4
