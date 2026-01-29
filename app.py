@@ -28,6 +28,7 @@ from datetime import datetime
 from glob import glob as glob_func
 from math import ceil
 from multiprocessing import Process, Queue
+import multiprocessing  # Needed for set_start_method and get_all_start_methods
 from urllib.parse import urlparse
 import subprocess
 import signal
@@ -448,15 +449,25 @@ except Exception:
 # Set multiprocessing start method to 'fork' for better network access in worker
 # The 'fork' method preserves the network stack and environment from parent process
 # This is critical for KASA plug communication in the worker process
-import multiprocessing
 try:
-    # Only set if not already set (avoid errors if called multiple times)
-    if multiprocessing.get_start_method(allow_none=True) is None:
-        multiprocessing.set_start_method('fork')
-        print("[LOG] Set multiprocessing start method to 'fork' for network access")
-except RuntimeError:
-    # Already set, ignore
-    print(f"[LOG] Multiprocessing start method already set to: {multiprocessing.get_start_method()}")
+    # Check if 'fork' is available on this platform (not available on Windows)
+    available_methods = multiprocessing.get_all_start_methods()
+    if 'fork' in available_methods:
+        # Only set if not already set (avoid errors if called multiple times)
+        if multiprocessing.get_start_method(allow_none=True) is None:
+            multiprocessing.set_start_method('fork')
+            print("[LOG] Set multiprocessing start method to 'fork' for network access")
+        else:
+            current = multiprocessing.get_start_method()
+            print(f"[LOG] Multiprocessing start method already set to: {current}")
+            if current != 'fork':
+                print(f"[LOG] WARNING: Using '{current}' instead of 'fork' - may affect KASA plug reliability")
+    else:
+        print(f"[LOG] WARNING: 'fork' method not available on this platform ({sys.platform})")
+        print(f"[LOG] Available methods: {available_methods}")
+        print(f"[LOG] KASA plug control may experience network issues")
+except RuntimeError as e:
+    print(f"[LOG] Could not set multiprocessing start method: {e}")
 
 kasa_queue = Queue()
 kasa_result_queue = Queue()
