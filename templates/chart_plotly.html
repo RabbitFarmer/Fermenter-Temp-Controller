@@ -26,19 +26,16 @@
 <body>
   <h2 style="text-align: center;">Fermenter Temperature & Gravity</h2>
   <div class="controls">
-    <button id="reload">Reload</button>
     <button id="print">Print</button>
     {% if tilt_color == "Fermenter" %}
     <button id="export">Export CSV</button>
     {% endif %}
+    <button id="dashboard">Dashboard</button>
     <span id="status"></span>
   </div>
   <div id="chart-container">
     <div id="tempChart"></div>
     <div id="date-range" class="date-range"></div>
-  </div>
-  <div class="back-button">
-    <a href="/">Return to Dashboard</a>
   </div>
 
   <script>
@@ -157,12 +154,23 @@
         let tempMax = Math.max(...temps);
         let tempRange = null;
         if (temps.length > 0 && isFinite(tempMin) && isFinite(tempMax)) {
-          tempRange = [tempMin - chartTempMargin, tempMax + chartTempMargin];
+          // For temperature control, use a base range of 40-100F, expanding as needed
+          if (isTempControl) {
+            tempMin = Math.min(40, tempMin - chartTempMargin);
+            tempMax = Math.max(100, tempMax + chartTempMargin);
+          } else {
+            tempMin = tempMin - chartTempMargin;
+            tempMax = tempMax + chartTempMargin;
+          }
+          tempRange = [tempMin, tempMax];
+        } else if (isTempControl) {
+          // Default to 40-100F if no data points for temp control
+          tempRange = [40, 100];
         }
         
         // Calculate x-axis range
-        // For active fermentations: minimum 30-day display to prevent jagged early appearance
         // For completed/archived fermentations: use actual data range
+        // For active fermentations: start from first data point, extend to 30 days if needed
         let xAxisRange = null;
         if (dataPoints.length > 0) {
           const timestamps = dataPoints.map(p => new Date(p.timestamp)).filter(d => !isNaN(d.getTime()));
@@ -171,12 +179,19 @@
             const maxDate = new Date(Math.max(...timestamps));
             const actualDays = (maxDate - minDate) / (1000 * 60 * 60 * 24);
             
-            // Only extend to 30 days minimum if fermentation is still active
-            const displayDays = fermentationComplete ? actualDays : Math.max(30, actualDays);
+            // Start from the first data point
+            const rangeStart = minDate;
             
-            // Extend the range to cover the display period
-            const rangeEnd = maxDate;
-            const rangeStart = new Date(rangeEnd.getTime() - (displayDays * 24 * 60 * 60 * 1000));
+            // For active fermentations, extend end to 30 days minimum from start
+            // For completed fermentations, use actual end date
+            let rangeEnd;
+            if (fermentationComplete) {
+              rangeEnd = maxDate;
+            } else {
+              const thirtyDaysFromStart = new Date(rangeStart.getTime() + (30 * 24 * 60 * 60 * 1000));
+              rangeEnd = new Date(Math.max(maxDate.getTime(), thirtyDaysFromStart.getTime()));
+            }
+            
             xAxisRange = [rangeStart.toISOString(), rangeEnd.toISOString()];
             
             // Update date range display (show the extended x-axis range, not just data range)
@@ -250,10 +265,37 @@
           }
           
           // Layout without gravity axis
+          // Determine what controls are in use
+          const heatingInUse = heatingOnEvents.length > 0 || heatingOffEvents.length > 0;
+          const coolingInUse = coolingOnEvents.length > 0 || coolingOffEvents.length > 0;
+          let controlsInUse = '';
+          if (heatingInUse && coolingInUse) {
+            controlsInUse = 'Heating and Cooling In Use';
+          } else if (heatingInUse) {
+            controlsInUse = 'Heating In Use';
+          } else if (coolingInUse) {
+            controlsInUse = 'Cooling In Use';
+          }
+          
+          // Build subtitle with date range
+          const dateRangeEl = document.getElementById('date-range');
+          let dateRangeText = '';
+          if (dateRangeEl && dateRangeEl.textContent) {
+            dateRangeText = dateRangeEl.textContent;
+          }
+          
+          let titleText = '<b style="font-size: 24px;">TEMPERATURE CONTROL ACTIVITY</b>';
+          if (dateRangeText) {
+            titleText += `<br><span style="font-size: 14px;">${dateRangeText}</span>`;
+          }
+          if (controlsInUse) {
+            titleText += `<br><span style="font-size: 12px; font-weight: normal;">${controlsInUse}</span>`;
+          }
+          
           layout = {
             title: {
-              text: `Temperature Control Log | ${beerName}`,
-              font: { size: 16 },
+              text: titleText,
+              font: { size: 20 },
             },
             xaxis: {
               title: 'Timestamp',
@@ -266,11 +308,11 @@
               titlefont: { color: 'blue', size: 12 },
               tickfont: { color: 'blue', size: 10 },
               gridcolor: '#eaf2f5',
-              range: tempRange || [32, 120],
+              range: tempRange || [40, 100],
             },
             showlegend: true,
             legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
-            margin: { l: 50, r: 50, t: 50, b: 80 },
+            margin: { l: 50, r: 50, t: 70, b: 80 },
           };
         } else {
           // For regular tilt data, include gravity
@@ -345,7 +387,7 @@
         }
 
         Plotly.newPlot('tempChart', traces, layout);
-        document.getElementById('status').textContent = `Loaded ${dataPoints.length} points.`;
+        document.getElementById('status').textContent = '';
       } catch (err) {
         console.error(err);
         document.getElementById('status').textContent = 'Failed to load data.';
@@ -359,6 +401,11 @@
     // Add print button functionality
     document.getElementById('print').addEventListener('click', () => {
       window.print();
+    });
+    
+    // Add dashboard button functionality
+    document.getElementById('dashboard').addEventListener('click', () => {
+      window.location.href = '/';
     });
     
     // Add export functionality for temperature control
