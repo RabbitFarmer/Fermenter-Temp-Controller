@@ -65,6 +65,14 @@ try:
 except Exception:
     psutil = None
 
+# Import log_error for kasa error logging
+try:
+    from logger import log_error
+except Exception:
+    def log_error(msg):
+        # Fallback if logger is not available
+        print(f"[ERROR] {msg}")
+
 app = Flask(__name__)
 
 # --- Files and global constants ---------------------------------------------
@@ -2308,9 +2316,13 @@ def kasa_result_listener():
                     # Send notification if enabled (user can choose to enable/disable)
                     send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
                 else:
+                    # When plug command fails, ensure heater_on is False for accurate UI state
+                    temp_cfg["heater_on"] = False
                     temp_cfg["heating_error"] = True
                     temp_cfg["heating_error_msg"] = error or ''
                     print(f"[KASA_RESULT] ✗ Heating plug {action.upper()} FAILED - error: {error}")
+                    # Log error to kasa_errors.log
+                    log_error(f"HEATING plug {action.upper()} failed at {url}: {error}")
                     # Send notification for Kasa connection failure if enabled (only once per failure)
                     send_kasa_error_notification('heating', url, error)
             elif mode == 'cooling':
@@ -2327,9 +2339,13 @@ def kasa_result_listener():
                     # Send notification if enabled (user can choose to enable/disable)
                     send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
                 else:
+                    # When plug command fails, ensure cooler_on is False for accurate UI state
+                    temp_cfg["cooler_on"] = False
                     temp_cfg["cooling_error"] = True
                     temp_cfg["cooling_error_msg"] = error or ''
                     print(f"[KASA_RESULT] ✗ Cooling plug {action.upper()} FAILED - error: {error}")
+                    # Log error to kasa_errors.log
+                    log_error(f"COOLING plug {action.upper()} failed at {url}: {error}")
                     # Send notification for Kasa connection failure if enabled (only once per failure)
                     send_kasa_error_notification('cooling', url, error)
         except queue.Empty:
