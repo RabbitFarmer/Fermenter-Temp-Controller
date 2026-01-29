@@ -27,7 +27,7 @@
         <div class="log-info">Showing last {{ line_count }} lines</div>
       </div>
 
-      <div class="log-content">{{ content }}</div>
+      <div class="log-content">{{ content | e }}</div>
 
       <div style="text-align:center;">
         <a href="/log_management" class="btn-back">← Back to Log Management</a>

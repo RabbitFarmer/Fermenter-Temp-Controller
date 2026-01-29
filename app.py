@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import queue
+import re
 import shutil
 import smtplib
 import threading
@@ -4093,18 +4094,17 @@ def log_management():
                     })
         
         # Sort batches by fermentation start date (most recent first)
-        # Batches without a date go to the end
+        # Batches without a date or invalid date format appear at the end
         def sort_key(batch):
             date_str = batch.get('ferm_start_date')
             if date_str:
                 try:
                     # Parse date string (format: YYYY-MM-DD)
-                    from datetime import datetime
                     return datetime.strptime(date_str, '%Y-%m-%d')
-                except:
-                    pass
-            # Return a very old date for batches without dates
-            from datetime import datetime
+                except (ValueError, TypeError) as e:
+                    # Log invalid date format for debugging
+                    print(f"[LOG] Invalid date format for batch {batch.get('brewid')}: {date_str}")
+            # Return a very old date for batches without dates or invalid dates
             return datetime(1900, 1, 1)
         
         batches.sort(key=sort_key, reverse=True)
@@ -4140,28 +4140,26 @@ def view_log():
             return "No log file specified", 400
         
         # Security: validate log file path
-        import re
         if log_type == 'temp':
             # Temperature control log
             if log_file != 'temp_control_log.jsonl':
                 return "Invalid log file", 400
             filepath = LOG_PATH
         else:
-            # Application log
-            if not re.match(r'^[a-zA-Z0-9\-_\.]+\.log$', log_file):
+            # Application log - restrict to alphanumeric, dash, underscore, single dot before .log
+            if not re.match(r'^[a-zA-Z0-9\-_]+\.log$', log_file):
                 return "Invalid log file name", 400
             filepath = os.path.join('logs', log_file)
         
         if not os.path.exists(filepath):
             return f"Log file not found: {log_file}", 404
         
-        # Read the last 1000 lines of the log file
-        lines = []
+        # Read the last 1000 lines efficiently using deque
+        lines = deque(maxlen=1000)
         try:
             with open(filepath, 'r') as f:
-                lines = f.readlines()
-                # Get last 1000 lines
-                lines = lines[-1000:]
+                for line in f:
+                    lines.append(line)
         except Exception as e:
             return f"Error reading log file: {str(e)}", 500
         
