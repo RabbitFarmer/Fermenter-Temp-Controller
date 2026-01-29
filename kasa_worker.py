@@ -118,6 +118,8 @@ def kasa_worker(cmd_queue, result_queue):
             url = command.get('url', '')
             action = command.get('action', 'off')
 
+            print(f"[kasa_worker] Received command: mode={mode}, action={action}, url={url}")
+            
             if not url:
                 error = "No URL provided"
                 log_error(f"{mode.upper()} plug operation skipped: {error}")
@@ -132,6 +134,7 @@ def kasa_worker(cmd_queue, result_queue):
 
             success = (error is None)
             result = {'mode': mode, 'action': action, 'success': success, 'url': url, 'error': error}
+            print(f"[kasa_worker] Sending result: mode={mode}, action={action}, success={success}, error={error}")
             result_queue.put(result)
 
         except Exception as e:
@@ -177,30 +180,50 @@ async def kasa_control(url, action, mode):
     if PlugClass is None:
         return "kasa plug class not available"
 
+    # Log the command being sent
+    print(f"[kasa_worker] Sending {action.upper()} command to {mode} plug at {url}")
+    
     try:
         plug = PlugClass(url)
         # initial update may raise / timeout
         await asyncio.wait_for(plug.update(), timeout=6)
+        
+        # Log initial state before command
+        initial_state = getattr(plug, "is_on", None)
+        # Handle None case explicitly for clarity
+        if initial_state is None:
+            state_str = 'UNKNOWN'
+        elif initial_state:
+            state_str = 'ON'
+        else:
+            state_str = 'OFF'
+        print(f"[kasa_worker] Initial state before {action}: {state_str} (is_on={initial_state})")
+        
     except Exception as e:
         err = f"Failed to contact plug at {url}: {e}"
         log_error(err)
         return err
 
     try:
+        # Send the command
         if action == 'on':
+            print(f"[kasa_worker] Executing turn_on() for {mode} plug at {url}")
             await plug.turn_on()
         else:
+            print(f"[kasa_worker] Executing turn_off() for {mode} plug at {url}")
             await plug.turn_off()
 
         # brief pause to let state change propagate
         await asyncio.sleep(0.5)
 
         # try to re-check state; best-effort
+        verification_success = True
         try:
             await asyncio.wait_for(plug.update(), timeout=5)
-        except Exception:
+        except Exception as e:
             # non-fatal: we'll still attempt to read is_on if available
-            pass
+            print(f"[kasa_worker] WARNING: State verification update failed: {e}")
+            verification_success = False
 
         is_on = getattr(plug, "is_on", None)
         if is_on is None:
@@ -208,16 +231,26 @@ async def kasa_control(url, action, mode):
             log_error(f"{mode.upper()} plug at {url}: {err}")
             return err
 
+        # Log the verified state (defensive: handle None case even though we return above)
+        if is_on is None:
+            state_str = 'UNKNOWN'
+        elif is_on:
+            state_str = 'ON'
+        else:
+            state_str = 'OFF'
+        print(f"[kasa_worker] Verified state after {action}: {state_str} (is_on={is_on}, verification_update={'success' if verification_success else 'failed'})")
+        
         if (action == 'on' and is_on) or (action == 'off' and not is_on):
-            print(f"[kasa_worker] {mode} {action} confirmed at {url}")
+            print(f"[kasa_worker] ✓ SUCCESS: {mode} {action} confirmed at {url} - plug state matches expected")
             return None
         else:
-            err = f"State mismatch after {action} (is_on={is_on})"
+            err = f"State mismatch after {action}: expected is_on={action == 'on'}, actual is_on={is_on}"
             log_error(f"{mode.upper()} plug at {url}: {err}")
+            print(f"[kasa_worker] ✗ FAILURE: State verification failed for {mode} plug at {url}")
             return err
 
     except Exception as e:
         err = str(e)
-        log_error(f"{mode.upper()} plug at {url} error: {err}")
+        log_error(f"{mode.upper()} plug at {url} error during command execution: {err}")
         return err
 

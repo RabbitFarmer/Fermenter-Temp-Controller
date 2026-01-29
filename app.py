@@ -2027,7 +2027,9 @@ def control_heating(state):
         temp_cfg["heating_error_notified"] = False
         return
     if not _should_send_kasa_command(url, state):
+        print(f"[TEMP_CONTROL] Skipping heating {state} command (redundant or rate-limited)")
         return
+    print(f"[TEMP_CONTROL] Sending heating {state.upper()} command to {url}")
     kasa_queue.put({'mode': 'heating', 'url': url, 'action': state})
     _record_kasa_command(url, state)
     temp_cfg["heater_pending"] = True
@@ -2044,7 +2046,9 @@ def control_cooling(state):
         temp_cfg["cooling_error_notified"] = False
         return
     if not _should_send_kasa_command(url, state):
+        print(f"[TEMP_CONTROL] Skipping cooling {state} command (redundant or rate-limited)")
         return
+    print(f"[TEMP_CONTROL] Sending cooling {state.upper()} command to {url}")
     kasa_queue.put({'mode': 'cooling', 'url': url, 'action': state})
     _record_kasa_command(url, state)
     temp_cfg["cooler_pending"] = True
@@ -2276,6 +2280,10 @@ def kasa_result_listener():
             action = result.get('action')
             success = result.get('success', False)
             url = result.get('url', '')
+            error = result.get('error', '')
+            
+            print(f"[KASA_RESULT] Received result: mode={mode}, action={action}, success={success}, url={url}, error={error}")
+            
             if mode == 'heating':
                 temp_cfg["heater_pending"] = False
                 if success:
@@ -2285,14 +2293,16 @@ def kasa_result_listener():
                     # Reset the notified flag when plug starts working again
                     temp_cfg["heating_error_notified"] = False
                     event = "heating_on" if action == 'on' else "heating_off"
+                    print(f"[KASA_RESULT] ✓ Heating plug {action.upper()} confirmed - updating heater_on={action == 'on'}")
                     append_control_log(event, {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
                     # Send notification if enabled (user can choose to enable/disable)
                     send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
                 else:
                     temp_cfg["heating_error"] = True
-                    temp_cfg["heating_error_msg"] = result.get('error', '') or ''
+                    temp_cfg["heating_error_msg"] = error or ''
+                    print(f"[KASA_RESULT] ✗ Heating plug {action.upper()} FAILED - error: {error}")
                     # Send notification for Kasa connection failure if enabled (only once per failure)
-                    send_kasa_error_notification('heating', url, result.get('error', ''))
+                    send_kasa_error_notification('heating', url, error)
             elif mode == 'cooling':
                 temp_cfg["cooler_pending"] = False
                 if success:
@@ -2302,14 +2312,16 @@ def kasa_result_listener():
                     # Reset the notified flag when plug starts working again
                     temp_cfg["cooling_error_notified"] = False
                     event = "cooling_on" if action == 'on' else "cooling_off"
+                    print(f"[KASA_RESULT] ✓ Cooling plug {action.upper()} confirmed - updating cooler_on={action == 'on'}")
                     append_control_log(event, {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
                     # Send notification if enabled (user can choose to enable/disable)
                     send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
                 else:
                     temp_cfg["cooling_error"] = True
-                    temp_cfg["cooling_error_msg"] = result.get('error', '') or ''
+                    temp_cfg["cooling_error_msg"] = error or ''
+                    print(f"[KASA_RESULT] ✗ Cooling plug {action.upper()} FAILED - error: {error}")
                     # Send notification for Kasa connection failure if enabled (only once per failure)
-                    send_kasa_error_notification('cooling', url, result.get('error', ''))
+                    send_kasa_error_notification('cooling', url, error)
         except queue.Empty:
             # Timeout waiting for result - this is normal, just continue
             continue
