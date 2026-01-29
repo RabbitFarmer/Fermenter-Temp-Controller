@@ -2800,11 +2800,11 @@ def update_system_config():
         "chart_temp_margin": float(data.get("chart_temp_margin", system_cfg.get("chart_temp_margin", 1.0))),
         "chart_gravity_margin": float(data.get("chart_gravity_margin", system_cfg.get("chart_gravity_margin", 0.005))),
         # Push notification provider settings
-        "push_provider": data.get("push_provider", "pushover"),
-        "pushover_user_key": data.get("pushover_user_key", ""),
-        "pushover_device": data.get("pushover_device", ""),
-        "ntfy_server": data.get("ntfy_server", "https://ntfy.sh"),
-        "ntfy_topic": data.get("ntfy_topic", ""),
+        "push_provider": data.get("push_provider", system_cfg.get("push_provider", "pushover")),
+        "pushover_user_key": data.get("pushover_user_key", system_cfg.get("pushover_user_key", "")),
+        "pushover_device": data.get("pushover_device", system_cfg.get("pushover_device", "")),
+        "ntfy_server": data.get("ntfy_server", system_cfg.get("ntfy_server", "https://ntfy.sh")),
+        "ntfy_topic": data.get("ntfy_topic", system_cfg.get("ntfy_topic", "")),
     })
     
     # Preserve old format fields for backward compatibility (only if external_urls is empty)
