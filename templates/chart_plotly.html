@@ -84,16 +84,56 @@
         
         const traces = [];
         
-        // Temperature trace - always included
-        const tempTrace = {
-          x: dataPoints.map((p) => p.timestamp),
-          y: dataPoints.map((p) => p.temp_f),
-          mode: 'lines',
-          name: 'Temperature (°F)',
-          line: { color: 'blue', shape: 'spline' },
-          yaxis: 'y1',
-        };
-        traces.push(tempTrace);
+        // Temperature trace - for temp control, split by tilt color
+        if (isTempControl) {
+          // Group data points by tilt color
+          const colorGroups = {};
+          dataPoints.forEach((p) => {
+            const color = p.tilt_color || 'Unknown';
+            if (!colorGroups[color]) {
+              colorGroups[color] = [];
+            }
+            colorGroups[color].push(p);
+          });
+          
+          // Define color mapping for traces
+          const colorMap = {
+            'Black': '#000000',
+            'Blue': '#0000FF',
+            'Green': '#008000',
+            'Orange': '#FFA500',
+            'Pink': '#FFC0CB',
+            'Purple': '#800080',
+            'Red': '#FF0000',
+            'Yellow': '#FFFF00',
+            'Unknown': '#808080'
+          };
+          
+          // Create a trace for each tilt color
+          Object.keys(colorGroups).sort().forEach((color) => {
+            const points = colorGroups[color];
+            traces.push({
+              x: points.map(p => p.timestamp),
+              y: points.map(p => p.temp_f),
+              mode: 'lines+markers',
+              name: `${color} Tilt`,
+              line: { color: colorMap[color] || '#808080', shape: 'spline' },
+              marker: { size: 4 },
+              yaxis: 'y1',
+            });
+          });
+        } else {
+          // Original single temperature trace for regular tilt data
+          const tempTrace = {
+            x: dataPoints.map((p) => p.timestamp),
+            y: dataPoints.map((p) => p.temp_f),
+            mode: 'lines',
+            name: 'Temperature (°F)',
+            line: { color: 'blue', shape: 'spline' },
+            yaxis: 'y1',
+          };
+          traces.push(tempTrace);
+        }
         
         let layout;
         
