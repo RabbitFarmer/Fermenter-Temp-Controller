@@ -551,12 +551,14 @@ def is_control_tilt_active():
     Check if the Tilt assigned to temperature control is currently active.
     
     Returns:
-        bool: True if the control Tilt is active (within timeout), False otherwise
+        bool: True if the control Tilt is active (within timeout) OR if no Tilt is assigned.
+              False only if a Tilt is assigned but inactive (safety shutdown condition).
     """
     control_color = temp_cfg.get("tilt_color")
     if not control_color:
-        # No Tilt assigned to temp control
-        return False
+        # No Tilt assigned to temp control - allow control to proceed
+        # (temperature can be set manually or from other sources)
+        return True
     
     # Check if the control Tilt is in the active tilts list
     active_tilts = get_active_tilts()
