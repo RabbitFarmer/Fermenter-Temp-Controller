@@ -4215,9 +4215,7 @@ def reset_logs():
 
 
 # --- Misc UI routes -------------------------------------------------------
-@app.route('/export_temp_csv')
-def export_temp_csv_get():
-    return redirect('/temp_config')
+# Note: /export_temp_csv is already defined at line 3798
 
 
 # --- Log Management Routes ------------------------------------------------
