@@ -81,8 +81,8 @@ SYSTEM_CFG_FILE = 'config/system_config.json'
 VALID_SYSTEM_CONFIG_TABS = {'main-settings', 'push-email', 'logging-integrations', 'backup-restore'}
 
 # Chart caps
-DEFAULT_CHART_LIMIT = 500
-MAX_CHART_LIMIT = 2000
+DEFAULT_CHART_LIMIT = 3000
+MAX_CHART_LIMIT = 3000
 MAX_ALL_LIMIT = 10000
 MAX_FILENAME_LENGTH = 50
 

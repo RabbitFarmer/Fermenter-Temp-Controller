@@ -26,8 +26,6 @@
 <body>
   <h2 style="text-align: center;">Fermenter Temperature & Gravity</h2>
   <div class="controls">
-    <label for="limit">Points:</label>
-    <input id="limit" type="number" min="20" max="2000" value="1500" />
     <button id="reload">Reload</button>
     <button id="print">Print</button>
     {% if tilt_color == "Fermenter" %}
@@ -64,7 +62,7 @@
     const fermentationComplete = {{ 'true' if tilt_cfg[tilt_color].get('notification_state', {}).get('fermentation_completion_datetime') else 'false' }};
     {% endif %}
     
-    async function loadData(limit = 1500) {
+    async function loadData(limit = 3000) {
       document.getElementById('status').textContent = 'Loading data...';
 
       const url = `/chart_data/${encodeURIComponent(tiltColor)}?limit=${limit}`;
@@ -355,8 +353,7 @@
     }
 
     document.getElementById('reload').addEventListener('click', () => {
-      const limit = Math.min(2000, Math.max(20, parseInt(document.getElementById('limit').value) || 1500));
-      loadData(limit);
+      loadData(3000);
     });
     
     // Add print button functionality
