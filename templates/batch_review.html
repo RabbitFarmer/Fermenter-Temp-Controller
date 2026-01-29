@@ -35,6 +35,39 @@
       .info-grid, .stats-grid { page-break-inside:avoid; }
     }
   </style>
+  <script>
+    // View all data functionality
+    function viewAllData() {
+      const start = prompt('Enter start data point (1 to {{ sample_data|length if sample_data is defined else stats.total_readings }}, or leave empty for all):', '');
+      const end = prompt('Enter end data point (or leave empty for all):', '');
+      
+      let url = '{{ url_for("batch_data_view", brewid=batch.brewid) }}';
+      if (start && start.trim()) {
+        url += '?start=' + encodeURIComponent(start);
+      }
+      if (end && end.trim()) {
+        url += (url.includes('?') ? '&' : '?') + 'end=' + encodeURIComponent(end);
+      }
+      
+      window.location.href = url;
+    }
+    
+    // CSV export functionality
+    function exportToCSV() {
+      const start = prompt('Enter start data point (1 to {{ stats.total_readings }}, or leave empty for all):', '');
+      const end = prompt('Enter end data point (or leave empty for all):', '');
+      
+      let url = '{{ url_for("export_batch_csv", brewid=batch.brewid) }}';
+      if (start && start.trim()) {
+        url += '?start=' + encodeURIComponent(start);
+      }
+      if (end && end.trim()) {
+        url += (url.includes('?') ? '&' : '?') + 'end=' + encodeURIComponent(end);
+      }
+      
+      window.location.href = url;
+    }
+  </script>
 </head>
 <body>
   <div class="page-container">
@@ -61,21 +94,39 @@
           <div class="info-label">Fermentation Start Date</div>
           <div class="info-value">{{ batch.ferm_start_date or 'N/A' }}</div>
         </div>
-        <div class="info-card">
-          <div class="info-label">Recipe ABV</div>
-          <div class="info-value">{{ batch.recipe_abv if batch.recipe_abv is not none else 'N/A' }}%</div>
-        </div>
+      </div>
+
+      <!-- Recipe Information (Second Row) -->
+      <div class="subheading" style="margin-top:20px;">Recipe Expectations</div>
+      <div class="info-grid">
         <div class="info-card">
           <div class="info-label">Recipe Original Gravity</div>
-          <div class="info-value">{{ batch.recipe_og if batch.recipe_og is not none else 'N/A' }}</div>
+          <div class="info-value">{{ batch.recipe_og if batch.recipe_og is not none and batch.recipe_og != '' else 'N/A' }}</div>
         </div>
         <div class="info-card">
           <div class="info-label">Recipe Final Gravity</div>
-          <div class="info-value">{{ batch.recipe_fg if batch.recipe_fg is not none else 'N/A' }}</div>
+          <div class="info-value">{{ batch.recipe_fg if batch.recipe_fg is not none and batch.recipe_fg != '' else 'N/A' }}</div>
         </div>
         <div class="info-card">
+          <div class="info-label">Recipe ABV</div>
+          <div class="info-value">{{ batch.recipe_abv if batch.recipe_abv is not none and batch.recipe_abv != '' else 'N/A' }}{% if batch.recipe_abv is not none and batch.recipe_abv != '' %}%{% endif %}</div>
+        </div>
+      </div>
+
+      <!-- Measured Values (Third Row) -->
+      <div class="subheading" style="margin-top:20px;">Measured Performance</div>
+      <div class="info-grid">
+        <div class="info-card">
           <div class="info-label">Measured Original Gravity</div>
-          <div class="info-value">{{ batch.actual_og if batch.actual_og is not none else 'N/A' }}</div>
+          <div class="info-value">{{ batch.actual_og if batch.actual_og is not none and batch.actual_og != '' else 'N/A' }}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">Last Gravity</div>
+          <div class="info-value">{{ "%.3f"|format(stats.end_gravity) if stats.end_gravity is not none else 'N/A' }}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">Actual ABV</div>
+          <div class="info-value">{{ "%.2f"|format(stats.estimated_abv) if stats.estimated_abv is not none else 'N/A' }}{% if stats.estimated_abv is not none %}%{% endif %}</div>
         </div>
       </div>
 
@@ -128,6 +179,15 @@
           <div class="stat-label">Temperature Range</div>
         </div>
         {% endif %}
+      </div>
+
+      <!-- Fermentation Data Options (Issue 4) -->
+      <div class="subheading" style="margin-top:24px;">Fermentation Data Options</div>
+      <div class="no-print" style="display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+        <button type="button" onclick="viewAllData()" class="btn-action" style="background-color:#4CAF50;">View All Data</button>
+        <button type="button" onclick="window.print()" class="btn-print">Print / Save PDF</button>
+        <button type="button" onclick="exportToCSV()" class="btn-action" style="background-color:#2196F3;">CSV Export</button>
+        <button type="button" onclick="window.location='/batch_settings?tilt_color={{ color }}'" class="btn-action" style="background-color:#FF9800;">Edit Batch</button>
       </div>
 
       <div class="subheading">Fermentation Data Summary</div>
