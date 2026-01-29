@@ -95,8 +95,7 @@ try:
         "brewery_name": "Updated Test Brewery",
         "brewer_name": "Test Brewer",
         "warning_mode": "PUSH",
-        "push_provider": "pushover",
-        # NOTE: No pushover_user_key, pushover_api_token, ntfy_topic in form
+        # NOTE: No push_provider, pushover_user_key, pushover_api_token, ntfy_topic in form
         # This simulates the HTML form where password fields are empty unless changed
         "enable_temp_below_low_limit": "on",
         "enable_temp_above_high_limit": "on",
@@ -137,7 +136,7 @@ try:
         "brewery_name": data.get("brewery_name", ""),
         "brewer_name": data.get("brewer_name", ""),
         "warning_mode": data.get("warning_mode", "NONE"),
-        "push_provider": data.get("push_provider", "pushover"),
+        "push_provider": data.get("push_provider", app_module.system_cfg.get("push_provider", "pushover")),
         # FIXED: These now preserve existing values
         "pushover_user_key": data.get("pushover_user_key", app_module.system_cfg.get("pushover_user_key", "")),
         "pushover_device": data.get("pushover_device", app_module.system_cfg.get("pushover_device", "")),

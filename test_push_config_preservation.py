@@ -56,15 +56,14 @@ def test_config_preservation():
         form_data = {
             "brewery_name": "Updated Brewery Name",
             "warning_mode": "PUSH",
-            "push_provider": "pushover"
-            # NOTE: pushover_user_key, pushover_api_token, ntfy_topic NOT in form data
+            # NOTE: push_provider, pushover_user_key, pushover_api_token, ntfy_topic NOT in form data
         }
         
         # Simulate the BUGGY behavior (lines 2802-2806 of app.py)
         system_cfg.update({
             "brewery_name": form_data.get("brewery_name", ""),
             "warning_mode": form_data.get("warning_mode", "NONE"),
-            "push_provider": form_data.get("push_provider", "pushover"),
+            "push_provider": form_data.get("push_provider", "pushover"),  # BUG: could overwrite "ntfy"
             "pushover_user_key": form_data.get("pushover_user_key", ""),  # BUG: overwrites with empty string
             "pushover_device": form_data.get("pushover_device", ""),  # BUG: overwrites with empty string
             "ntfy_server": form_data.get("ntfy_server", "https://ntfy.sh"),
@@ -117,7 +116,7 @@ def test_config_preservation():
         system_cfg.update({
             "brewery_name": form_data.get("brewery_name", ""),
             "warning_mode": form_data.get("warning_mode", "NONE"),
-            "push_provider": form_data.get("push_provider", "pushover"),
+            "push_provider": form_data.get("push_provider", system_cfg.get("push_provider", "pushover")),  # FIX: preserve existing
             "pushover_user_key": form_data.get("pushover_user_key", system_cfg.get("pushover_user_key", "")),  # FIX: preserve existing
             "pushover_device": form_data.get("pushover_device", system_cfg.get("pushover_device", "")),  # FIX: preserve existing
             "ntfy_server": form_data.get("ntfy_server", system_cfg.get("ntfy_server", "https://ntfy.sh")),  # FIX: preserve existing
