@@ -57,7 +57,7 @@
       const start = prompt('Enter start data point (1 to {{ stats.total_readings }}, or leave empty for all):', '');
       const end = prompt('Enter end data point (or leave empty for all):', '');
       
-      let url = '{{ url_for("export_batch_csv", brewid=batch.brewid) }}';
+      let url = '{{ url_for("export_batch_data_csv", brewid=batch.brewid) }}';
       if (start && start.trim()) {
         url += '?start=' + encodeURIComponent(start);
       }

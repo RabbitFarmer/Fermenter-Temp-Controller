@@ -3697,8 +3697,8 @@ def batch_data_view(brewid):
                          end_idx=end_idx)
 
 
-@app.route('/export_batch_csv/<brewid>')
-def export_batch_csv(brewid):
+@app.route('/export_batch_data_csv/<brewid>')
+def export_batch_data_csv(brewid):
     """
     Export batch data to CSV with optional range selection.
     """
