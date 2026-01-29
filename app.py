@@ -2387,6 +2387,10 @@ def sync_plug_states_at_startup():
     """
     Synchronize stored plug states with actual plug states at startup.
     This prevents displaying stale state from the last shutdown.
+    
+    This function runs with a timeout to prevent blocking Flask startup.
+    If queries take too long, it keeps the current state and lets the
+    control loop handle synchronization.
     """
     if kasa_query_state is None:
         print("[LOG] kasa_query_state not available, skipping startup sync")
@@ -2399,38 +2403,52 @@ def sync_plug_states_at_startup():
     
     print("[LOG] Syncing plug states at startup...")
     
-    # Query heating plug state
+    # Helper function to query plug state with timeout
+    async def query_plug_with_timeout(url, plug_name):
+        """Query a plug's state with timeout. Returns (is_on, error) or raises TimeoutError."""
+        # Timeout set to 7 seconds to allow internal kasa_query_state timeout (6s) to complete
+        return await asyncio.wait_for(kasa_query_state(url), timeout=7.0)
+    
+    # Query heating plug state with timeout
     if enable_heating and heating_url:
         try:
-            is_on, error = asyncio.run(kasa_query_state(heating_url))
+            is_on, error = asyncio.run(query_plug_with_timeout(heating_url, "heating"))
             if error is None:
                 temp_cfg["heater_on"] = is_on
                 print(f"[LOG] Heating plug state synced: {'ON' if is_on else 'OFF'}")
             else:
-                # If we can't query the state, assume it's off for safety
-                temp_cfg["heater_on"] = False
-                print(f"[LOG] Failed to query heating plug state: {error}, assuming OFF")
+                # If we can't query the state, keep current value and let control loop handle it
+                # Don't override to False as this causes UI flicker when network is slow
+                print(f"[LOG] Failed to query heating plug state: {error}, keeping current state")
+        except asyncio.TimeoutError:
+            # If query times out, keep current value and let control loop handle it
+            print(f"[LOG] Heating plug query timed out, keeping current state")
         except Exception as e:
-            temp_cfg["heater_on"] = False
-            print(f"[LOG] Error querying heating plug: {e}, assuming OFF")
+            # If query fails, keep current value and let control loop handle it
+            print(f"[LOG] Error querying heating plug: {e}, keeping current state")
     else:
+        # Only set to False if heating is not enabled
         temp_cfg["heater_on"] = False
     
-    # Query cooling plug state
+    # Query cooling plug state with timeout
     if enable_cooling and cooling_url:
         try:
-            is_on, error = asyncio.run(kasa_query_state(cooling_url))
+            is_on, error = asyncio.run(query_plug_with_timeout(cooling_url, "cooling"))
             if error is None:
                 temp_cfg["cooler_on"] = is_on
                 print(f"[LOG] Cooling plug state synced: {'ON' if is_on else 'OFF'}")
             else:
-                # If we can't query the state, assume it's off for safety
-                temp_cfg["cooler_on"] = False
-                print(f"[LOG] Failed to query cooling plug state: {error}, assuming OFF")
+                # If we can't query the state, keep current value and let control loop handle it
+                # Don't override to False as this causes UI flicker when network is slow
+                print(f"[LOG] Failed to query cooling plug state: {error}, keeping current state")
+        except asyncio.TimeoutError:
+            # If query times out, keep current value and let control loop handle it
+            print(f"[LOG] Cooling plug query timed out, keeping current state")
         except Exception as e:
-            temp_cfg["cooler_on"] = False
-            print(f"[LOG] Error querying cooling plug: {e}, assuming OFF")
+            # If query fails, keep current value and let control loop handle it
+            print(f"[LOG] Error querying cooling plug: {e}, keeping current state")
     else:
+        # Only set to False if cooling is not enabled
         temp_cfg["cooler_on"] = False
     
     print("[LOG] Plug state synchronization complete")
@@ -2448,8 +2466,20 @@ def sync_plug_states_at_startup():
     except Exception as e:
         print(f"[LOG] Failed to log startup sync: {e}")
 
-# Call sync function at startup
-sync_plug_states_at_startup()
+# Start sync in background thread to prevent blocking Flask startup
+# This allows the web server to start immediately even if plug queries are slow
+def _background_startup_sync():
+    """Run startup sync in background to avoid blocking Flask"""
+    try:
+        # Small delay (0.5s) to let kasa_result_listener thread initialize
+        # This is a minimal delay chosen to ensure basic thread startup without
+        # significantly delaying the sync. The sync will handle failures gracefully.
+        time.sleep(0.5)
+        sync_plug_states_at_startup()
+    except Exception as e:
+        print(f"[LOG] Exception in background startup sync: {e}")
+
+threading.Thread(target=_background_startup_sync, daemon=True).start()
 
 # --- Offsite push helpers (kept, forwarding enabled) -----------------------
 def get_predefined_field_maps():

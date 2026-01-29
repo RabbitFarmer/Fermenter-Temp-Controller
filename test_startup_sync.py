@@ -28,7 +28,13 @@ async def mock_kasa_query_state_error(url):
     await asyncio.sleep(0.1)
     return None, "Connection timeout"
 
-def test_sync_logic(kasa_query_state_func, test_name):
+async def mock_kasa_query_state_timeout(url):
+    """Mock timeout - query takes too long"""
+    print(f"[MOCK] Querying {url}...")
+    await asyncio.sleep(10)  # Simulate long delay that will cause timeout
+    return True, None  # This won't be reached due to timeout
+
+def test_sync_logic(kasa_query_state_func, test_name, use_timeout=False):
     """Test the sync logic with different scenarios"""
     print(f"\n{'='*70}")
     print(f"TEST: {test_name}")
@@ -56,36 +62,54 @@ def test_sync_logic(kasa_query_state_func, test_name):
     
     print(f"\nSyncing plug states...")
     
-    # Query heating plug state
+    # Helper function to query plug state with timeout
+    async def query_plug_with_timeout(url, plug_name):
+        """Query a plug's state with timeout. Returns (is_on, error) or raises TimeoutError."""
+        # Timeout set to 7 seconds to allow internal kasa_query_state timeout (6s) to complete
+        # For testing with mock timeout, use shorter timeout
+        timeout_val = 1.0 if use_timeout else 7.0
+        return await asyncio.wait_for(kasa_query_state_func(url), timeout=timeout_val)
+    
+    # Query heating plug state with timeout
     if enable_heating and heating_url:
         try:
-            is_on, error = asyncio.run(kasa_query_state_func(heating_url))
+            is_on, error = asyncio.run(query_plug_with_timeout(heating_url, "heating"))
             if error is None:
                 temp_cfg["heater_on"] = is_on
                 print(f"  Heating plug state synced: {'ON' if is_on else 'OFF'}")
             else:
-                temp_cfg["heater_on"] = False
-                print(f"  Failed to query heating plug: {error}, assuming OFF")
+                # If we can't query the state, keep current value and let control loop handle it
+                # Don't override to False as this causes UI flicker when network is slow
+                print(f"  Failed to query heating plug: {error}, keeping current state")
+        except asyncio.TimeoutError:
+            # If query times out, keep current value and let control loop handle it
+            print(f"  Heating plug query timed out, keeping current state")
         except Exception as e:
-            temp_cfg["heater_on"] = False
-            print(f"  Error querying heating plug: {e}, assuming OFF")
+            # If query fails, keep current value and let control loop handle it
+            print(f"  Error querying heating plug: {e}, keeping current state")
     else:
+        # Only set to False if heating is not enabled
         temp_cfg["heater_on"] = False
     
-    # Query cooling plug state
+    # Query cooling plug state with timeout
     if enable_cooling and cooling_url:
         try:
-            is_on, error = asyncio.run(kasa_query_state_func(cooling_url))
+            is_on, error = asyncio.run(query_plug_with_timeout(cooling_url, "cooling"))
             if error is None:
                 temp_cfg["cooler_on"] = is_on
                 print(f"  Cooling plug state synced: {'ON' if is_on else 'OFF'}")
             else:
-                temp_cfg["cooler_on"] = False
-                print(f"  Failed to query cooling plug: {error}, assuming OFF")
+                # If we can't query the state, keep current value and let control loop handle it
+                # Don't override to False as this causes UI flicker when network is slow
+                print(f"  Failed to query cooling plug: {error}, keeping current state")
+        except asyncio.TimeoutError:
+            # If query times out, keep current value and let control loop handle it
+            print(f"  Cooling plug query timed out, keeping current state")
         except Exception as e:
-            temp_cfg["cooler_on"] = False
-            print(f"  Error querying cooling plug: {e}, assuming OFF")
+            # If query fails, keep current value and let control loop handle it
+            print(f"  Error querying cooling plug: {e}, keeping current state")
     else:
+        # Only set to False if cooling is not enabled
         temp_cfg["cooler_on"] = False
     
     print(f"\nFinal state (after sync):")
@@ -110,11 +134,17 @@ if __name__ == '__main__':
     assert not result2["cooler_on"], "Cooling should be OFF"
     print("✅ PASS: Correctly detected both plugs OFF")
     
-    # Test 3: Query fails (connection error)
+    # Test 3: Query fails (connection error) - should keep previous state
     result3 = test_sync_logic(mock_kasa_query_state_error, "Query fails")
-    assert not result3["heater_on"], "Heating should default to OFF on error"
-    assert not result3["cooler_on"], "Cooling should default to OFF on error"
-    print("✅ PASS: Correctly defaulted to OFF on query failure")
+    assert result3["heater_on"], "Heating should keep previous state (ON) on error"
+    assert result3["cooler_on"], "Cooling should keep previous state (ON) on error"
+    print("✅ PASS: Correctly kept previous state on query failure")
+    
+    # Test 4: Query times out - should keep previous state
+    result4 = test_sync_logic(mock_kasa_query_state_timeout, "Query times out", use_timeout=True)
+    assert result4["heater_on"], "Heating should keep previous state (ON) on timeout"
+    assert result4["cooler_on"], "Cooling should keep previous state (ON) on timeout"
+    print("✅ PASS: Correctly kept previous state on query timeout")
     
     print(f"\n{'='*70}")
     print("All tests passed! ✅")
