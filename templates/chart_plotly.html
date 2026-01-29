@@ -38,8 +38,8 @@
 
   <script>
     const tiltColor = "{{ tilt_color or '' }}";
-    const chartTempMargin = parseFloat("{{ system_settings.get('chart_temp_margin', 1.0) }}");
-    const chartGravityMargin = parseFloat("{{ system_settings.get('chart_gravity_margin', 0.005) }}");
+    const chartTempMargin = {{ system_settings.get('chart_temp_margin', 1.0) }};
+    const chartGravityMargin = {{ system_settings.get('chart_gravity_margin', 0.005) }};
     {% if tilt_color == "Fermenter" %}
     const beerName = "Temperature Control";
     const batchName = "N/A";
@@ -223,7 +223,7 @@
               titlefont: { color: 'blue', size: 12 },
               tickfont: { color: 'blue', size: 10 },
               gridcolor: '#eaf2f5',
-              range: tempRange,
+              range: tempRange || [32, 120],
             },
             yaxis2: {
               title: 'Gravity',

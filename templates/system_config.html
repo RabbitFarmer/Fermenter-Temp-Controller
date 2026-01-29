@@ -169,7 +169,7 @@
               <label for="chart_temp_margin"><b>Chart Temperature Margin (°F)</b></label>
               <div style="font-size:0.85em;color:#666;margin-top:4px;">Degrees to add above/below min/max temperature on charts (default: 1.0)</div>
             </td>
-            <td><input type="number" name="chart_temp_margin" id="chart_temp_margin" step="0.1" value="{{ system_settings.get('chart_temp_margin', 1.0) }}"></td>
+            <td><input type="number" name="chart_temp_margin" id="chart_temp_margin" step="0.1" min="0" value="{{ system_settings.get('chart_temp_margin', 1.0) }}"></td>
           </tr>
           
           <tr>
@@ -177,7 +177,7 @@
               <label for="chart_gravity_margin"><b>Chart Gravity Margin (SG)</b></label>
               <div style="font-size:0.85em;color:#666;margin-top:4px;">Specific gravity units to add above/below min/max on gravity charts (default: 0.005)</div>
             </td>
-            <td><input type="number" name="chart_gravity_margin" id="chart_gravity_margin" step="0.001" value="{{ system_settings.get('chart_gravity_margin', 0.005) }}"></td>
+            <td><input type="number" name="chart_gravity_margin" id="chart_gravity_margin" step="0.001" min="0" value="{{ system_settings.get('chart_gravity_margin', 0.005) }}"></td>
           </tr>
         </table>
 
