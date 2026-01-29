@@ -447,6 +447,14 @@ if kasa_worker:
         kasa_proc.daemon = True
         kasa_proc.start()
         print("[LOG] Started kasa_worker process")
+        # Give the worker process time to initialize before attempting queries
+        # This prevents race conditions where sync_plug_states_at_startup() runs
+        # before the worker is ready to process commands
+        time.sleep(2)
+        if kasa_proc.is_alive():
+            print("[LOG] kasa_worker process is running and ready")
+        else:
+            print("[LOG] WARNING: kasa_worker process failed to start properly")
     except Exception as e:
         print("[LOG] Could not start kasa_worker:", e)
 else:

@@ -53,11 +53,12 @@ fi
 # Open the application in the default web browser
 echo "Opening the application in your default browser..."
 if command -v xdg-open > /dev/null; then
-    xdg-open http://127.0.0.1:5000   # Linux
+    xdg-open http://127.0.0.1:5000 > /dev/null 2>&1 &   # Linux (run in background)
 elif command -v open > /dev/null; then
-    open http://127.0.0.1:5000       # macOS
+    open http://127.0.0.1:5000 > /dev/null 2>&1 &       # macOS (run in background)
 else
     echo "Please open http://127.0.0.1:5000 in your browser manually."
 fi
 
 echo "The application is now running."
+echo "Access the dashboard at: http://127.0.0.1:5000"
