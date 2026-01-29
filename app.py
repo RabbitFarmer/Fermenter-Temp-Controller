@@ -2407,13 +2407,14 @@ def sync_plug_states_at_startup():
                 temp_cfg["heater_on"] = is_on
                 print(f"[LOG] Heating plug state synced: {'ON' if is_on else 'OFF'}")
             else:
-                # If we can't query the state, assume it's off for safety
-                temp_cfg["heater_on"] = False
-                print(f"[LOG] Failed to query heating plug state: {error}, assuming OFF")
+                # If we can't query the state, keep current value and let control loop handle it
+                # Don't override to False as this causes UI flicker when network is slow
+                print(f"[LOG] Failed to query heating plug state: {error}, keeping current state")
         except Exception as e:
-            temp_cfg["heater_on"] = False
-            print(f"[LOG] Error querying heating plug: {e}, assuming OFF")
+            # If query fails, keep current value and let control loop handle it
+            print(f"[LOG] Error querying heating plug: {e}, keeping current state")
     else:
+        # Only set to False if heating is not enabled
         temp_cfg["heater_on"] = False
     
     # Query cooling plug state
@@ -2424,13 +2425,14 @@ def sync_plug_states_at_startup():
                 temp_cfg["cooler_on"] = is_on
                 print(f"[LOG] Cooling plug state synced: {'ON' if is_on else 'OFF'}")
             else:
-                # If we can't query the state, assume it's off for safety
-                temp_cfg["cooler_on"] = False
-                print(f"[LOG] Failed to query cooling plug state: {error}, assuming OFF")
+                # If we can't query the state, keep current value and let control loop handle it
+                # Don't override to False as this causes UI flicker when network is slow
+                print(f"[LOG] Failed to query cooling plug state: {error}, keeping current state")
         except Exception as e:
-            temp_cfg["cooler_on"] = False
-            print(f"[LOG] Error querying cooling plug: {e}, assuming OFF")
+            # If query fails, keep current value and let control loop handle it
+            print(f"[LOG] Error querying cooling plug: {e}, keeping current state")
     else:
+        # Only set to False if cooling is not enabled
         temp_cfg["cooler_on"] = False
     
     print("[LOG] Plug state synchronization complete")
