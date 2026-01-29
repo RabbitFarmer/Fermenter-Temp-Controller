@@ -67,14 +67,27 @@ Setting up a WireGuard VPN server and client allows secure access to your Raspbe
    ```bash
    sudo iptables -A INPUT -p udp --dport 51820 -j ACCEPT
    ```
-   - Also allow access to the Flask app port (5000) from VPN clients:
+   - **IMPORTANT:** Allow access to the Flask app port (5000) from VPN clients:
    ```bash
-   sudo iptables -A INPUT -i wg0 -p tcp --dport 5000 -j ACCEPT
+   sudo iptables -I INPUT -i wg0 -p tcp --dport 5000 -j ACCEPT
+   ```
+   
+   **Note:** We use `-I INPUT` (insert) instead of `-A INPUT` (append) to ensure this rule is evaluated before any potential DROP rules.
+   
+   - Install iptables-persistent to save rules across reboots:
+   ```bash
+   sudo apt install iptables-persistent -y
    ```
    - Save the rules:
    ```bash
-   sudo iptables-save > /etc/iptables/rules.v4
+   sudo iptables-save | sudo tee /etc/iptables/rules.v4 > /dev/null
    ```
+   
+   - Verify the rule was added:
+   ```bash
+   sudo iptables -L INPUT -n -v | grep wg0
+   ```
+   You should see a rule allowing TCP traffic to port 5000 from the wg0 interface.
 
 8. **Start the WireGuard Server**
    - Bring up the WireGuard interface:
@@ -174,10 +187,22 @@ Setting up a WireGuard VPN server and client allows secure access to your Raspbe
      ```
 
 3. **Access the Fermenter-Temp-Controller App**
-   - Open a browser on the client and navigate to:
+   - First, ensure the Flask app is running on the Raspberry Pi:
      ```bash
+     # On Raspberry Pi - check if running
+     sudo systemctl status fermenter
+     # Or start it manually
+     python3 app.py
+     ```
+   
+   - Open a browser on the client and navigate to:
+     ```
      http://10.0.0.1:5000
      ```
+     
+     **Note:** Replace `10.0.0.1` with your actual VPN server IP address from your WireGuard configuration.
+   
+   - **If you get "connection refused":** See the Troubleshooting section below or run `./verify_vpn_access.sh` on the Raspberry Pi to diagnose the issue.
 
 ---
 
@@ -190,6 +215,58 @@ If your Raspberry Pi doesn’t have a static public IP, use a dynamic DNS (DDNS)
 
 2. **Update Client Configuration with DDNS Hostname**
    - Replace `<your-raspberry-pi-public-ip>` in the client configuration with your DDNS hostname (e.g., `myfermenter.duckdns.org`).
+
+---
+
+## **Troubleshooting VPN Connection Issues**
+
+If you're having trouble connecting to the Flask app through VPN, see the detailed [VPN_TROUBLESHOOTING_GUIDE.md](VPN_TROUBLESHOOTING_GUIDE.md) for step-by-step diagnosis and solutions.
+
+### Quick Fixes for "Connection Refused" Errors
+
+**Problem:** Browser shows "connection refused" or "ERR_CONNECTION_REFUSED" when accessing `http://10.0.0.1:5000` (or your VPN IP).
+
+**Quick Checks:**
+
+1. **Verify the Flask app is running:**
+   ```bash
+   # On Raspberry Pi
+   ps aux | grep app.py
+   # Or check systemd service
+   sudo systemctl status fermenter
+   ```
+
+2. **Verify firewall allows VPN access:**
+   ```bash
+   # Check if rule exists
+   sudo iptables -L INPUT -n | grep wg0
+   
+   # If missing, add it:
+   sudo iptables -I INPUT -i wg0 -p tcp --dport 5000 -j ACCEPT
+   sudo iptables-save | sudo tee /etc/iptables/rules.v4 > /dev/null
+   ```
+
+3. **Test VPN connectivity:**
+   ```bash
+   # From client, test if you can reach the Raspberry Pi
+   ping 10.0.0.1  # Or your VPN server IP
+   curl http://10.0.0.1:5000
+   ```
+
+4. **Run the verification script:**
+   ```bash
+   # On Raspberry Pi
+   ./verify_vpn_access.sh
+   ```
+
+**Common Issues:**
+
+- **Flask app only listening on 127.0.0.1:** The app must listen on `0.0.0.0` to accept VPN connections. This is already configured in `app.py`.
+- **Missing firewall rule:** The iptables rule for wg0 → port 5000 must be in place (see step 7 in setup above).
+- **VPN not connected:** Verify WireGuard is running with `sudo wg show` on both server and client.
+- **Wrong VPN IP address:** Make sure you're using the correct VPN IP address from your WireGuard configuration.
+
+For detailed troubleshooting steps and diagnostic tools, see [VPN_TROUBLESHOOTING_GUIDE.md](VPN_TROUBLESHOOTING_GUIDE.md).
 
 ---
 
