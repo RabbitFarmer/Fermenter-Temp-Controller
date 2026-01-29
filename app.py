@@ -3833,7 +3833,7 @@ def chart_data_for(tilt_color):
                         except Exception:
                             grav_num = None
                         
-                        entry = {"timestamp": ts_str, "temp_f": temp_num, "gravity": grav_num, "event": event}
+                        entry = {"timestamp": ts_str, "temp_f": temp_num, "gravity": grav_num, "event": event, "tilt_color": obj.get('tilt_color', '')}
                         if isinstance(points, deque):
                             points.append(entry)
                         else:
@@ -3964,6 +3964,302 @@ def reset_logs():
 @app.route('/export_temp_csv')
 def export_temp_csv_get():
     return redirect('/temp_config')
+
+
+# --- Log Management Routes ------------------------------------------------
+@app.route('/log_management')
+def log_management():
+    """Display the log and data management page."""
+    try:
+        # Get temp control log info
+        temp_log_size = "0 bytes"
+        if os.path.exists(LOG_PATH):
+            size_bytes = os.path.getsize(LOG_PATH)
+            temp_log_size = _format_file_size(size_bytes)
+        
+        # Get application logs
+        app_logs = []
+        log_dir = 'logs'
+        if os.path.exists(log_dir):
+            for filename in os.listdir(log_dir):
+                if filename.endswith('.log') and filename != '.gitkeep':
+                    filepath = os.path.join(log_dir, filename)
+                    size_bytes = os.path.getsize(filepath)
+                    app_logs.append({
+                        'name': filename,
+                        'size': _format_file_size(size_bytes),
+                        'path': filepath
+                    })
+        
+        # Get batch files
+        batches = []
+        if os.path.exists(BATCHES_DIR):
+            for filename in os.listdir(BATCHES_DIR):
+                if filename.endswith('.jsonl') and not filename.endswith('.backup'):
+                    filepath = os.path.join(BATCHES_DIR, filename)
+                    size_bytes = os.path.getsize(filepath)
+                    
+                    # Try to extract brewid from filename
+                    brewid = filename.replace('.jsonl', '')
+                    
+                    # Try to get batch info from tilt_cfg
+                    beer_name = None
+                    for color, cfg in tilt_cfg.items():
+                        if cfg.get('brewid') == brewid:
+                            beer_name = cfg.get('beer_name')
+                            break
+                    
+                    batches.append({
+                        'filename': filename,
+                        'brewid': brewid,
+                        'beer_name': beer_name,
+                        'size': _format_file_size(size_bytes)
+                    })
+        
+        # Sort batches by filename
+        batches.sort(key=lambda x: x['filename'])
+        
+        return render_template('log_management.html',
+                             temp_log_size=temp_log_size,
+                             app_logs=app_logs,
+                             batches=batches,
+                             success_message=request.args.get('success'),
+                             error_message=request.args.get('error'))
+    except Exception as e:
+        print(f"[LOG] Error in log_management: {e}")
+        return "Error loading log management page", 500
+
+
+def _format_file_size(size_bytes):
+    """Format file size in human-readable format."""
+    for unit in ['bytes', 'KB', 'MB', 'GB']:
+        if size_bytes < 1024.0:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.1f} TB"
+
+
+@app.route('/archive_temp_log', methods=['POST'])
+def archive_temp_log():
+    """Archive and reset the temperature control log."""
+    try:
+        if os.path.exists(LOG_PATH):
+            # Create backup with timestamp
+            backup_name = f"{LOG_PATH}.{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}.bak"
+            shutil.copy2(LOG_PATH, backup_name)
+            print(f"[LOG] Archived temp control log to: {backup_name}")
+            
+            # Reset the log file
+            open(LOG_PATH, 'w').close()
+            
+            return redirect(url_for('log_management', success='Temperature control log archived and reset'))
+        else:
+            return redirect(url_for('log_management', error='Temperature control log not found'))
+    except Exception as e:
+        print(f"[LOG] Error archiving temp log: {e}")
+        return redirect(url_for('log_management', error=f'Error archiving log: {str(e)}'))
+
+
+@app.route('/archive_log', methods=['POST'])
+def archive_log():
+    """Archive an application log file."""
+    try:
+        log_file = request.form.get('log_file')
+        if not log_file:
+            return redirect(url_for('log_management', error='No log file specified'))
+        
+        # Security: ensure log_file is just a filename, not a path
+        if '/' in log_file or '\\' in log_file:
+            return redirect(url_for('log_management', error='Invalid log file name'))
+        
+        log_path = os.path.join('logs', log_file)
+        if not os.path.exists(log_path):
+            return redirect(url_for('log_management', error=f'Log file not found: {log_file}'))
+        
+        # Create archive filename with timestamp
+        archive_name = f"{log_path}.{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}.archive"
+        shutil.move(log_path, archive_name)
+        
+        # Create empty file to replace it
+        open(log_path, 'w').close()
+        
+        print(f"[LOG] Archived {log_file} to {archive_name}")
+        return redirect(url_for('log_management', success=f'Log file {log_file} archived'))
+    except Exception as e:
+        print(f"[LOG] Error archiving log: {e}")
+        return redirect(url_for('log_management', error=f'Error archiving log: {str(e)}'))
+
+
+@app.route('/delete_log', methods=['POST'])
+def delete_log():
+    """Delete an application log file."""
+    try:
+        log_file = request.form.get('log_file')
+        if not log_file:
+            return redirect(url_for('log_management', error='No log file specified'))
+        
+        # Security: ensure log_file is just a filename, not a path
+        if '/' in log_file or '\\' in log_file:
+            return redirect(url_for('log_management', error='Invalid log file name'))
+        
+        log_path = os.path.join('logs', log_file)
+        if not os.path.exists(log_path):
+            return redirect(url_for('log_management', error=f'Log file not found: {log_file}'))
+        
+        os.remove(log_path)
+        print(f"[LOG] Deleted log file: {log_file}")
+        return redirect(url_for('log_management', success=f'Log file {log_file} deleted'))
+    except Exception as e:
+        print(f"[LOG] Error deleting log: {e}")
+        return redirect(url_for('log_management', error=f'Error deleting log: {str(e)}'))
+
+
+@app.route('/export_batch_csv', methods=['POST'])
+def export_batch_csv():
+    """Export a batch's data to CSV."""
+    try:
+        import csv
+        
+        brewid = request.form.get('brewid')
+        if not brewid:
+            return redirect(url_for('log_management', error='No batch ID specified'))
+        
+        # Security: validate brewid format
+        import re
+        if not re.match(r'^[a-zA-Z0-9\-_]+$', brewid):
+            return redirect(url_for('log_management', error='Invalid batch ID format'))
+        
+        # Find batch file
+        batch_file = os.path.join(BATCHES_DIR, f'{brewid}.jsonl')
+        if not os.path.exists(batch_file):
+            # Try legacy format
+            legacy_files = glob_func(f'{BATCHES_DIR}/*{brewid}*.jsonl')
+            if legacy_files:
+                batch_file = legacy_files[0]
+            else:
+                return redirect(url_for('log_management', error=f'Batch file not found for ID: {brewid}'))
+        
+        # Create export directory
+        export_dir = 'export'
+        os.makedirs(export_dir, exist_ok=True)
+        
+        # Generate filename
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        csv_filename = f'batch_{brewid}_{timestamp}.csv'
+        csv_path = os.path.join(export_dir, csv_filename)
+        
+        # Read batch data
+        data_rows = []
+        with open(batch_file, 'r') as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    obj = json.loads(line)
+                    # Handle both event/payload format and direct object format
+                    if obj.get('event') == 'sample':
+                        payload = obj.get('payload', {})
+                        data_rows.append(payload)
+                    elif obj.get('event') == 'batch_metadata':
+                        # Skip metadata
+                        continue
+                    elif 'timestamp' in obj or 'gravity' in obj or 'temp_f' in obj:
+                        # Legacy direct format
+                        data_rows.append(obj)
+                except Exception as e:
+                    print(f"[LOG] Error parsing line in batch export: {e}")
+                    continue
+        
+        # Write CSV
+        if data_rows:
+            with open(csv_path, 'w', newline='') as csvfile:
+                # Define fieldnames
+                fieldnames = ['timestamp', 'temp_f', 'gravity', 'color', 'brewid', 'beer_name', 'batch_name']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
+                writer.writeheader()
+                for row in data_rows:
+                    writer.writerow(row)
+            
+            return redirect(url_for('log_management', success=f'Batch exported to {csv_filename} ({len(data_rows)} records)'))
+        else:
+            return redirect(url_for('log_management', error='No data found in batch file'))
+    except Exception as e:
+        print(f"[LOG] Error exporting batch CSV: {e}")
+        return redirect(url_for('log_management', error=f'Error exporting batch: {str(e)}'))
+
+
+@app.route('/archive_batch', methods=['POST'])
+def archive_batch():
+    """Archive a batch file."""
+    try:
+        brewid = request.form.get('brewid')
+        if not brewid:
+            return redirect(url_for('log_management', error='No batch ID specified'))
+        
+        # Security: validate brewid format
+        import re
+        if not re.match(r'^[a-zA-Z0-9\-_]+$', brewid):
+            return redirect(url_for('log_management', error='Invalid batch ID format'))
+        
+        # Find batch file
+        batch_file = os.path.join(BATCHES_DIR, f'{brewid}.jsonl')
+        if not os.path.exists(batch_file):
+            # Try legacy format
+            legacy_files = glob_func(f'{BATCHES_DIR}/*{brewid}*.jsonl')
+            if legacy_files:
+                batch_file = legacy_files[0]
+            else:
+                return redirect(url_for('log_management', error=f'Batch file not found for ID: {brewid}'))
+        
+        # Create archive directory
+        archive_dir = os.path.join(BATCHES_DIR, 'archive')
+        os.makedirs(archive_dir, exist_ok=True)
+        
+        # Move file to archive with timestamp
+        timestamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+        filename = os.path.basename(batch_file)
+        archive_filename = f"{filename}.{timestamp}.archive"
+        archive_path = os.path.join(archive_dir, archive_filename)
+        
+        shutil.move(batch_file, archive_path)
+        print(f"[LOG] Archived batch {brewid} to {archive_path}")
+        
+        return redirect(url_for('log_management', success=f'Batch {brewid} archived'))
+    except Exception as e:
+        print(f"[LOG] Error archiving batch: {e}")
+        return redirect(url_for('log_management', error=f'Error archiving batch: {str(e)}'))
+
+
+@app.route('/delete_batch', methods=['POST'])
+def delete_batch():
+    """Delete a batch file."""
+    try:
+        brewid = request.form.get('brewid')
+        if not brewid:
+            return redirect(url_for('log_management', error='No batch ID specified'))
+        
+        # Security: validate brewid format
+        import re
+        if not re.match(r'^[a-zA-Z0-9\-_]+$', brewid):
+            return redirect(url_for('log_management', error='Invalid batch ID format'))
+        
+        # Find batch file
+        batch_file = os.path.join(BATCHES_DIR, f'{brewid}.jsonl')
+        if not os.path.exists(batch_file):
+            # Try legacy format
+            legacy_files = glob_func(f'{BATCHES_DIR}/*{brewid}*.jsonl')
+            if legacy_files:
+                batch_file = legacy_files[0]
+            else:
+                return redirect(url_for('log_management', error=f'Batch file not found for ID: {brewid}'))
+        
+        os.remove(batch_file)
+        print(f"[LOG] Deleted batch file: {brewid}")
+        
+        return redirect(url_for('log_management', success=f'Batch {brewid} deleted'))
+    except Exception as e:
+        print(f"[LOG] Error deleting batch: {e}")
+        return redirect(url_for('log_management', error=f'Error deleting batch: {str(e)}'))
 
 
 @app.route('/backup_system', methods=['POST'])
