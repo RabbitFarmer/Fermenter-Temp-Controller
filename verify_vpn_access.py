@@ -165,11 +165,15 @@ def main():
     print("VPN Access Verification for Flask App")
     print("=" * 50)
     
-    # Check if running as root/sudo for some commands
-    if os.geteuid() != 0:
-        print("\n⚠️  Note: Some checks require sudo privileges.")
-        print("   Run with: sudo python3 verify_vpn_access.py")
-        print("   Continuing with limited checks...\n")
+    # Check if running as root/sudo for some commands (Unix-like systems only)
+    try:
+        if os.geteuid() != 0:
+            print("\n⚠️  Note: Some checks require sudo privileges.")
+            print("   Run with: sudo python3 verify_vpn_access.py")
+            print("   Continuing with limited checks...\n")
+    except AttributeError:
+        # os.geteuid() doesn't exist on Windows, skip this check
+        pass
     
     results = []
     

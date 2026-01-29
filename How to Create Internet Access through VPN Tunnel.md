@@ -80,7 +80,7 @@ Setting up a WireGuard VPN server and client allows secure access to your Raspbe
    ```
    - Save the rules:
    ```bash
-   sudo iptables-save | sudo tee /etc/iptables/rules.v4
+   sudo iptables-save | sudo tee /etc/iptables/rules.v4 > /dev/null
    ```
    
    - Verify the rule was added:
@@ -243,7 +243,7 @@ If you're having trouble connecting to the Flask app through VPN, see the detail
    
    # If missing, add it:
    sudo iptables -I INPUT -i wg0 -p tcp --dport 5000 -j ACCEPT
-   sudo iptables-save | sudo tee /etc/iptables/rules.v4
+   sudo iptables-save | sudo tee /etc/iptables/rules.v4 > /dev/null
    ```
 
 3. **Test VPN connectivity:**

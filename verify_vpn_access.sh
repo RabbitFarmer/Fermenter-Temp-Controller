@@ -18,6 +18,11 @@ echo ""
 # Check what Flask is listening on
 echo "2. Checking Flask listening address..."
 FLASK_LISTEN=$(sudo netstat -tulpn 2>/dev/null | grep 5000 | head -1)
+if [ -z "$FLASK_LISTEN" ]; then
+    # Fallback to ss if netstat is not available
+    FLASK_LISTEN=$(sudo ss -tulpn 2>/dev/null | grep 5000 | head -1)
+fi
+
 if echo "$FLASK_LISTEN" | grep -q "0.0.0.0:5000"; then
     echo "   ✅ Flask is listening on 0.0.0.0:5000 (all interfaces)"
 elif echo "$FLASK_LISTEN" | grep -q "127.0.0.1:5000"; then
@@ -83,8 +88,11 @@ if command -v curl &> /dev/null; then
     else
         echo "   ❌ Flask app not responding to local requests"
     fi
+elif (echo > /dev/tcp/127.0.0.1/5000) 2>/dev/null; then
+    # Fallback to /dev/tcp if curl is not available
+    echo "   ✅ Port 5000 is accepting connections"
 else
-    echo "   ⚠️  curl not installed, skipping local connectivity test"
+    echo "   ❌ Cannot connect to port 5000"
 fi
 echo ""
 
