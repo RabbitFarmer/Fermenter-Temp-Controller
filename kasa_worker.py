@@ -87,6 +87,9 @@ def kasa_worker(cmd_queue, result_queue):
     Main loop: consume commands from cmd_queue and put confirmation dicts into result_queue.
     Each confirmation is a dict:
         {'mode': str, 'action': str, 'success': bool, 'url': str, 'error': str}
+    
+    Creates a persistent event loop to avoid network binding issues that occur when
+    asyncio.run() creates a new event loop for each command in multiprocessing workers.
     """
     print(f"[kasa_worker] started (HAS_IOT={HAS_IOT})")
     if PlugClass is None:
@@ -109,42 +112,57 @@ def kasa_worker(cmd_queue, result_queue):
                 time.sleep(0.5)
         # unreachable
 
-    while True:
-        try:
-            command = cmd_queue.get()
-            if not isinstance(command, dict):
-                continue
-            mode = command.get('mode', 'unknown')
-            url = command.get('url', '')
-            action = command.get('action', 'off')
+    # Create a persistent event loop for this worker process
+    # This avoids network binding issues that occur when creating new loops for each command
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    print(f"[kasa_worker] Created persistent event loop for worker process")
 
-            print(f"[kasa_worker] Received command: mode={mode}, action={action}, url={url}")
-            
-            if not url:
-                error = "No URL provided"
-                log_error(f"{mode.upper()} plug operation skipped: {error}")
-                result_queue.put({'mode': mode, 'action': action, 'success': False, 'url': url, 'error': error})
-                continue
-
+    try:
+        while True:
             try:
-                error = asyncio.run(kasa_control(url, action, mode))
+                command = cmd_queue.get()
+                if not isinstance(command, dict):
+                    continue
+                mode = command.get('mode', 'unknown')
+                url = command.get('url', '')
+                action = command.get('action', 'off')
+
+                print(f"[kasa_worker] Received command: mode={mode}, action={action}, url={url}")
+                
+                if not url:
+                    error = "No URL provided"
+                    log_error(f"{mode.upper()} plug operation skipped: {error}")
+                    result_queue.put({'mode': mode, 'action': action, 'success': False, 'url': url, 'error': error})
+                    continue
+
+                try:
+                    # Use the persistent event loop instead of creating a new one with asyncio.run()
+                    error = loop.run_until_complete(kasa_control(url, action, mode))
+                except Exception as e:
+                    error = str(e)
+                    log_error(f"{mode.upper()} kasa_control run failed: {error}")
+
+                success = (error is None)
+                result = {'mode': mode, 'action': action, 'success': success, 'url': url, 'error': error}
+                print(f"[kasa_worker] Sending result: mode={mode}, action={action}, success={success}, error={error}")
+                result_queue.put(result)
+
             except Exception as e:
-                error = str(e)
-                log_error(f"{mode.upper()} kasa_control run failed: {error}")
-
-            success = (error is None)
-            result = {'mode': mode, 'action': action, 'success': success, 'url': url, 'error': error}
-            print(f"[kasa_worker] Sending result: mode={mode}, action={action}, success={success}, error={error}")
-            result_queue.put(result)
-
+                # Defensive: log and sleep briefly, then continue
+                try:
+                    log_error(f"kasa_worker loop exception: {e}")
+                except Exception:
+                    print(f"[kasa_worker] loop exception (logging failed): {e}")
+                time.sleep(0.5)
+                continue
+    finally:
+        # Clean up event loop when worker exits
+        try:
+            loop.close()
+            print(f"[kasa_worker] Event loop closed on worker shutdown")
         except Exception as e:
-            # Defensive: log and sleep briefly, then continue
-            try:
-                log_error(f"kasa_worker loop exception: {e}")
-            except Exception:
-                print(f"[kasa_worker] loop exception (logging failed): {e}")
-            time.sleep(0.5)
-            continue
+            print(f"[kasa_worker] Error closing event loop: {e}")
 
 async def kasa_query_state(url):
     """

@@ -28,6 +28,7 @@ from datetime import datetime
 from glob import glob as glob_func
 from math import ceil
 from multiprocessing import Process, Queue
+import multiprocessing  # Needed for set_start_method and get_all_start_methods
 from urllib.parse import urlparse
 import subprocess
 import signal
@@ -64,6 +65,14 @@ try:
     import psutil
 except Exception:
     psutil = None
+
+# Import log_error for kasa error logging
+try:
+    from logger import log_error
+except Exception:
+    def log_error(msg):
+        # Fallback if logger is not available
+        print(f"[ERROR] {msg}")
 
 app = Flask(__name__)
 
@@ -437,6 +446,29 @@ except Exception:
     pass
 
 # --- Inter-process queues and kasa worker startup --------------------------
+# Set multiprocessing start method to 'fork' for better network access in worker
+# The 'fork' method preserves the network stack and environment from parent process
+# This is critical for KASA plug communication in the worker process
+try:
+    # Check if 'fork' is available on this platform (not available on Windows)
+    available_methods = multiprocessing.get_all_start_methods()
+    if 'fork' in available_methods:
+        # Only set if not already set (avoid errors if called multiple times)
+        if multiprocessing.get_start_method(allow_none=True) is None:
+            multiprocessing.set_start_method('fork')
+            print("[LOG] Set multiprocessing start method to 'fork' for network access")
+        else:
+            current = multiprocessing.get_start_method()
+            print(f"[LOG] Multiprocessing start method already set to: {current}")
+            if current != 'fork':
+                print(f"[LOG] WARNING: Using '{current}' instead of 'fork' - may affect KASA plug reliability")
+    else:
+        print(f"[LOG] WARNING: 'fork' method not available on this platform ({sys.platform})")
+        print(f"[LOG] Available methods: {available_methods}")
+        print(f"[LOG] KASA plug control may experience network issues")
+except RuntimeError as e:
+    print(f"[LOG] Could not set multiprocessing start method: {e}")
+
 kasa_queue = Queue()
 kasa_result_queue = Queue()
 kasa_proc = None
@@ -2308,9 +2340,13 @@ def kasa_result_listener():
                     # Send notification if enabled (user can choose to enable/disable)
                     send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
                 else:
+                    # When plug command fails, ensure heater_on is False for accurate UI state
+                    temp_cfg["heater_on"] = False
                     temp_cfg["heating_error"] = True
                     temp_cfg["heating_error_msg"] = error or ''
                     print(f"[KASA_RESULT] ✗ Heating plug {action.upper()} FAILED - error: {error}")
+                    # Log error to kasa_errors.log
+                    log_error(f"HEATING plug {action.upper()} failed at {url}: {error}")
                     # Send notification for Kasa connection failure if enabled (only once per failure)
                     send_kasa_error_notification('heating', url, error)
             elif mode == 'cooling':
@@ -2327,9 +2363,13 @@ def kasa_result_listener():
                     # Send notification if enabled (user can choose to enable/disable)
                     send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
                 else:
+                    # When plug command fails, ensure cooler_on is False for accurate UI state
+                    temp_cfg["cooler_on"] = False
                     temp_cfg["cooling_error"] = True
                     temp_cfg["cooling_error_msg"] = error or ''
                     print(f"[KASA_RESULT] ✗ Cooling plug {action.upper()} FAILED - error: {error}")
+                    # Log error to kasa_errors.log
+                    log_error(f"COOLING plug {action.upper()} failed at {url}: {error}")
                     # Send notification for Kasa connection failure if enabled (only once per failure)
                     send_kasa_error_notification('cooling', url, error)
         except queue.Empty:
