@@ -16,14 +16,18 @@
     .back-button { margin-top: 16px; text-align: center; }
     .back-button a { display: inline-block; padding: 10px 20px; text-decoration: none; color: white; background-color: green; border-radius: 5px; font-weight: bold; }
     .back-button a:hover { background-color: darkgreen; }
+    .date-range { text-align: center; margin-top: 8px; font-size: 14px; color: #555; }
+    @media print {
+      .controls, .back-button { display: none; }
+      body { background: white; margin: 0; }
+    }
   </style>
 </head>
 <body>
   <h2 style="text-align: center;">Fermenter Temperature & Gravity</h2>
   <div class="controls">
-    <label for="limit">Points:</label>
-    <input id="limit" type="number" min="20" max="2000" value="1500" />
     <button id="reload">Reload</button>
+    <button id="print">Print</button>
     {% if tilt_color == "Fermenter" %}
     <button id="export">Export CSV</button>
     {% endif %}
@@ -31,6 +35,7 @@
   </div>
   <div id="chart-container">
     <div id="tempChart"></div>
+    <div id="date-range" class="date-range"></div>
   </div>
   <div class="back-button">
     <a href="/">Return to Dashboard</a>
@@ -39,18 +44,25 @@
   <script>
     const tiltColor = "{{ tilt_color or '' }}";
     const chartTempMargin = {{ system_settings.get('chart_temp_margin', 1.0) }};
-    const chartGravityMargin = {{ system_settings.get('chart_gravity_margin', 0.005) }};
     {% if tilt_color == "Fermenter" %}
     const beerName = "Temperature Control";
     const batchName = "N/A";
     const brewId = "N/A";
+    const recipeOg = null;
+    const recipeFg = null;
+    const actualOg = null;
+    const fermentationComplete = false;
     {% else %}
     const beerName = "{{ tilt_cfg[tilt_color].beer_name or 'Unknown' }}";
     const batchName = "{{ tilt_cfg[tilt_color].batch_name or 'Unknown' }}";
     const brewId = "{{ tilt_cfg[tilt_color].brewid or 'Unknown' }}";
+    const recipeOg = {{ tilt_cfg[tilt_color].get('recipe_og') or 'null' }};
+    const recipeFg = {{ tilt_cfg[tilt_color].get('recipe_fg') or 'null' }};
+    const actualOg = {{ tilt_cfg[tilt_color].get('actual_og') or 'null' }};
+    const fermentationComplete = {{ 'true' if tilt_cfg[tilt_color].get('notification_state', {}).get('fermentation_completion_datetime') else 'false' }};
     {% endif %}
     
-    async function loadData(limit = 1500) {
+    async function loadData(limit = 3000) {
       document.getElementById('status').textContent = 'Loading data...';
 
       const url = `/chart_data/${encodeURIComponent(tiltColor)}?limit=${limit}`;
@@ -119,9 +131,10 @@
               y: points.map(p => p.temp_f),
               mode: 'lines+markers',
               name: `${color} Tilt`,
-              line: { color: colorMap[color] || '#808080', shape: 'spline' },
+              line: { color: colorMap[color] || '#808080', shape: 'spline', width: 3 },
               marker: { size: 4 },
               yaxis: 'y1',
+              connectgaps: false,
             });
           });
         } else {
@@ -131,8 +144,9 @@
             y: dataPoints.map((p) => p.temp_f),
             mode: 'lines',
             name: 'Temperature (°F)',
-            line: { color: 'blue', shape: 'spline' },
+            line: { color: 'blue', shape: 'spline', width: 3 },
             yaxis: 'y1',
+            connectgaps: false,
           };
           traces.push(tempTrace);
         }
@@ -144,6 +158,36 @@
         let tempRange = null;
         if (temps.length > 0 && isFinite(tempMin) && isFinite(tempMax)) {
           tempRange = [tempMin - chartTempMargin, tempMax + chartTempMargin];
+        }
+        
+        // Calculate x-axis range
+        // For active fermentations: minimum 30-day display to prevent jagged early appearance
+        // For completed/archived fermentations: use actual data range
+        let xAxisRange = null;
+        if (dataPoints.length > 0) {
+          const timestamps = dataPoints.map(p => new Date(p.timestamp)).filter(d => !isNaN(d.getTime()));
+          if (timestamps.length > 0) {
+            const minDate = new Date(Math.min(...timestamps));
+            const maxDate = new Date(Math.max(...timestamps));
+            const actualDays = (maxDate - minDate) / (1000 * 60 * 60 * 24);
+            
+            // Only extend to 30 days minimum if fermentation is still active
+            const displayDays = fermentationComplete ? actualDays : Math.max(30, actualDays);
+            
+            // Extend the range to cover the display period
+            const rangeEnd = maxDate;
+            const rangeStart = new Date(rangeEnd.getTime() - (displayDays * 24 * 60 * 60 * 1000));
+            xAxisRange = [rangeStart.toISOString(), rangeEnd.toISOString()];
+            
+            // Update date range display (show the extended x-axis range, not just data range)
+            const dateRangeEl = document.getElementById('date-range');
+            if (dateRangeEl) {
+              const options = { year: 'numeric', month: 'long', day: 'numeric' };
+              const startStr = rangeStart.toLocaleDateString('en-US', options);
+              const endStr = rangeEnd.toLocaleDateString('en-US', options);
+              dateRangeEl.textContent = `${startStr} - ${endStr}`;
+            }
+          }
         }
         
         let layout;
@@ -215,6 +259,7 @@
               title: 'Timestamp',
               titlefont: { size: 12 },
               gridcolor: '#eaf2f5',
+              range: xAxisRange,
             },
             yaxis: {
               title: 'Temperature (°F)',
@@ -231,22 +276,40 @@
           // For regular tilt data, include gravity
           const gravityTrace = {
             x: dataPoints.map((p) => p.timestamp),
-            y: dataPoints.map((p) => parseFloat(p.gravity).toFixed(3)), // Gravity precision
+            y: dataPoints.map((p) => parseFloat(p.gravity)), // Gravity as numeric values
             mode: 'lines',
             name: 'Gravity',
-            line: { color: '#E69D00', shape: 'spline' }, // Darker, bolder yellow
+            line: { color: '#E69D00', shape: 'spline', width: 3 }, // Darker, bolder yellow
             yaxis: 'y2',
+            connectgaps: false,
           };
           traces.push(gravityTrace);
           
-          // Calculate gravity range with margin
+          // Calculate gravity range with new logic:
+          // Upper limit: max(recipe_og, actual_og) + 0.002
+          // Lower limit: min(recipe_fg, minimum_historical_gravity) - 0.002
           const gravities = dataPoints.map(p => parseFloat(p.gravity)).filter(g => g != null && !isNaN(g));
-          let gravityMin = Math.min(...gravities);
-          let gravityMax = Math.max(...gravities);
-          let gravityRange = null;
-          if (gravities.length > 0 && isFinite(gravityMin) && isFinite(gravityMax)) {
-            gravityRange = [gravityMin - chartGravityMargin, gravityMax + chartGravityMargin];
+          let gravityMin = gravities.length > 0 ? Math.min(...gravities) : 0.990;
+          let gravityMax = gravities.length > 0 ? Math.max(...gravities) : 1.100;
+          
+          // Calculate upper limit
+          let upperLimit = gravityMax;
+          if (recipeOg !== null && !isNaN(parseFloat(recipeOg))) {
+            upperLimit = Math.max(upperLimit, parseFloat(recipeOg));
           }
+          if (actualOg !== null && !isNaN(parseFloat(actualOg))) {
+            upperLimit = Math.max(upperLimit, parseFloat(actualOg));
+          }
+          upperLimit += 0.002;
+          
+          // Calculate lower limit
+          let lowerLimit = gravityMin;
+          if (recipeFg !== null && !isNaN(parseFloat(recipeFg))) {
+            lowerLimit = Math.min(lowerLimit, parseFloat(recipeFg));
+          }
+          lowerLimit -= 0.002;
+          
+          let gravityRange = [lowerLimit, upperLimit];
           
           layout = {
             title: {
@@ -257,6 +320,7 @@
               title: 'Timestamp',
               titlefont: { size: 12 },
               gridcolor: '#eaf2f5',
+              range: xAxisRange,
             },
             yaxis: {
               title: 'Temperature (°F)',
@@ -272,7 +336,7 @@
               overlaying: 'y',
               side: 'right',
               gridcolor: '#ffffff',
-              range: gravityRange || [0.990, 1.100],
+              range: gravityRange,
             },
             showlegend: true,
             legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
@@ -289,8 +353,12 @@
     }
 
     document.getElementById('reload').addEventListener('click', () => {
-      const limit = Math.min(2000, Math.max(20, parseInt(document.getElementById('limit').value) || 1500));
-      loadData(limit);
+      loadData(3000);
+    });
+    
+    // Add print button functionality
+    document.getElementById('print').addEventListener('click', () => {
+      window.print();
     });
     
     // Add export functionality for temperature control
