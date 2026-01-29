@@ -38,6 +38,8 @@
 
   <script>
     const tiltColor = "{{ tilt_color or '' }}";
+    const chartTempMargin = {{ system_settings.get('chart_temp_margin', 1.0) }};
+    const chartGravityMargin = {{ system_settings.get('chart_gravity_margin', 0.005) }};
     {% if tilt_color == "Fermenter" %}
     const beerName = "Temperature Control";
     const batchName = "N/A";
@@ -94,6 +96,15 @@
           yaxis: 'y1',
         };
         traces.push(tempTrace);
+        
+        // Calculate temperature range with margin
+        const temps = dataPoints.map(p => p.temp_f).filter(t => t != null && !isNaN(t));
+        let tempMin = Math.min(...temps);
+        let tempMax = Math.max(...temps);
+        let tempRange = null;
+        if (temps.length > 0 && isFinite(tempMin) && isFinite(tempMax)) {
+          tempRange = [tempMin - chartTempMargin, tempMax + chartTempMargin];
+        }
         
         let layout;
         
@@ -170,7 +181,7 @@
               titlefont: { color: 'blue', size: 12 },
               tickfont: { color: 'blue', size: 10 },
               gridcolor: '#eaf2f5',
-              range: [32, 120],
+              range: tempRange || [32, 120],
             },
             showlegend: true,
             legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
@@ -188,6 +199,15 @@
           };
           traces.push(gravityTrace);
           
+          // Calculate gravity range with margin
+          const gravities = dataPoints.map(p => parseFloat(p.gravity)).filter(g => g != null && !isNaN(g));
+          let gravityMin = Math.min(...gravities);
+          let gravityMax = Math.max(...gravities);
+          let gravityRange = null;
+          if (gravities.length > 0 && isFinite(gravityMin) && isFinite(gravityMax)) {
+            gravityRange = [gravityMin - chartGravityMargin, gravityMax + chartGravityMargin];
+          }
+          
           layout = {
             title: {
               text: `Fermenter Readings | ${beerName} | Batch: ${batchName} | BrewId: ${brewId}`,
@@ -203,7 +223,7 @@
               titlefont: { color: 'blue', size: 12 },
               tickfont: { color: 'blue', size: 10 },
               gridcolor: '#eaf2f5',
-              autorange: true,
+              range: tempRange || [32, 120],
             },
             yaxis2: {
               title: 'Gravity',
@@ -212,7 +232,7 @@
               overlaying: 'y',
               side: 'right',
               gridcolor: '#ffffff',
-              range: [0.990, 1.100],
+              range: gravityRange || [0.990, 1.100],
             },
             showlegend: true,
             legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
