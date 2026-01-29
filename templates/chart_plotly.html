@@ -53,13 +53,15 @@
     const recipeOg = null;
     const recipeFg = null;
     const actualOg = null;
+    const fermentationComplete = false;
     {% else %}
     const beerName = "{{ tilt_cfg[tilt_color].beer_name or 'Unknown' }}";
     const batchName = "{{ tilt_cfg[tilt_color].batch_name or 'Unknown' }}";
     const brewId = "{{ tilt_cfg[tilt_color].brewid or 'Unknown' }}";
-    const recipeOg = {{ tilt_cfg[tilt_color].get('recipe_og', 'null') if tilt_cfg[tilt_color].get('recipe_og') else 'null' }};
-    const recipeFg = {{ tilt_cfg[tilt_color].get('recipe_fg', 'null') if tilt_cfg[tilt_color].get('recipe_fg') else 'null' }};
-    const actualOg = {{ tilt_cfg[tilt_color].get('actual_og', 'null') if tilt_cfg[tilt_color].get('actual_og') else 'null' }};
+    const recipeOg = {{ tilt_cfg[tilt_color].get('recipe_og') or 'null' }};
+    const recipeFg = {{ tilt_cfg[tilt_color].get('recipe_fg') or 'null' }};
+    const actualOg = {{ tilt_cfg[tilt_color].get('actual_og') or 'null' }};
+    const fermentationComplete = {{ 'true' if tilt_cfg[tilt_color].get('notification_state', {}).get('fermentation_completion_datetime') else 'false' }};
     {% endif %}
     
     async function loadData(limit = 1500) {
@@ -160,7 +162,9 @@
           tempRange = [tempMin - chartTempMargin, tempMax + chartTempMargin];
         }
         
-        // Calculate x-axis range for 30-day minimum
+        // Calculate x-axis range
+        // For active fermentations: minimum 30-day display to prevent jagged early appearance
+        // For completed/archived fermentations: use actual data range
         let xAxisRange = null;
         if (dataPoints.length > 0) {
           const timestamps = dataPoints.map(p => new Date(p.timestamp)).filter(d => !isNaN(d.getTime()));
@@ -168,19 +172,21 @@
             const minDate = new Date(Math.min(...timestamps));
             const maxDate = new Date(Math.max(...timestamps));
             const actualDays = (maxDate - minDate) / (1000 * 60 * 60 * 24);
-            const displayDays = Math.max(30, actualDays);
             
-            // Extend the range to cover at least 30 days
+            // Only extend to 30 days minimum if fermentation is still active
+            const displayDays = fermentationComplete ? actualDays : Math.max(30, actualDays);
+            
+            // Extend the range to cover the display period
             const rangeEnd = maxDate;
             const rangeStart = new Date(rangeEnd.getTime() - (displayDays * 24 * 60 * 60 * 1000));
             xAxisRange = [rangeStart.toISOString(), rangeEnd.toISOString()];
             
-            // Update date range display
+            // Update date range display (show the extended x-axis range, not just data range)
             const dateRangeEl = document.getElementById('date-range');
             if (dateRangeEl) {
               const options = { year: 'numeric', month: 'long', day: 'numeric' };
-              const startStr = minDate.toLocaleDateString('en-US', options);
-              const endStr = maxDate.toLocaleDateString('en-US', options);
+              const startStr = rangeStart.toLocaleDateString('en-US', options);
+              const endStr = rangeEnd.toLocaleDateString('en-US', options);
               dateRangeEl.textContent = `${startStr} - ${endStr}`;
             }
           }
@@ -272,7 +278,7 @@
           // For regular tilt data, include gravity
           const gravityTrace = {
             x: dataPoints.map((p) => p.timestamp),
-            y: dataPoints.map((p) => parseFloat(p.gravity).toFixed(3)), // Gravity precision
+            y: dataPoints.map((p) => parseFloat(p.gravity)), // Gravity as numeric values
             mode: 'lines',
             name: 'Gravity',
             line: { color: '#E69D00', shape: 'spline', width: 3 }, // Darker, bolder yellow
@@ -283,7 +289,7 @@
           
           // Calculate gravity range with new logic:
           // Upper limit: max(recipe_og, actual_og) + 0.002
-          // Lower limit: min(recipe_fg, current_gravity) - 0.002
+          // Lower limit: min(recipe_fg, minimum_historical_gravity) - 0.002
           const gravities = dataPoints.map(p => parseFloat(p.gravity)).filter(g => g != null && !isNaN(g));
           let gravityMin = gravities.length > 0 ? Math.min(...gravities) : 0.990;
           let gravityMax = gravities.length > 0 ? Math.max(...gravities) : 1.100;
@@ -332,7 +338,7 @@
               overlaying: 'y',
               side: 'right',
               gridcolor: '#ffffff',
-              range: gravityRange || [0.990, 1.100],
+              range: gravityRange,
             },
             showlegend: true,
             legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
