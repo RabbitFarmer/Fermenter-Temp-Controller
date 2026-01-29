@@ -447,6 +447,8 @@ if kasa_worker:
         kasa_proc.daemon = True
         kasa_proc.start()
         print("[LOG] Started kasa_worker process")
+        # Give the worker process time to initialize before attempting queries
+        time.sleep(2)
     except Exception as e:
         print("[LOG] Could not start kasa_worker:", e)
 else:
