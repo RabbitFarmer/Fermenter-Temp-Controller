@@ -55,7 +55,7 @@ echo "Opening the application in your default browser..."
 if command -v xdg-open > /dev/null; then
     xdg-open http://127.0.0.1:5000 > /dev/null 2>&1 &   # Linux (run in background)
 elif command -v open > /dev/null; then
-    open http://127.0.0.1:5000 &                        # macOS (run in background)
+    open http://127.0.0.1:5000 > /dev/null 2>&1 &       # macOS (run in background)
 else
     echo "Please open http://127.0.0.1:5000 in your browser manually."
 fi
