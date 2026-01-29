@@ -87,6 +87,9 @@ def kasa_worker(cmd_queue, result_queue):
     Main loop: consume commands from cmd_queue and put confirmation dicts into result_queue.
     Each confirmation is a dict:
         {'mode': str, 'action': str, 'success': bool, 'url': str, 'error': str}
+    
+    Creates a persistent event loop to avoid network binding issues that occur when
+    asyncio.run() creates a new event loop for each command in multiprocessing workers.
     """
     print(f"[kasa_worker] started (HAS_IOT={HAS_IOT})")
     if PlugClass is None:
@@ -109,6 +112,12 @@ def kasa_worker(cmd_queue, result_queue):
                 time.sleep(0.5)
         # unreachable
 
+    # Create a persistent event loop for this worker process
+    # This avoids network binding issues that occur when creating new loops for each command
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    print(f"[kasa_worker] Created persistent event loop for worker process")
+
     while True:
         try:
             command = cmd_queue.get()
@@ -127,7 +136,8 @@ def kasa_worker(cmd_queue, result_queue):
                 continue
 
             try:
-                error = asyncio.run(kasa_control(url, action, mode))
+                # Use the persistent event loop instead of creating a new one with asyncio.run()
+                error = loop.run_until_complete(kasa_control(url, action, mode))
             except Exception as e:
                 error = str(e)
                 log_error(f"{mode.upper()} kasa_control run failed: {error}")
