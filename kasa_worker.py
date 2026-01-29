@@ -190,7 +190,14 @@ async def kasa_control(url, action, mode):
         
         # Log initial state before command
         initial_state = getattr(plug, "is_on", None)
-        print(f"[kasa_worker] Initial state before {action}: {'ON' if initial_state else 'OFF'} (is_on={initial_state})")
+        # Handle None case explicitly for clarity
+        if initial_state is None:
+            state_str = 'UNKNOWN'
+        elif initial_state:
+            state_str = 'ON'
+        else:
+            state_str = 'OFF'
+        print(f"[kasa_worker] Initial state before {action}: {state_str} (is_on={initial_state})")
         
     except Exception as e:
         err = f"Failed to contact plug at {url}: {e}"
@@ -224,8 +231,14 @@ async def kasa_control(url, action, mode):
             log_error(f"{mode.upper()} plug at {url}: {err}")
             return err
 
-        # Log the verified state
-        print(f"[kasa_worker] Verified state after {action}: {'ON' if is_on else 'OFF'} (is_on={is_on}, verification_update={'success' if verification_success else 'failed'})")
+        # Log the verified state (defensive: handle None case even though we return above)
+        if is_on is None:
+            state_str = 'UNKNOWN'
+        elif is_on:
+            state_str = 'ON'
+        else:
+            state_str = 'OFF'
+        print(f"[kasa_worker] Verified state after {action}: {state_str} (is_on={is_on}, verification_update={'success' if verification_success else 'failed'})")
         
         if (action == 'on' and is_on) or (action == 'off' and not is_on):
             print(f"[kasa_worker] ✓ SUCCESS: {mode} {action} confirmed at {url} - plug state matches expected")

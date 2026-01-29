@@ -74,7 +74,7 @@ Here's what the logs look like for a successful heating ON command:
 [kasa_worker] Verified state after on: ON (is_on=True, verification_update=success)
 [kasa_worker] ✓ SUCCESS: heating on confirmed at 192.168.1.100 - plug state matches expected
 [kasa_worker] Sending result: mode=heating, action=on, success=True, error=None
-[KASA_RESULT] Received result: mode=heating, action=on, success=True, url=192.168.1.100, error=
+[KASA_RESULT] Received result: mode=heating, action=on, success=True, url=192.168.1.100, error=None
 [KASA_RESULT] ✓ Heating plug ON confirmed - updating heater_on=True
 ```
 
@@ -89,8 +89,8 @@ And for a failure case (state mismatch):
 [kasa_worker] Verified state after on: OFF (is_on=False, verification_update=success)
 [kasa_worker] ✗ FAILURE: State verification failed for heating plug at 192.168.1.100
 [ERROR] HEATING plug at 192.168.1.100: State mismatch after on: expected is_on=True, actual is_on=False
-[kasa_worker] Sending result: mode=heating, action=on, success=False, error=State mismatch...
-[KASA_RESULT] Received result: mode=heating, action=on, success=False, url=192.168.1.100, error=State mismatch...
+[kasa_worker] Sending result: mode=heating, action=on, success=False, error=State mismatch after on: expected is_on=True, actual is_on=False
+[KASA_RESULT] Received result: mode=heating, action=on, success=False, url=192.168.1.100, error=State mismatch after on: expected is_on=True, actual is_on=False
 [KASA_RESULT] ✗ Heating plug ON FAILED - error: State mismatch after on: expected is_on=True, actual is_on=False
 ```
 
