@@ -3168,7 +3168,9 @@ def batch_settings():
             "recipe_abv": data.get('recipe_abv', '') or '',
             "actual_og": (data.get('actual_og', '') or None),
             "og_confirmed": False,  # Keep field for backward compatibility
-            "brewid": brew_id
+            "brewid": brew_id,
+            "is_active": True,  # New field to track active vs closed batches
+            "closed_date": None  # Track when batch was closed
         }
         
         # Preserve existing notification_state when editing a batch
@@ -3421,11 +3423,20 @@ def temp_report():
 
 @app.route('/batch_history')
 def batch_history():
-    """Display batch history selection page - list all colors with batch history."""
+    """
+    Display batch history selection page.
+    
+    Shows two sections:
+    1. Current Activity - all active batches (is_active=True), sorted by user criteria
+    2. Batch History - all closed batches (is_active=False), sorted by user criteria
+    
+    Archive location: batches/archive/ directory
+    """
     # Get sort order from query parameter (default: newest first)
     sort_order = request.args.get('sort', 'newest')
     
-    colors_with_history = []
+    active_batches = []
+    closed_batches = []
     
     # Check each color for batch history
     for color in TILT_UUIDS.values():
@@ -3434,44 +3445,39 @@ def batch_history():
             try:
                 with open(batch_history_file, 'r') as f:
                     batches = json.load(f)
-                    if batches:
-                        colors_with_history.append({
-                            'color': color,
-                            'count': len(batches),
-                            'batches': batches
-                        })
-            except Exception:
-                pass
+                    for batch in batches:
+                        # Add color to batch for display
+                        batch['color'] = color
+                        # Migrate old batches without is_active field (default to active)
+                        if 'is_active' not in batch:
+                            batch['is_active'] = True
+                        
+                        if batch.get('is_active', True):
+                            active_batches.append(batch)
+                        else:
+                            closed_batches.append(batch)
+            except Exception as e:
+                print(f"[LOG] Error loading batch history for {color}: {e}")
     
-    # Apply sorting based on sort_order parameter
-    if sort_order == 'newest':
-        # Sort by date, newest first (within each color)
-        for color_data in colors_with_history:
-            color_data['batches'] = sorted(color_data['batches'], 
-                                          key=lambda x: x.get('ferm_start_date', ''), 
-                                          reverse=True)
-    elif sort_order == 'oldest':
-        # Sort by date, oldest first (within each color)
-        for color_data in colors_with_history:
-            color_data['batches'] = sorted(color_data['batches'], 
-                                          key=lambda x: x.get('ferm_start_date', ''))
-    elif sort_order == 'beer_name':
-        # Sort by beer name alphabetically (within each color)
-        for color_data in colors_with_history:
-            color_data['batches'] = sorted(color_data['batches'], 
-                                          key=lambda x: (x.get('beer_name', '').lower(), 
-                                                        x.get('ferm_start_date', '')))
-    elif sort_order == 'color':
-        # Sort colors alphabetically and batches within each color by date (newest first)
-        colors_with_history = sorted(colors_with_history, 
-                                    key=lambda x: x['color'])
-        for color_data in colors_with_history:
-            color_data['batches'] = sorted(color_data['batches'], 
-                                          key=lambda x: x.get('ferm_start_date', ''), 
-                                          reverse=True)
+    # Define sorting function
+    def apply_sort(batches, sort_order):
+        if sort_order == 'newest':
+            return sorted(batches, key=lambda x: x.get('ferm_start_date', ''), reverse=True)
+        elif sort_order == 'oldest':
+            return sorted(batches, key=lambda x: x.get('ferm_start_date', ''))
+        elif sort_order == 'beer_name':
+            return sorted(batches, key=lambda x: (x.get('beer_name', '').lower(), x.get('ferm_start_date', '')))
+        elif sort_order == 'color':
+            return sorted(batches, key=lambda x: (x.get('color', ''), x.get('ferm_start_date', '')), reverse=True)
+        return batches
+    
+    # Apply sorting to both sections
+    active_batches = apply_sort(active_batches, sort_order)
+    closed_batches = apply_sort(closed_batches, sort_order)
     
     return render_template('batch_history_select.html',
-                         colors_with_history=colors_with_history,
+                         active_batches=active_batches,
+                         closed_batches=closed_batches,
                          color_map=COLOR_MAP,
                          sort_order=sort_order)
 
@@ -3541,9 +3547,20 @@ def batch_review(brewid):
 
 
 def calculate_batch_statistics(batch_data, batch_info):
-    """Calculate statistics from batch data."""
+    """
+    Calculate statistics from batch data.
+    
+    Issue 5 fix: Ensures statistics use the FULL data point set from batch_data.
+    """
+    # Initialize stats - total_readings counts ALL entries, not just samples
+    all_samples = []
+    for entry in batch_data:
+        if entry.get('event') in ['sample', 'SAMPLE', 'tilt_reading']:
+            payload = entry.get('payload', entry)
+            all_samples.append(payload)
+    
     stats = {
-        'total_readings': len(batch_data),
+        'total_readings': len(all_samples),  # Count actual sample entries
         'duration_days': None,
         'start_gravity': None,
         'end_gravity': None,
@@ -3556,21 +3573,11 @@ def calculate_batch_statistics(batch_data, batch_info):
         'estimated_abv': None
     }
     
-    if not batch_data:
+    if not all_samples:
         return stats
     
-    # Extract sample data
-    samples = []
-    for entry in batch_data:
-        if entry.get('event') in ['sample', 'SAMPLE', 'tilt_reading']:
-            payload = entry.get('payload', entry)
-            samples.append(payload)
-    
-    if not samples:
-        return stats
-    
-    # Calculate temperature statistics
-    temps = [s.get('temp_f') for s in samples if s.get('temp_f') is not None]
+    # Calculate temperature statistics from ALL samples
+    temps = [s.get('temp_f') for s in all_samples if s.get('temp_f') is not None]
     if temps:
         stats['avg_temp'] = round(sum(temps) / len(temps), 1)
         stats['min_temp'] = min(temps)
@@ -3578,8 +3585,8 @@ def calculate_batch_statistics(batch_data, batch_info):
         stats['start_temp'] = temps[0]
         stats['end_temp'] = temps[-1]
     
-    # Calculate gravity statistics
-    gravities = [s.get('gravity') for s in samples if s.get('gravity') is not None]
+    # Calculate gravity statistics from ALL samples
+    gravities = [s.get('gravity') for s in all_samples if s.get('gravity') is not None]
     if gravities:
         stats['start_gravity'] = gravities[0]
         stats['end_gravity'] = gravities[-1]
@@ -3596,8 +3603,8 @@ def calculate_batch_statistics(batch_data, batch_info):
         except (ValueError, TypeError):
             pass
     
-    # Calculate duration
-    timestamps = [s.get('timestamp') for s in samples if s.get('timestamp')]
+    # Calculate duration from ALL timestamps
+    timestamps = [s.get('timestamp') for s in all_samples if s.get('timestamp')]
     if len(timestamps) >= 2:
         try:
             start_time = datetime.fromisoformat(timestamps[0].replace('Z', '+00:00'))
@@ -3608,6 +3615,180 @@ def calculate_batch_statistics(batch_data, batch_info):
             pass
     
     return stats
+
+
+@app.route('/batch_data_view/<brewid>')
+def batch_data_view(brewid):
+    """
+    View all batch data with optional range selection.
+    Allows viewing a subset of data points by start/end parameters.
+    """
+    import re
+    if not re.match(r'^[a-zA-Z0-9\-_]+$', brewid):
+        return "Invalid batch ID", 400
+    
+    # Find the batch in batch_history files
+    batch_info = None
+    color = None
+    
+    for c in TILT_UUIDS.values():
+        batch_history_file = f'batches/batch_history_{c}.json'
+        if os.path.exists(batch_history_file):
+            try:
+                with open(batch_history_file, 'r') as f:
+                    batches = json.load(f)
+                    for b in batches:
+                        if b.get('brewid') == brewid:
+                            batch_info = b
+                            color = c
+                            break
+            except Exception:
+                pass
+        if batch_info:
+            break
+    
+    if not batch_info:
+        return "Batch not found", 404
+    
+    # Load batch data from JSONL file
+    batch_data = []
+    batch_files = glob_func(f'batches/*{brewid}*.jsonl')
+    
+    if batch_files:
+        batch_file = batch_files[0]
+        try:
+            with open(batch_file, 'r') as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            entry = json.loads(line)
+                            batch_data.append(entry)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+    
+    # Extract samples
+    all_samples = []
+    for entry in batch_data:
+        if entry.get('event') in ['sample', 'SAMPLE', 'tilt_reading']:
+            payload = entry.get('payload', entry)
+            all_samples.append(payload)
+    
+    # Apply range filter if specified
+    start_idx = request.args.get('start', type=int)
+    end_idx = request.args.get('end', type=int)
+    
+    if start_idx is not None or end_idx is not None:
+        # Convert to 0-based index
+        start = (start_idx - 1) if start_idx else 0
+        end = end_idx if end_idx else len(all_samples)
+        all_samples = all_samples[start:end]
+    
+    # Calculate statistics
+    stats = calculate_batch_statistics(batch_data, batch_info)
+    
+    return render_template('batch_data_view.html',
+                         batch=batch_info,
+                         color=color,
+                         samples=all_samples,
+                         stats=stats,
+                         color_map=COLOR_MAP,
+                         start_idx=start_idx,
+                         end_idx=end_idx)
+
+
+@app.route('/export_batch_data_csv/<brewid>')
+def export_batch_data_csv(brewid):
+    """
+    Export batch data to CSV with optional range selection.
+    """
+    import csv
+    import re
+    
+    if not re.match(r'^[a-zA-Z0-9\-_]+$', brewid):
+        return "Invalid batch ID", 400
+    
+    # Find the batch
+    batch_info = None
+    color = None
+    
+    for c in TILT_UUIDS.values():
+        batch_history_file = f'batches/batch_history_{c}.json'
+        if os.path.exists(batch_history_file):
+            try:
+                with open(batch_history_file, 'r') as f:
+                    batches = json.load(f)
+                    for b in batches:
+                        if b.get('brewid') == brewid:
+                            batch_info = b
+                            color = c
+                            break
+            except Exception:
+                pass
+        if batch_info:
+            break
+    
+    if not batch_info:
+        return "Batch not found", 404
+    
+    # Load batch data
+    batch_data = []
+    batch_files = glob_func(f'batches/*{brewid}*.jsonl')
+    
+    if batch_files:
+        batch_file = batch_files[0]
+        try:
+            with open(batch_file, 'r') as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            entry = json.loads(line)
+                            batch_data.append(entry)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+    
+    # Extract samples
+    all_samples = []
+    for entry in batch_data:
+        if entry.get('event') in ['sample', 'SAMPLE', 'tilt_reading']:
+            payload = entry.get('payload', entry)
+            all_samples.append(payload)
+    
+    # Apply range filter if specified
+    start_idx = request.args.get('start', type=int)
+    end_idx = request.args.get('end', type=int)
+    
+    if start_idx is not None or end_idx is not None:
+        start = (start_idx - 1) if start_idx else 0
+        end = end_idx if end_idx else len(all_samples)
+        all_samples = all_samples[start:end]
+    
+    # Create CSV export
+    export_dir = 'export'
+    os.makedirs(export_dir, exist_ok=True)
+    
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    beer_name = batch_info.get('beer_name', 'batch').replace(' ', '_')
+    filename = f'{beer_name}_{brewid[:8]}_{timestamp}.csv'
+    filepath = os.path.join(export_dir, filename)
+    
+    try:
+        with open(filepath, 'w', newline='') as csvfile:
+            fieldnames = ['timestamp', 'tilt_color', 'gravity', 'temp_f', 'rssi', 'beer_name', 'batch_name']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
+            
+            writer.writeheader()
+            for sample in all_samples:
+                writer.writerow(sample)
+        
+        # Send file for download
+        from flask import send_file
+        return send_file(filepath, as_attachment=True, download_name=filename)
+    except Exception as e:
+        return f"Error exporting CSV: {str(e)}", 500
 
 
 @app.route('/export_temp_log', methods=['GET', 'POST'])
@@ -4035,9 +4216,7 @@ def reset_logs():
 
 
 # --- Misc UI routes -------------------------------------------------------
-@app.route('/export_temp_csv')
-def export_temp_csv_get():
-    return redirect('/temp_config')
+# Note: /export_temp_csv is already defined at line 3798
 
 
 # --- Log Management Routes ------------------------------------------------
@@ -4364,6 +4543,137 @@ def archive_batch():
     except Exception as e:
         print(f"[LOG] Error archiving batch: {e}")
         return redirect(url_for('log_management', error=f'Error archiving batch: {str(e)}'))
+
+
+@app.route('/close_batch', methods=['POST'])
+def close_batch():
+    """
+    Close a batch by marking it as inactive in batch_history.
+    This moves the batch from Current Activity to Batch History section.
+    """
+    try:
+        brewid = request.form.get('brewid')
+        color = request.form.get('color')
+        
+        if not brewid or not color:
+            return jsonify({'success': False, 'error': 'Missing brewid or color'}), 400
+        
+        # Security: validate brewid format
+        import re
+        if not re.match(r'^[a-zA-Z0-9\-_]+$', brewid):
+            return jsonify({'success': False, 'error': 'Invalid batch ID format'}), 400
+        
+        # Load batch history for this color
+        batch_history_file = f'batches/batch_history_{color}.json'
+        batches = []
+        if os.path.exists(batch_history_file):
+            try:
+                with open(batch_history_file, 'r') as f:
+                    batches = json.load(f)
+            except Exception as e:
+                return jsonify({'success': False, 'error': f'Error reading batch history: {e}'}), 500
+        
+        # Find and update the batch
+        batch_found = False
+        for batch in batches:
+            if batch.get('brewid') == brewid:
+                batch['is_active'] = False
+                batch['closed_date'] = datetime.utcnow().strftime('%Y-%m-%d')
+                batch_found = True
+                break
+        
+        if not batch_found:
+            return jsonify({'success': False, 'error': 'Batch not found in history'}), 404
+        
+        # Save updated batch history
+        try:
+            with open(batch_history_file, 'w') as f:
+                json.dump(batches, f, indent=2)
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'Error saving batch history: {e}'}), 500
+        
+        # Clear this batch from tilt_cfg if it's currently assigned
+        if color in tilt_cfg and tilt_cfg[color].get('brewid') == brewid:
+            tilt_cfg[color] = {
+                "beer_name": "",
+                "batch_name": "",
+                "ferm_start_date": "",
+                "recipe_og": "",
+                "recipe_fg": "",
+                "recipe_abv": "",
+                "actual_og": None,
+                "brewid": "",
+                "og_confirmed": False,
+                "is_active": True,
+                "closed_date": None,
+                "notification_state": {
+                    "fermentation_start_datetime": None,
+                    "fermentation_completion_datetime": None,
+                    "last_daily_report": None
+                }
+            }
+            try:
+                save_json(TILT_CONFIG_FILE, tilt_cfg)
+            except Exception as e:
+                print(f"[LOG] Error clearing tilt config: {e}")
+        
+        return jsonify({'success': True, 'message': f'Batch {brewid} closed successfully'})
+    except Exception as e:
+        print(f"[LOG] Error closing batch: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/reopen_batch', methods=['POST'])
+def reopen_batch():
+    """
+    Reopen a closed batch by marking it as active again.
+    This moves the batch from Batch History to Current Activity section.
+    """
+    try:
+        brewid = request.form.get('brewid')
+        color = request.form.get('color')
+        
+        if not brewid or not color:
+            return jsonify({'success': False, 'error': 'Missing brewid or color'}), 400
+        
+        # Security: validate brewid format
+        import re
+        if not re.match(r'^[a-zA-Z0-9\-_]+$', brewid):
+            return jsonify({'success': False, 'error': 'Invalid batch ID format'}), 400
+        
+        # Load batch history for this color
+        batch_history_file = f'batches/batch_history_{color}.json'
+        batches = []
+        if os.path.exists(batch_history_file):
+            try:
+                with open(batch_history_file, 'r') as f:
+                    batches = json.load(f)
+            except Exception as e:
+                return jsonify({'success': False, 'error': f'Error reading batch history: {e}'}), 500
+        
+        # Find and update the batch
+        batch_found = False
+        for batch in batches:
+            if batch.get('brewid') == brewid:
+                batch['is_active'] = True
+                batch['closed_date'] = None
+                batch_found = True
+                break
+        
+        if not batch_found:
+            return jsonify({'success': False, 'error': 'Batch not found in history'}), 404
+        
+        # Save updated batch history
+        try:
+            with open(batch_history_file, 'w') as f:
+                json.dump(batches, f, indent=2)
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'Error saving batch history: {e}'}), 500
+        
+        return jsonify({'success': True, 'message': f'Batch {brewid} reopened successfully'})
+    except Exception as e:
+        print(f"[LOG] Error reopening batch: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/delete_batch', methods=['POST'])
