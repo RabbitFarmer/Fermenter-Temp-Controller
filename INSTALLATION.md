@@ -278,37 +278,57 @@ pip install --user -r requirements.txt
 
 ---
 
-## Running on System Startup (Optional)
+## Running on System Startup (Recommended)
 
-To automatically start the application on boot:
+To ensure the application starts automatically when your Raspberry Pi boots up, set up a systemd service. This is the recommended approach as it provides automatic restart on failure and better logging.
 
 ### Method 1: systemd service (Recommended)
 
-1. Create a service file:
+A systemd service file template (`fermenter.service`) is included in the repository. Follow these steps to set it up:
+
+1. **Copy the service file to the system directory:**
+
+```bash
+sudo cp fermenter.service /etc/systemd/system/fermenter.service
+```
+
+2. **Edit the service file if your paths are different:**
+
+If you installed to a different location or use a different username, edit the service file:
 
 ```bash
 sudo nano /etc/systemd/system/fermenter.service
 ```
 
-2. Add the following content (adjust paths as needed):
+The default service file assumes:
+- User: `pi`
+- Install path: `/home/pi/Fermenter-Temp-Controller`
+- Virtual environment: `.venv` (created by setup.sh)
+
+Update these if needed:
 
 ```ini
 [Unit]
-Description=Fermenter Temp Controller
-After=network.target
+Description=Fermenter Temperature Controller
+After=network.target bluetooth.service
 
 [Service]
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/Fermenter-Temp-Controller
-ExecStart=/home/pi/Fermenter-Temp-Controller/venv/bin/python3 /home/pi/Fermenter-Temp-Controller/app.py
+ExecStart=/home/pi/Fermenter-Temp-Controller/.venv/bin/python3 /home/pi/Fermenter-Temp-Controller/app.py
 Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-3. Enable and start the service:
+> **Note:** The service file uses `.venv` (created by setup.sh) not `venv`. If you created your virtual environment manually as `venv`, update the `ExecStart` path accordingly.
+
+3. **Enable and start the service:**
 
 ```bash
 sudo systemctl daemon-reload
@@ -316,22 +336,58 @@ sudo systemctl enable fermenter
 sudo systemctl start fermenter
 ```
 
-4. Check status:
+4. **Verify the service is running:**
 
 ```bash
 sudo systemctl status fermenter
 ```
 
+You should see "active (running)" in green.
+
+5. **View logs if needed:**
+
+```bash
+# View recent logs
+sudo journalctl -u fermenter -n 50
+
+# Follow logs in real-time
+sudo journalctl -u fermenter -f
+```
+
+6. **Access the web interface:**
+
+Once the service is running, open your browser to `http://<raspberry-pi-ip>:5000`
+
+**Service Management Commands:**
+
+```bash
+# Stop the service
+sudo systemctl stop fermenter
+
+# Restart the service
+sudo systemctl restart fermenter
+
+# Disable autostart (but don't stop)
+sudo systemctl disable fermenter
+
+# Re-enable autostart
+sudo systemctl enable fermenter
+```
+
 ### Method 2: crontab (Alternative)
+
+If you prefer not to use systemd, you can use crontab to start the application on boot:
 
 ```bash
 crontab -e
 ```
 
-Add:
+Add this line:
 ```
 @reboot cd /home/pi/Fermenter-Temp-Controller && ./start.sh
 ```
+
+**Note:** This method uses start.sh which will attempt to open a browser. On a headless Raspberry Pi, this may produce harmless error messages. The systemd method is more robust for headless operation.
 
 ---
 

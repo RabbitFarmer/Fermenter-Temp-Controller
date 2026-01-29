@@ -95,6 +95,25 @@ If you prefer to install manually or encounter issues:
    ```
    Then visit `http://<raspberry-pi-ip>:5000` in your browser.
 
+### Running on System Startup (Recommended)
+
+To have the application start automatically when your Raspberry Pi boots up, set up the included systemd service:
+
+```bash
+# Copy the service file
+sudo cp fermenter.service /etc/systemd/system/
+
+# Enable and start the service
+sudo systemctl daemon-reload
+sudo systemctl enable fermenter
+sudo systemctl start fermenter
+
+# Check status
+sudo systemctl status fermenter
+```
+
+For detailed instructions, including service management and logging, see the [Running on System Startup](INSTALLATION.md#running-on-system-startup-recommended) section in INSTALLATION.md.
+
 ### Troubleshooting Installation
 
 If you encounter errors during installation, see [INSTALLATION.md](INSTALLATION.md) for:

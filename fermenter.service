@@ -1,0 +1,16 @@
+[Unit]
+Description=Fermenter Temperature Controller
+After=network.target bluetooth.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Fermenter-Temp-Controller
+ExecStart=/home/pi/Fermenter-Temp-Controller/.venv/bin/python3 /home/pi/Fermenter-Temp-Controller/app.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
