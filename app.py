@@ -445,6 +445,19 @@ except Exception:
     pass
 
 # --- Inter-process queues and kasa worker startup --------------------------
+# Set multiprocessing start method to 'fork' for better network access in worker
+# The 'fork' method preserves the network stack and environment from parent process
+# This is critical for KASA plug communication in the worker process
+import multiprocessing
+try:
+    # Only set if not already set (avoid errors if called multiple times)
+    if multiprocessing.get_start_method(allow_none=True) is None:
+        multiprocessing.set_start_method('fork')
+        print("[LOG] Set multiprocessing start method to 'fork' for network access")
+except RuntimeError:
+    # Already set, ignore
+    print(f"[LOG] Multiprocessing start method already set to: {multiprocessing.get_start_method()}")
+
 kasa_queue = Queue()
 kasa_result_queue = Queue()
 kasa_proc = None
