@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import queue
+import re
 import shutil
 import smtplib
 import threading
@@ -4077,20 +4078,36 @@ def log_management():
                     
                     # Try to get batch info from tilt_cfg
                     beer_name = None
+                    ferm_start_date = None
                     for color, cfg in tilt_cfg.items():
                         if cfg.get('brewid') == brewid:
                             beer_name = cfg.get('beer_name')
+                            ferm_start_date = cfg.get('ferm_start_date')
                             break
                     
                     batches.append({
                         'filename': filename,
                         'brewid': brewid,
                         'beer_name': beer_name,
+                        'ferm_start_date': ferm_start_date,
                         'size': _format_file_size(size_bytes)
                     })
         
-        # Sort batches by filename
-        batches.sort(key=lambda x: x['filename'])
+        # Sort batches by fermentation start date (most recent first)
+        # Batches without a date or invalid date format appear at the end
+        def sort_key(batch):
+            date_str = batch.get('ferm_start_date')
+            if date_str:
+                try:
+                    # Parse date string (format: YYYY-MM-DD)
+                    return datetime.strptime(date_str, '%Y-%m-%d')
+                except (ValueError, TypeError) as e:
+                    # Log invalid date format for debugging
+                    print(f"[LOG] Invalid date format for batch {batch.get('brewid')}: {date_str}")
+            # Return a very old date for batches without dates or invalid dates
+            return datetime(1900, 1, 1)
+        
+        batches.sort(key=sort_key, reverse=True)
         
         return render_template('log_management.html',
                              temp_log_size=temp_log_size,
@@ -4110,6 +4127,52 @@ def _format_file_size(size_bytes):
             return f"{size_bytes:.1f} {unit}"
         size_bytes /= 1024.0
     return f"{size_bytes:.1f} TB"
+
+
+@app.route('/view_log')
+def view_log():
+    """Display the content of a log file."""
+    try:
+        log_file = request.args.get('file')
+        log_type = request.args.get('type', 'app')  # 'app' or 'temp'
+        
+        if not log_file:
+            return "No log file specified", 400
+        
+        # Security: validate log file path
+        if log_type == 'temp':
+            # Temperature control log
+            if log_file != 'temp_control_log.jsonl':
+                return "Invalid log file", 400
+            filepath = LOG_PATH
+        else:
+            # Application log - restrict to alphanumeric, dash, underscore, single dot before .log
+            if not re.match(r'^[a-zA-Z0-9\-_]+\.log$', log_file):
+                return "Invalid log file name", 400
+            filepath = os.path.join('logs', log_file)
+        
+        if not os.path.exists(filepath):
+            return f"Log file not found: {log_file}", 404
+        
+        # Read the last 1000 lines efficiently using deque
+        lines = deque(maxlen=1000)
+        try:
+            with open(filepath, 'r') as f:
+                for line in f:
+                    lines.append(line)
+        except Exception as e:
+            return f"Error reading log file: {str(e)}", 500
+        
+        content = ''.join(lines)
+        
+        return render_template('view_log.html',
+                             log_file=log_file,
+                             log_type=log_type,
+                             content=content,
+                             line_count=len(lines))
+    except Exception as e:
+        print(f"[LOG] Error viewing log: {e}")
+        return f"Error viewing log: {str(e)}", 500
 
 
 @app.route('/archive_temp_log', methods=['POST'])
