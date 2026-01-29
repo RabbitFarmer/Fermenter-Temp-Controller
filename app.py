@@ -32,6 +32,7 @@ import multiprocessing  # Needed for set_start_method and get_all_start_methods
 from urllib.parse import urlparse
 import subprocess
 import signal
+import webbrowser
 
 from email.mime.text import MIMEText
 from flask import (Flask, abort, jsonify, redirect, render_template, request,
@@ -4629,12 +4630,29 @@ def exit_system():
 
 
 # --- Program entry ---------------------------------------------------------
+def open_browser():
+    """
+    Open the default web browser to the Flask app URL after a short delay.
+    This runs in a separate thread to avoid blocking the Flask startup.
+    """
+    time.sleep(1.5)  # Wait for Flask to start
+    try:
+        webbrowser.open('http://127.0.0.1:5000')
+        print("[LOG] Opened browser at http://127.0.0.1:5000")
+    except Exception as e:
+        print(f"[LOG] Could not automatically open browser: {e}")
+        print("[LOG] Please manually navigate to http://127.0.0.1:5000")
+
+
 if __name__ == '__main__':
     try:
         os.makedirs(BATCHES_DIR, exist_ok=True)
     except Exception:
         pass
 
+    # Start a thread to open the browser after Flask starts
+    browser_thread = threading.Thread(target=open_browser, daemon=True)
+    browser_thread.start()
 
     # Run the Flask app
     app.run(host='0.0.0.0', port=5000, debug=True)
