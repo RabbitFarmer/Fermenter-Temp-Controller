@@ -128,6 +128,42 @@ If you encounter errors during installation, see [INSTALLATION.md](INSTALLATION.
 - Edit system settings via the web dashboard.
 - Configure batch and temperature settings for each Tilt hydrometer color.
 
+## Remote Access via VPN
+
+Access your Fermenter Temperature Controller from anywhere using WireGuard VPN. This allows secure remote monitoring of your fermentation from your phone or computer while away from home.
+
+### Quick Start
+
+1. **Set up WireGuard VPN** on your Raspberry Pi and client devices:
+   - See [How to Create Internet Access through VPN Tunnel.md](How%20to%20Create%20Internet%20Access%20through%20VPN%20Tunnel.md) for complete setup instructions
+
+2. **Access the dashboard** through your VPN:
+   ```
+   http://<your-vpn-ip>:5000
+   ```
+   Example: `http://10.0.0.1:5000`
+
+### Troubleshooting VPN Connection
+
+If you get "connection refused" errors when accessing through VPN:
+
+1. **Run the verification script** on your Raspberry Pi:
+   ```bash
+   ./verify_vpn_access.sh
+   # Or use the Python version:
+   python3 verify_vpn_access.py
+   ```
+
+2. **Common fixes:**
+   - Ensure Flask app is running: `sudo systemctl status fermenter`
+   - Add firewall rule: `sudo iptables -I INPUT -i wg0 -p tcp --dport 5000 -j ACCEPT`
+   - Save firewall rule: `sudo iptables-save | sudo tee /etc/iptables/rules.v4`
+
+3. **Detailed troubleshooting:**
+   - See [VPN_TROUBLESHOOTING_GUIDE.md](VPN_TROUBLESHOOTING_GUIDE.md) for comprehensive diagnosis and solutions
+
+The Flask application is already configured to accept connections from all interfaces (`0.0.0.0:5000`), so VPN access should work once the firewall rules are properly configured.
+
 ## File Structure
 
 ### Core Application Files
