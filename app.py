@@ -2403,14 +2403,16 @@ def sync_plug_states_at_startup():
     
     print("[LOG] Syncing plug states at startup...")
     
+    # Helper function to query plug state with timeout
+    async def query_plug_with_timeout(url, plug_name):
+        """Query a plug's state with timeout. Returns (is_on, error) or raises TimeoutError."""
+        # Timeout set to 7 seconds to allow internal kasa_query_state timeout (6s) to complete
+        return await asyncio.wait_for(kasa_query_state(url), timeout=7.0)
+    
     # Query heating plug state with timeout
     if enable_heating and heating_url:
         try:
-            # Use asyncio.wait_for to add timeout to prevent hanging
-            async def query_with_timeout():
-                return await asyncio.wait_for(kasa_query_state(heating_url), timeout=3.0)
-            
-            is_on, error = asyncio.run(query_with_timeout())
+            is_on, error = asyncio.run(query_plug_with_timeout(heating_url, "heating"))
             if error is None:
                 temp_cfg["heater_on"] = is_on
                 print(f"[LOG] Heating plug state synced: {'ON' if is_on else 'OFF'}")
@@ -2431,11 +2433,7 @@ def sync_plug_states_at_startup():
     # Query cooling plug state with timeout
     if enable_cooling and cooling_url:
         try:
-            # Use asyncio.wait_for to add timeout to prevent hanging
-            async def query_with_timeout():
-                return await asyncio.wait_for(kasa_query_state(cooling_url), timeout=3.0)
-            
-            is_on, error = asyncio.run(query_with_timeout())
+            is_on, error = asyncio.run(query_plug_with_timeout(cooling_url, "cooling"))
             if error is None:
                 temp_cfg["cooler_on"] = is_on
                 print(f"[LOG] Cooling plug state synced: {'ON' if is_on else 'OFF'}")
@@ -2473,7 +2471,9 @@ def sync_plug_states_at_startup():
 def _background_startup_sync():
     """Run startup sync in background to avoid blocking Flask"""
     try:
-        # Small delay to let other threads initialize
+        # Small delay (0.5s) to let kasa_result_listener thread initialize
+        # This is a minimal delay chosen to ensure basic thread startup without
+        # significantly delaying the sync. The sync will handle failures gracefully.
         time.sleep(0.5)
         sync_plug_states_at_startup()
     except Exception as e:
