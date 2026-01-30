@@ -194,9 +194,8 @@ def test_log_and_notify_once():
         print(f"  ✓ Flags reset when connection restored")
         
         # Verify flags are reset
-        assert not temp_cfg.get("heating_blocked_logged"), "Logged flag should be reset"
-        assert not temp_cfg.get("heating_blocked_notified"), "Notified flag should be reset"
-        print(f"  ✓ Flags confirmed reset")
+        assert not temp_cfg.get("heating_blocked_trigger"), "Trigger should be reset"
+        print(f"  ✓ Trigger confirmed reset")
         
         print("\n[TEST 4] New Incident - Should Log and Notify Again")
         print("-" * 80)
