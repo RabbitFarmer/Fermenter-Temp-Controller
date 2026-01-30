@@ -133,22 +133,24 @@ def test_plug_state_preserved_on_failure():
         print("  - Plug stays ON forever (SAFETY ISSUE)")
         success = False
     
-    print("\n[6] TEST REDUNDANCY CHECK")
+    print("\n[6] VERIFY OFF COMMAND RETRY")
     print("-" * 80)
     
-    # Verify that the redundancy check in _should_send_kasa_command
-    # won't block the retry because state is preserved correctly
+    # Verify that OFF commands can be retried because state is preserved correctly
     from app import _should_send_kasa_command
+    
+    # Ensure test setup is correct (heating_plug matches the URL we're testing)
+    assert temp_cfg['heating_plug'] == 'test_heating_plug', "Test setup error: heating_plug mismatch"
     
     # Should allow retry because heater_on=True and action='off'
     should_send = _should_send_kasa_command('test_heating_plug', 'off')
     
     if should_send:
-        print("✓ Redundancy check allows retry of OFF command")
+        print("✓ OFF command can be retried")
         print("  - heater_on is True, action is 'off'")
-        print("  - Command is not redundant, will be sent")
+        print("  - Command will be sent on next control cycle")
     else:
-        print("✗ Redundancy check blocks retry")
+        print("✗ OFF command retry is blocked")
         print("  - This would prevent the plug from turning OFF")
         success = False
     
