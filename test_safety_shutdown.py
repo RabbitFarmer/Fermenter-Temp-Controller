@@ -106,7 +106,7 @@ def test_safety_shutdown():
         
         # Verify safety shutdown
         status = temp_cfg.get('status')
-        assert status == "Control Tilt Inactive - Safety Shutdown", \
+        assert "Control Tilt Inactive - Safety Shutdown" in status, \
             f"Expected safety shutdown, got: {status}"
         print(f"✓ Safety shutdown triggered")
         print(f"  Status: {status}")

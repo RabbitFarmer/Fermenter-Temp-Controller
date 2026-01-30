@@ -571,6 +571,26 @@ def get_active_tilts():
     
     return active_tilts
 
+def get_control_tilt_color():
+    """
+    Get the color of the Tilt currently being used for temperature control.
+    
+    Returns:
+        str: The color of the Tilt being used, or None if no Tilt is being used.
+    """
+    # First check if a Tilt is explicitly assigned
+    color = temp_cfg.get("tilt_color")
+    if color and color in live_tilts:
+        return color
+    
+    # If no explicit assignment, check if we're using a fallback Tilt
+    # This happens when tilt_color is empty but we still get temp from a Tilt
+    for tilt_color, info in live_tilts.items():
+        if info.get("temp_f") is not None:
+            return tilt_color
+    
+    return None
+
 def get_current_temp_for_control_tilt():
     color = temp_cfg.get("tilt_color")
     if color and color in live_tilts:
@@ -582,16 +602,21 @@ def get_current_temp_for_control_tilt():
 
 def is_control_tilt_active():
     """
-    Check if the Tilt assigned to temperature control is currently active.
+    Check if the Tilt being used for temperature control is currently active.
+    
+    This includes both explicitly assigned Tilts (via tilt_color setting) and
+    fallback Tilts (when tilt_color is empty but temperature is sourced from a Tilt).
     
     Returns:
-        bool: True if the control Tilt is active (within timeout) OR if no Tilt is assigned.
-              False only if a Tilt is assigned but inactive (safety shutdown condition).
+        bool: True if the control Tilt is active (within timeout) OR if no Tilt is being used.
+              False only if a Tilt is being used for control but is inactive (safety shutdown condition).
     """
-    control_color = temp_cfg.get("tilt_color")
+    # Get the color of the Tilt actually being used for control
+    control_color = get_control_tilt_color()
+    
     if not control_color:
-        # No Tilt assigned to temp control - allow control to proceed
-        # (temperature can be set manually or from other sources)
+        # No Tilt is being used for temp control - allow control to proceed
+        # (temperature might be set manually)
         return True
     
     # Check if the control Tilt is in the active tilts list
@@ -2176,16 +2201,32 @@ def temperature_control_logic():
         temp_cfg["last_logged_enable_cooling"] = enable_cool
 
     # SAFETY: Check if control Tilt is active (within timeout)
-    # If the Tilt assigned to temp control is inactive, turn off all plugs immediately
-    if temp_cfg.get("tilt_color") and not is_control_tilt_active():
+    # If any Tilt being used for temp control is inactive, turn off all plugs immediately
+    # This includes both explicitly assigned Tilts and fallback Tilts
+    if not is_control_tilt_active():
         control_heating("off")
         control_cooling("off")
-        temp_cfg["status"] = "Control Tilt Inactive - Safety Shutdown"
+        
+        # Get the actual Tilt color being used (may be explicitly assigned or fallback)
+        actual_tilt_color = get_control_tilt_color()
+        assigned_tilt_color = temp_cfg.get("tilt_color", "")
+        
+        # Set status message indicating which Tilt triggered shutdown
+        if assigned_tilt_color:
+            temp_cfg["status"] = f"Control Tilt Inactive - Safety Shutdown ({assigned_tilt_color})"
+        elif actual_tilt_color:
+            temp_cfg["status"] = f"Control Tilt Inactive - Safety Shutdown (using {actual_tilt_color} as fallback)"
+        else:
+            temp_cfg["status"] = "Control Tilt Inactive - Safety Shutdown"
+        
         # Log this safety event and send notification
         if not temp_cfg.get("safety_shutdown_logged"):
-            tilt_color = temp_cfg.get("tilt_color", "")
+            # Use the actual Tilt color for logging
+            tilt_color = actual_tilt_color or assigned_tilt_color or "Unknown"
             append_control_log("temp_control_safety_shutdown", {
                 "tilt_color": tilt_color,
+                "assigned_tilt": assigned_tilt_color,
+                "actual_tilt": actual_tilt_color or "None",
                 "reason": "Control Tilt inactive beyond timeout",
                 "low_limit": low,
                 "high_limit": high
