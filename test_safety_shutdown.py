@@ -38,7 +38,8 @@ def test_safety_shutdown():
     
     try:
         # Setup: Configure temperature control with a Tilt
-        system_cfg['tilt_inactivity_timeout_minutes'] = 30
+        system_cfg['tilt_inactivity_timeout_minutes'] = 30  # General monitoring timeout
+        system_cfg['update_interval'] = 2  # Temp control update interval → 4 min timeout
         temp_cfg['tilt_color'] = 'Red'
         temp_cfg['temp_control_enabled'] = True
         temp_cfg['enable_heating'] = True
@@ -56,8 +57,8 @@ def test_safety_shutdown():
         print("\n[TEST 1] Active Control Tilt - Normal Operation")
         print("-" * 80)
         
-        # Add an active Red Tilt (10 minutes ago)
-        recent_timestamp = (now - timedelta(minutes=10)).replace(microsecond=0).isoformat() + "Z"
+        # Add an active Red Tilt (1 minute ago, well within 4 min timeout)
+        recent_timestamp = (now - timedelta(minutes=1)).replace(microsecond=0).isoformat() + "Z"
         live_tilts['Red'] = {
             'timestamp': recent_timestamp,
             'temp_f': 68.0,
@@ -67,9 +68,9 @@ def test_safety_shutdown():
         }
         temp_cfg['current_temp'] = 68.0
         
-        # Verify Tilt is active
+        # Verify Tilt is active (1 min < 4 min timeout)
         assert is_control_tilt_active(), "Control Tilt should be active"
-        print(f"✓ Red Tilt is active (10 minutes old)")
+        print(f"✓ Red Tilt is active (1 minute old, within 4 min timeout)")
         
         # Run temperature control - should operate normally
         original_status = temp_cfg.get('status')
@@ -84,15 +85,14 @@ def test_safety_shutdown():
         print("\n[TEST 2] Inactive Control Tilt - Safety Shutdown")
         print("-" * 80)
         
-        # Make the Red Tilt inactive (2 hours old, beyond 30 min timeout)
-        old_timestamp = (now - timedelta(hours=2)).replace(microsecond=0).isoformat() + "Z"
+        # Make the Red Tilt inactive (5 minutes old, beyond 4 min timeout)
+        old_timestamp = (now - timedelta(minutes=5)).replace(microsecond=0).isoformat() + "Z"
         live_tilts['Red']['timestamp'] = old_timestamp
         
-        # Verify Tilt is now inactive
+        # Verify Tilt is now inactive for temp control (5 min > 4 min timeout)
         active_tilts = get_active_tilts()
-        assert 'Red' not in active_tilts, "Red Tilt should be inactive"
-        assert not is_control_tilt_active(), "Control Tilt should be inactive"
-        print(f"✓ Red Tilt is now inactive (2 hours old, beyond 30 min timeout)")
+        assert not is_control_tilt_active(), "Control Tilt should be inactive for temp control"
+        print(f"✓ Red Tilt is now inactive (5 minutes old, beyond 4 min temp control timeout)")
         
         # Simulate that heater/cooler were on before
         temp_cfg['heater_on'] = True
@@ -106,7 +106,7 @@ def test_safety_shutdown():
         
         # Verify safety shutdown
         status = temp_cfg.get('status')
-        assert status == "Control Tilt Inactive - Safety Shutdown", \
+        assert "Control Tilt Inactive - Safety Shutdown" in status, \
             f"Expected safety shutdown, got: {status}"
         print(f"✓ Safety shutdown triggered")
         print(f"  Status: {status}")
@@ -177,7 +177,8 @@ def test_safety_shutdown():
         print("  - Safety shutdown notification: Queued and ready to send")
         print("  - Control Tilt returns: Normal operation resumes")
         print("  - No control Tilt: No safety check performed")
-        print(f"\nDefault timeout: {system_cfg.get('tilt_inactivity_timeout_minutes')} minutes")
+        print(f"\nTemperature control timeout: 2 × {system_cfg.get('update_interval', 2)} min = {system_cfg.get('update_interval', 2) * 2} minutes")
+        print(f"General monitoring timeout: {system_cfg.get('tilt_inactivity_timeout_minutes')} minutes")
         
         return True
         

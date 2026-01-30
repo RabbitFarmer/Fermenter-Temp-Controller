@@ -250,6 +250,8 @@ ALLOWED_EVENTS = {
     "temp_control_mode_changed": "MODE_CHANGED",
     "temp_control_started": "TEMP CONTROL STARTED",
     "temp_control_safety_shutdown": "SAFETY SHUTDOWN - CONTROL TILT INACTIVE",
+    "temp_control_blocked_on": "SAFETY - BLOCKED ON COMMAND (NO TILT CONNECTION)",
+    "temp_control_safety_off": "SAFETY - TURNING OFF (NO TILT CONNECTION)",
 }
 
 # Create a set of allowed event values for O(1) lookup performance
@@ -571,10 +573,62 @@ def get_active_tilts():
     
     return active_tilts
 
-def get_current_temp_for_control_tilt():
+def get_control_tilt_color():
+    """
+    Get the color of the Tilt currently being used for temperature control.
+    
+    Important behavior:
+    - If a Tilt is explicitly assigned (tilt_color is set), ALWAYS return that color,
+      even if the Tilt is currently offline or inactive. This ensures safety shutdown
+      triggers when the assigned Tilt is not operational.
+    - If no Tilt is assigned (tilt_color is empty), use fallback logic to find any
+      available Tilt with temperature data.
+    
+    Returns:
+        str: The color of the Tilt being used, or None if no Tilt is being used.
+    """
+    # First check if a Tilt is explicitly assigned
     color = temp_cfg.get("tilt_color")
-    if color and color in live_tilts:
-        return live_tilts[color].get("temp_f")
+    if color:
+        # If a Tilt is explicitly assigned, ALWAYS return it
+        # Even if it's not in live_tilts (offline/inactive)
+        # This ensures safety shutdown triggers when assigned Tilt is not operational
+        # We do NOT fall back to another Tilt in this case
+        return color
+    
+    # If no explicit assignment (tilt_color is empty), check if we're using a fallback Tilt
+    # This happens when tilt_color is empty but we still get temp from a Tilt
+    for tilt_color, info in live_tilts.items():
+        if info.get("temp_f") is not None:
+            return tilt_color
+    
+    return None
+
+def get_current_temp_for_control_tilt():
+    """
+    Get the current temperature from the Tilt assigned to temperature control.
+    
+    Important behavior:
+    - If a Tilt is explicitly assigned, ONLY use that Tilt's temperature.
+    - Do NOT fall back to another Tilt if the assigned one is offline/inactive.
+    - If no Tilt is assigned, use fallback logic to get temp from any available Tilt.
+    
+    Returns:
+        float: Temperature in Fahrenheit, or None if no temperature available.
+    """
+    color = temp_cfg.get("tilt_color")
+    if color:
+        # Tilt is explicitly assigned - ONLY use that Tilt
+        # Do NOT fall back to another Tilt if this one is offline
+        if color in live_tilts:
+            return live_tilts[color].get("temp_f")
+        else:
+            # Assigned Tilt is not available - return None
+            # This will trigger safety shutdown
+            return None
+    
+    # No explicit assignment - use fallback logic
+    # Return temperature from any available Tilt
     for info in live_tilts.values():
         if info.get("temp_f") is not None:
             return info.get("temp_f")
@@ -582,21 +636,88 @@ def get_current_temp_for_control_tilt():
 
 def is_control_tilt_active():
     """
-    Check if the Tilt assigned to temperature control is currently active.
+    Check if the Tilt being used for temperature control is currently active.
+    
+    For temperature control safety, uses a shorter timeout than general Tilt monitoring:
+    - Temperature control timeout: 2 × update_interval (default: 2 × 2 min = 4 minutes)
+    - This ensures KASA plugs turn off quickly if Tilt signal is lost
+    - Much shorter than the general 30-minute inactivity timeout used for display/notifications
+    
+    Grace period for newly assigned Tilts:
+    - When a Tilt is first assigned to temp control, there's a 15-minute grace period
+    - During this grace period, the system allows time for the Tilt to start broadcasting
+    - This prevents immediate shutdown when setting up a new batch
+    - After grace period, normal 4-minute timeout applies
+    
+    This includes both explicitly assigned Tilts (via tilt_color setting) and
+    fallback Tilts (when tilt_color is empty but temperature is sourced from a Tilt).
     
     Returns:
-        bool: True if the control Tilt is active (within timeout) OR if no Tilt is assigned.
-              False only if a Tilt is assigned but inactive (safety shutdown condition).
+        bool: True if the control Tilt is active (within temp control timeout) OR if no Tilt is being used.
+              False only if a Tilt is being used for control but is inactive (safety shutdown condition).
     """
-    control_color = temp_cfg.get("tilt_color")
+    # Get the color of the Tilt actually being used for control
+    control_color = get_control_tilt_color()
+    
     if not control_color:
-        # No Tilt assigned to temp control - allow control to proceed
-        # (temperature can be set manually or from other sources)
+        # No Tilt is being used for temp control - allow control to proceed
+        # (temperature might be set manually)
         return True
     
-    # Check if the control Tilt is in the active tilts list
-    active_tilts = get_active_tilts()
-    return control_color in active_tilts
+    # Check if we're in the grace period for a newly assigned Tilt
+    # Grace period: 15 minutes from when Tilt was assigned to temp control
+    assignment_timestamp = temp_cfg.get("tilt_assignment_time")
+    if assignment_timestamp:
+        try:
+            from datetime import datetime
+            assignment_time = datetime.fromisoformat(assignment_timestamp)
+            now = datetime.utcnow()
+            minutes_since_assignment = (now - assignment_time).total_seconds() / 60.0
+            
+            # Grace period: 15 minutes
+            grace_period_minutes = 15
+            
+            if minutes_since_assignment < grace_period_minutes:
+                # We're in grace period - allow control to proceed even if Tilt is inactive
+                # This gives time for Tilt to start broadcasting and for user to complete setup
+                print(f"[TEMP_CONTROL] Grace period active: {minutes_since_assignment:.1f}/{grace_period_minutes} minutes elapsed")
+                return True
+        except Exception as e:
+            print(f"[LOG] Error checking assignment time: {e}")
+            # If we can't parse the assignment time, continue with normal checks
+    
+    # For temperature control, use a much shorter timeout than general monitoring
+    # Timeout = 2 × update_interval (2 missed readings)
+    # Example: 2 min update interval → 4 min timeout
+    try:
+        update_interval_minutes = int(system_cfg.get("update_interval", 2))
+    except Exception:
+        update_interval_minutes = 2
+    
+    # Temperature control timeout: 2 missed readings
+    temp_control_timeout_minutes = update_interval_minutes * 2
+    
+    # Check if the control Tilt has sent data within the temp control timeout
+    if control_color not in live_tilts:
+        return False
+    
+    tilt_info = live_tilts[control_color]
+    timestamp_str = tilt_info.get('timestamp')
+    if not timestamp_str:
+        return False
+    
+    try:
+        from datetime import datetime
+        timestamp = datetime.fromisoformat(timestamp_str.rstrip('Z'))
+        now = datetime.utcnow()
+        elapsed_minutes = (now - timestamp).total_seconds() / 60.0
+        
+        # Tilt is active if it's within the temp control timeout
+        return elapsed_minutes < temp_control_timeout_minutes
+    except Exception as e:
+        print(f"[LOG] Error checking control Tilt activity for {control_color}: {e}")
+        # If we can't determine activity, assume inactive for safety
+        return False
 
 def log_tilt_reading(color, gravity, temp_f, rssi):
     """
@@ -1401,6 +1522,123 @@ Action Required:
         color=tilt_color
     )
 
+def send_plug_blocked_notification(mode, tilt_color):
+    """
+    Send notification when a plug ON command is blocked due to no Tilt connection.
+    Uses the pending queue system with deduplication to prevent duplicate alerts.
+    
+    Args:
+        mode: 'heating' or 'cooling'
+        tilt_color: The color of the Tilt that is offline
+    """
+    # Get temp control notification settings
+    temp_notif_cfg = system_cfg.get('temp_control_notifications', {})
+    
+    # Check if safety notifications are enabled (default to True for safety)
+    if not temp_notif_cfg.get('enable_safety_shutdown', True):
+        return
+    
+    brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
+    now = datetime.utcnow()
+    
+    mode_name = "Heating" if mode == "heating" else "Cooling"
+    
+    subject = f"{brewery_name} - SAFETY: {mode_name} Blocked (No Tilt Connection)"
+    body = f"""SAFETY ALERT
+
+Brewery Name: {brewery_name}
+Date: {now.strftime('%Y-%m-%d')}
+Time: {now.strftime('%H:%M:%S')}
+Tilt Color: {tilt_color}
+
+{mode_name.upper()} BLOCKED - NO TILT CONNECTION
+
+The system attempted to turn ON the {mode_name.lower()} plug, but the Tilt assigned 
+to temperature control is not transmitting data.
+
+Safety Rule: No connection = No plugs turn ON
+
+The {mode_name.lower()} plug will remain OFF until the Tilt connection is restored.
+
+Action Required:
+1. Check Tilt battery
+2. Verify Tilt is in range
+3. Ensure Tilt is in liquid
+4. Check Bluetooth connectivity
+
+The {mode_name.lower()} plug will automatically resume normal operation once 
+the Tilt starts transmitting again.
+
+This is a safety feature to prevent uncontrolled temperature changes."""
+
+    # Queue notification with deduplication
+    queue_pending_notification(
+        notification_type=f'plug_blocked_{mode}',
+        subject=subject,
+        body=body,
+        brewid=tilt_color,
+        color=tilt_color
+    )
+
+def send_plug_safety_off_notification(mode, tilt_color):
+    """
+    Send notification when a plug is turned OFF due to no Tilt connection.
+    Uses the pending queue system with deduplication to prevent duplicate alerts.
+    
+    Args:
+        mode: 'heating' or 'cooling'
+        tilt_color: The color of the Tilt that is offline
+    """
+    # Get temp control notification settings
+    temp_notif_cfg = system_cfg.get('temp_control_notifications', {})
+    
+    # Check if safety notifications are enabled (default to True for safety)
+    if not temp_notif_cfg.get('enable_safety_shutdown', True):
+        return
+    
+    brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
+    now = datetime.utcnow()
+    
+    mode_name = "Heating" if mode == "heating" else "Cooling"
+    
+    subject = f"{brewery_name} - SAFETY: {mode_name} Turned OFF (No Tilt Connection)"
+    body = f"""SAFETY ALERT
+
+Brewery Name: {brewery_name}
+Date: {now.strftime('%Y-%m-%d')}
+Time: {now.strftime('%H:%M:%S')}
+Tilt Color: {tilt_color}
+
+{mode_name.upper()} TURNED OFF - NO TILT CONNECTION
+
+The Tilt assigned to temperature control is not transmitting data.
+The {mode_name.lower()} plug has been automatically turned OFF for safety.
+
+Safety Rule: No connection = Plugs turn OFF
+
+The {mode_name.lower()} plug was ON but is now being turned OFF because 
+the system cannot read the current temperature.
+
+Action Required:
+1. Check Tilt battery
+2. Verify Tilt is in range
+3. Ensure Tilt is in liquid
+4. Check Bluetooth connectivity
+
+The {mode_name.lower()} plug will automatically resume normal operation once 
+the Tilt starts transmitting again.
+
+This is a safety feature to prevent uncontrolled temperature changes."""
+
+    # Queue notification with deduplication
+    queue_pending_notification(
+        notification_type=f'plug_safety_off_{mode}',
+        subject=subject,
+        body=body,
+        brewid=tilt_color,
+        color=tilt_color
+    )
+
 def send_kasa_error_notification(mode, url, error_msg):
     """
     Send notifications for Kasa plug connection failures if enabled in settings.
@@ -2070,6 +2308,69 @@ def control_heating(state):
         temp_cfg["heating_error_msg"] = ""
         temp_cfg["heating_error_notified"] = False
         return
+    
+    # Simple safety rule: No connection = no plugs turn ON
+    # If Tilt is not active (no connection/signal) and we're trying to turn plug ON, block it
+    if state == "on" and not is_control_tilt_active():
+        print(f"[TEMP_CONTROL] Blocking heating ON command - no Tilt connection/signal")
+        print(f"[TEMP_CONTROL] Safety: Cannot turn plugs ON without active Tilt signal")
+        
+        # Use trigger pattern: Report once when issue detected, flip trigger
+        # Only log and notify if trigger is not already flipped
+        if not temp_cfg.get("heating_blocked_trigger"):
+            tilt_color = temp_cfg.get("tilt_color", "")
+            
+            # Log the event
+            append_control_log("temp_control_blocked_on", {
+                "mode": "heating",
+                "tilt_color": tilt_color,
+                "reason": "Tilt connection lost - cannot turn heating ON",
+                "low_limit": temp_cfg.get("low_limit"),
+                "high_limit": temp_cfg.get("high_limit")
+            })
+            
+            # Send notification
+            send_plug_blocked_notification("heating", tilt_color)
+            
+            # Flip the trigger - prevents repeated logging/notifications
+            temp_cfg["heating_blocked_trigger"] = True
+        
+        # Don't send the ON command - plugs stay OFF for safety
+        return
+    
+    # When issue is corrected (Tilt active or turning OFF), reset the trigger
+    if state == "off" or is_control_tilt_active():
+        if temp_cfg.get("heating_blocked_trigger"):
+            temp_cfg["heating_blocked_trigger"] = False
+    
+    # If turning OFF due to no Tilt connection, log it as a safety action
+    if state == "off" and not is_control_tilt_active() and temp_cfg.get("heater_on"):
+        print(f"[TEMP_CONTROL] Allowing heating OFF command - safety shutdown (no Tilt connection)")
+        
+        # Use trigger pattern: Report once when issue detected, flip trigger
+        if not temp_cfg.get("heating_safety_off_trigger"):
+            tilt_color = temp_cfg.get("tilt_color", "")
+            
+            # Log the event
+            append_control_log("temp_control_safety_off", {
+                "mode": "heating",
+                "tilt_color": tilt_color,
+                "reason": "Tilt connection lost - turning heating OFF for safety",
+                "low_limit": temp_cfg.get("low_limit"),
+                "high_limit": temp_cfg.get("high_limit")
+            })
+            
+            # Send notification
+            send_plug_safety_off_notification("heating", tilt_color)
+            
+            # Flip the trigger - prevents repeated logging/notifications
+            temp_cfg["heating_safety_off_trigger"] = True
+    
+    # When issue is corrected (Tilt active), reset the trigger
+    if is_control_tilt_active():
+        if temp_cfg.get("heating_safety_off_trigger"):
+            temp_cfg["heating_safety_off_trigger"] = False
+    
     if not _should_send_kasa_command(url, state):
         print(f"[TEMP_CONTROL] Skipping heating {state} command (redundant or rate-limited)")
         return
@@ -2089,6 +2390,69 @@ def control_cooling(state):
         temp_cfg["cooling_error_msg"] = ""
         temp_cfg["cooling_error_notified"] = False
         return
+    
+    # Simple safety rule: No connection = no plugs turn ON
+    # If Tilt is not active (no connection/signal) and we're trying to turn plug ON, block it
+    if state == "on" and not is_control_tilt_active():
+        print(f"[TEMP_CONTROL] Blocking cooling ON command - no Tilt connection/signal")
+        print(f"[TEMP_CONTROL] Safety: Cannot turn plugs ON without active Tilt signal")
+        
+        # Use trigger pattern: Report once when issue detected, flip trigger
+        # Only log and notify if trigger is not already flipped
+        if not temp_cfg.get("cooling_blocked_trigger"):
+            tilt_color = temp_cfg.get("tilt_color", "")
+            
+            # Log the event
+            append_control_log("temp_control_blocked_on", {
+                "mode": "cooling",
+                "tilt_color": tilt_color,
+                "reason": "Tilt connection lost - cannot turn cooling ON",
+                "low_limit": temp_cfg.get("low_limit"),
+                "high_limit": temp_cfg.get("high_limit")
+            })
+            
+            # Send notification
+            send_plug_blocked_notification("cooling", tilt_color)
+            
+            # Flip the trigger - prevents repeated logging/notifications
+            temp_cfg["cooling_blocked_trigger"] = True
+        
+        # Don't send the ON command - plugs stay OFF for safety
+        return
+    
+    # When issue is corrected (Tilt active or turning OFF), reset the trigger
+    if state == "off" or is_control_tilt_active():
+        if temp_cfg.get("cooling_blocked_trigger"):
+            temp_cfg["cooling_blocked_trigger"] = False
+    
+    # If turning OFF due to no Tilt connection, log it as a safety action
+    if state == "off" and not is_control_tilt_active() and temp_cfg.get("cooler_on"):
+        print(f"[TEMP_CONTROL] Allowing cooling OFF command - safety shutdown (no Tilt connection)")
+        
+        # Use trigger pattern: Report once when issue detected, flip trigger
+        if not temp_cfg.get("cooling_safety_off_trigger"):
+            tilt_color = temp_cfg.get("tilt_color", "")
+            
+            # Log the event
+            append_control_log("temp_control_safety_off", {
+                "mode": "cooling",
+                "tilt_color": tilt_color,
+                "reason": "Tilt connection lost - turning cooling OFF for safety",
+                "low_limit": temp_cfg.get("low_limit"),
+                "high_limit": temp_cfg.get("high_limit")
+            })
+            
+            # Send notification
+            send_plug_safety_off_notification("cooling", tilt_color)
+            
+            # Flip the trigger - prevents repeated logging/notifications
+            temp_cfg["cooling_safety_off_trigger"] = True
+    
+    # When issue is corrected (Tilt active), reset the trigger
+    if is_control_tilt_active():
+        if temp_cfg.get("cooling_safety_off_trigger"):
+            temp_cfg["cooling_safety_off_trigger"] = False
+    
     if not _should_send_kasa_command(url, state):
         print(f"[TEMP_CONTROL] Skipping cooling {state} command (redundant or rate-limited)")
         return
@@ -2176,16 +2540,32 @@ def temperature_control_logic():
         temp_cfg["last_logged_enable_cooling"] = enable_cool
 
     # SAFETY: Check if control Tilt is active (within timeout)
-    # If the Tilt assigned to temp control is inactive, turn off all plugs immediately
-    if temp_cfg.get("tilt_color") and not is_control_tilt_active():
+    # If any Tilt being used for temp control is inactive, turn off all plugs immediately
+    # This includes both explicitly assigned Tilts and fallback Tilts
+    if not is_control_tilt_active():
         control_heating("off")
         control_cooling("off")
-        temp_cfg["status"] = "Control Tilt Inactive - Safety Shutdown"
+        
+        # Get the actual Tilt color being used (may be explicitly assigned or fallback)
+        actual_tilt_color = get_control_tilt_color()
+        assigned_tilt_color = temp_cfg.get("tilt_color", "")
+        
+        # Set status message indicating which Tilt triggered shutdown
+        if assigned_tilt_color:
+            temp_cfg["status"] = f"Control Tilt Inactive - Safety Shutdown ({assigned_tilt_color})"
+        elif actual_tilt_color:
+            temp_cfg["status"] = f"Control Tilt Inactive - Safety Shutdown (using {actual_tilt_color} as fallback)"
+        else:
+            temp_cfg["status"] = "Control Tilt Inactive - Safety Shutdown"
+        
         # Log this safety event and send notification
         if not temp_cfg.get("safety_shutdown_logged"):
-            tilt_color = temp_cfg.get("tilt_color", "")
+            # Use the actual Tilt color for logging
+            tilt_color = actual_tilt_color or assigned_tilt_color or "Unknown"
             append_control_log("temp_control_safety_shutdown", {
                 "tilt_color": tilt_color,
+                "assigned_tilt": assigned_tilt_color,
+                "actual_tilt": actual_tilt_color or "None",
                 "reason": "Control Tilt inactive beyond timeout",
                 "low_limit": low,
                 "high_limit": high
@@ -3249,8 +3629,12 @@ def temp_config():
 def update_temp_config():
     data = request.form
     try:
+        # Get the current and new tilt assignments
+        old_tilt_color = temp_cfg.get("tilt_color", "")
+        new_tilt_color = data.get('tilt_color', '')
+        
         temp_cfg.update({
-            "tilt_color": data.get('tilt_color', ''),
+            "tilt_color": new_tilt_color,
             "low_limit": float(data.get('low_limit', 0)),
             "high_limit": float(data.get('high_limit', 100)),
             "enable_heating": 'enable_heating' in data,
@@ -3260,6 +3644,18 @@ def update_temp_config():
             "mode": data.get("mode", temp_cfg.get('mode','')),
             "status": data.get("status", temp_cfg.get('status',''))
         })
+        
+        # If a new Tilt is being assigned (or changed), record the assignment time
+        # This starts the grace period for the newly assigned Tilt
+        if new_tilt_color and new_tilt_color != old_tilt_color:
+            from datetime import datetime
+            temp_cfg["tilt_assignment_time"] = datetime.utcnow().isoformat()
+            print(f"[TEMP_CONTROL] Tilt '{new_tilt_color}' assigned to temperature control - starting 15-minute grace period")
+        elif not new_tilt_color and old_tilt_color:
+            # Tilt was unassigned - clear the assignment time
+            temp_cfg.pop("tilt_assignment_time", None)
+            print(f"[TEMP_CONTROL] Tilt unassigned from temperature control")
+            
     except Exception as e:
         print(f"[LOG] Error parsing temp config form: {e}")
     try:
