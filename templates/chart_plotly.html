@@ -92,17 +92,23 @@
         
         const traces = [];
         
-        // Temperature trace - for temp control, split by tilt color
+        // Temperature trace - for temp control, show only the active tilt
         if (isTempControl) {
-          // Group data points by tilt color
-          const colorGroups = {};
-          dataPoints.forEach((p) => {
-            const color = p.tilt_color || 'Unknown';
-            if (!colorGroups[color]) {
-              colorGroups[color] = [];
-            }
-            colorGroups[color].push(p);
-          });
+          // For temperature control, we only want to show the active tilt
+          // Filter out data points with empty or null tilt_color (these are noise)
+          const validDataPoints = dataPoints.filter(p => p.tilt_color && p.tilt_color.trim() !== '');
+          
+          // Find the most recent tilt_color to determine the active tilt
+          let activeTiltColor = null;
+          if (validDataPoints.length > 0) {
+            // Get the most recent data point's tilt color
+            activeTiltColor = validDataPoints[validDataPoints.length - 1].tilt_color;
+          }
+          
+          // Filter to show only the active tilt's data
+          const activeTiltData = activeTiltColor 
+            ? validDataPoints.filter(p => p.tilt_color === activeTiltColor)
+            : [];
           
           // Define color mapping for traces
           const colorMap = {
@@ -114,27 +120,29 @@
             'Purple': '#800080',
             'Red': '#FF0000',
             'Yellow': '#FFFF00',
-            'Unknown': '#808080'
           };
           
-          // Create a trace for each tilt color that has data
-          Object.keys(colorGroups).sort().forEach((color) => {
-            const points = colorGroups[color];
-            // Only create a trace if there are actual data points with valid temperatures
-            const validPoints = points.filter(p => p.temp_f != null && !isNaN(p.temp_f));
+          // Create trace only for the active tilt
+          if (activeTiltData.length > 0 && activeTiltColor) {
+            const validPoints = activeTiltData.filter(p => p.temp_f != null && !isNaN(p.temp_f));
             if (validPoints.length > 0) {
               traces.push({
-                x: points.map(p => p.timestamp),
-                y: points.map(p => p.temp_f),
+                x: activeTiltData.map(p => p.timestamp),
+                y: activeTiltData.map(p => p.temp_f),
                 mode: 'lines+markers',
-                name: `${color} Tilt`,
-                line: { color: colorMap[color] || '#808080', shape: 'spline', width: 3 },
+                name: `${activeTiltColor} Tilt`,
+                line: { color: colorMap[activeTiltColor] || '#808080', shape: 'spline', width: 3 },
                 marker: { size: 4 },
                 yaxis: 'y1',
                 connectgaps: false,
               });
             }
-          });
+          }
+          
+          // Update dataPoints to only include active tilt for subsequent processing
+          // But keep original dataPoints for event markers (they might not have tilt_color)
+          const allDataPoints = dataPoints;
+          dataPoints = activeTiltData;
         } else {
           // Original single temperature trace for regular tilt data
           const tempTrace = {
@@ -155,42 +163,47 @@
         let tempMax = Math.max(...temps);
         let tempRange = null;
         if (temps.length > 0 && isFinite(tempMin) && isFinite(tempMax)) {
-          // For temperature control, use a base range of 34-100F, expanding as needed
           if (isTempControl) {
-            tempMin = Math.min(34, tempMin - chartTempMargin);
-            tempMax = Math.max(100, tempMax + chartTempMargin);
+            // For temperature control, use data-driven range with 10% margin or minimum of 5°F margin
+            const dataRange = tempMax - tempMin;
+            const margin = Math.max(dataRange * 0.1, 5);  // 10% of range or 5°F minimum
+            tempMin = tempMin - margin;
+            tempMax = tempMax + margin;
           } else {
             tempMin = tempMin - chartTempMargin;
             tempMax = tempMax + chartTempMargin;
           }
           tempRange = [tempMin, tempMax];
         } else if (isTempControl) {
-          // Default to 34-100F if no data points for temp control
-          tempRange = [34, 100];
+          // Default to a reasonable range if no data points for temp control
+          tempRange = [50, 80];
         }
         
         // Calculate x-axis range
         // For completed/archived fermentations: use actual data range
-        // For active fermentations: start from first data point, extend to 30 days if needed
+        // For active fermentations: use actual data range with small padding
         let xAxisRange = null;
         if (dataPoints.length > 0) {
           const timestamps = dataPoints.map(p => new Date(p.timestamp)).filter(d => !isNaN(d.getTime()));
           if (timestamps.length > 0) {
             const minDate = new Date(Math.min(...timestamps));
             const maxDate = new Date(Math.max(...timestamps));
-            const actualDays = (maxDate - minDate) / (1000 * 60 * 60 * 24);
             
             // Start from the first data point
             const rangeStart = minDate;
             
-            // For active fermentations, extend end to 30 days minimum from start
+            // For active fermentations, add 5% padding to the end
             // For completed fermentations, use actual end date
             let rangeEnd;
             if (fermentationComplete) {
               rangeEnd = maxDate;
             } else {
-              const thirtyDaysFromStart = new Date(rangeStart.getTime() + (30 * 24 * 60 * 60 * 1000));
-              rangeEnd = new Date(Math.max(maxDate.getTime(), thirtyDaysFromStart.getTime()));
+              // Add 5% time padding or 1 hour minimum, whichever is larger
+              const paddingMs = Math.max(
+                (maxDate - minDate) * 0.05,  // 5% of data range
+                60 * 60 * 1000  // 1 hour minimum
+              );
+              rangeEnd = new Date(maxDate.getTime() + paddingMs);
             }
             
             xAxisRange = [rangeStart.toISOString(), rangeEnd.toISOString()];
@@ -211,11 +224,11 @@
         if (isTempControl) {
           // For temperature control, add heating/cooling markers instead of gravity
           
-          // Filter events for markers
-          const heatingOnEvents = dataPoints.filter(p => p.event === 'HEATING-PLUG TURNED ON');
-          const heatingOffEvents = dataPoints.filter(p => p.event === 'HEATING-PLUG TURNED OFF');
-          const coolingOnEvents = dataPoints.filter(p => p.event === 'COOLING-PLUG TURNED ON');
-          const coolingOffEvents = dataPoints.filter(p => p.event === 'COOLING-PLUG TURNED OFF');
+          // Filter events for markers - use all data points, not just active tilt
+          const heatingOnEvents = allDataPoints.filter(p => p.event === 'HEATING-PLUG TURNED ON');
+          const heatingOffEvents = allDataPoints.filter(p => p.event === 'HEATING-PLUG TURNED OFF');
+          const coolingOnEvents = allDataPoints.filter(p => p.event === 'COOLING-PLUG TURNED ON');
+          const coolingOffEvents = allDataPoints.filter(p => p.event === 'COOLING-PLUG TURNED OFF');
           
           // Always show all 4 heating/cooling indicators in legend
           // Users can see from the chart which ones are actually in use
@@ -304,7 +317,7 @@
               titlefont: { color: 'blue', size: 12 },
               tickfont: { color: 'blue', size: 10 },
               gridcolor: '#eaf2f5',
-              range: tempRange || [34, 100],
+              range: tempRange || [50, 80],
             },
             showlegend: true,
             legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
