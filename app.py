@@ -2189,6 +2189,15 @@ def control_heating(state):
         temp_cfg["heating_error_msg"] = ""
         temp_cfg["heating_error_notified"] = False
         return
+    
+    # Simple safety rule: No connection = no plugs turn ON
+    # If Tilt is not active (no connection/signal) and we're trying to turn plug ON, block it
+    if state == "on" and not is_control_tilt_active():
+        print(f"[TEMP_CONTROL] Blocking heating ON command - no Tilt connection/signal")
+        print(f"[TEMP_CONTROL] Safety: Cannot turn plugs ON without active Tilt signal")
+        # Don't send the ON command - plugs stay OFF for safety
+        return
+    
     if not _should_send_kasa_command(url, state):
         print(f"[TEMP_CONTROL] Skipping heating {state} command (redundant or rate-limited)")
         return
@@ -2208,6 +2217,15 @@ def control_cooling(state):
         temp_cfg["cooling_error_msg"] = ""
         temp_cfg["cooling_error_notified"] = False
         return
+    
+    # Simple safety rule: No connection = no plugs turn ON
+    # If Tilt is not active (no connection/signal) and we're trying to turn plug ON, block it
+    if state == "on" and not is_control_tilt_active():
+        print(f"[TEMP_CONTROL] Blocking cooling ON command - no Tilt connection/signal")
+        print(f"[TEMP_CONTROL] Safety: Cannot turn plugs ON without active Tilt signal")
+        # Don't send the ON command - plugs stay OFF for safety
+        return
+    
     if not _should_send_kasa_command(url, state):
         print(f"[TEMP_CONTROL] Skipping cooling {state} command (redundant or rate-limited)")
         return
