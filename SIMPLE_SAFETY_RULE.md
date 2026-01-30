@@ -7,6 +7,9 @@ A simple, straightforward safety feature to protect your fermentation when the T
 **The Rule:**
 > **No connection = No plugs turn ON**
 
+**The Trigger Pattern:**
+> **Report once, flip trigger, reset when corrected**
+
 ## How It Works
 
 ### Three Simple Cases
@@ -14,17 +17,42 @@ A simple, straightforward safety feature to protect your fermentation when the T
 1. **Tilt Connection Lost + Trying to Turn ON** → **BLOCKED**
    - System blocks the ON command
    - Plug stays OFF for safety
-   - You receive a notification
-   - Event is logged
+   - **First time**: Log ✓ and Notify ✓ (flip trigger)
+   - **Subsequent attempts**: Skip (trigger already flipped)
 
 2. **Tilt Connection Lost + Plug is ON** → **Turn OFF**
    - System turns the plug OFF for safety
-   - You receive a notification
-   - Event is logged
+   - **First time**: Log ✓ and Notify ✓ (flip trigger)
+   - **Subsequent checks**: Skip (trigger already flipped)
 
 3. **Tilt Connection Active** → **Normal Operation**
    - All commands work normally
-   - No special notifications
+   - **Trigger reset** when connection restored
+   - Ready to log/notify for next incident if it happens again
+
+### Trigger Pattern
+
+```
+Issue detected
+  ↓
+Check: Is trigger flipped?
+  ↓
+NO → Log + Notify + Flip trigger
+  ↓
+Issue persists (checked every 2 minutes)
+  ↓
+Check: Is trigger flipped?
+  ↓
+YES → Skip logging and notification
+  ↓
+Issue corrected (Tilt reconnects)
+  ↓
+Reset trigger
+  ↓
+Ready for next incident
+```
+
+**Result:** Once is enough until corrected!
 
 ## Example Scenarios
 
@@ -35,17 +63,29 @@ A simple, straightforward safety feature to protect your fermentation when the T
 10:30 AM - Tilt battery dies (stops broadcasting)
 10:34 AM - System detects: no Tilt signal for 4 minutes
          - Heater is ON → System turns heater OFF
-         - Notification sent: "SAFETY: Heating Turned OFF (No Tilt Connection)"
-         - Log entry: "SAFETY - TURNING OFF (NO TILT CONNECTION)"
+         - Trigger: heating_safety_off_trigger flipped
+         - Log entry written ✓
+         - Notification sent: "SAFETY: Heating Turned OFF" ✓
 10:36 AM - Temperature drops to 67°F (would normally trigger heating)
          - System tries to turn heater ON → BLOCKED
-         - Notification sent: "SAFETY: Heating Blocked (No Tilt Connection)"
-         - Log entry: "SAFETY - BLOCKED ON COMMAND (NO TILT CONNECTION)"
+         - Trigger: heating_blocked_trigger flipped
+         - Log entry written ✓
+         - Notification sent: "SAFETY: Heating Blocked" ✓
+10:38 AM - Temperature control runs again (2 min later)
+         - System tries to turn heater ON → BLOCKED
+         - Trigger already flipped → Skip log and notification
+10:40 AM - Temperature control runs again (2 min later)
+         - System tries to turn heater ON → BLOCKED
+         - Trigger already flipped → Skip log and notification
+         ... (no more spam every 2 minutes)
 Later    - You replace Tilt battery
          - Tilt starts broadcasting again
+         - Triggers reset: heating_blocked_trigger = False
          - Normal heating/cooling resumes automatically
-         - No more safety notifications
+         - Ready to log/notify again if issue happens in future
 ```
+
+**Key Point:** Only 2 log entries and 2 notifications total (not one every 2 minutes!)
 
 ### Scenario 2: Tilt Out of Range (Setup Issue)
 
@@ -59,12 +99,20 @@ Later    - You replace Tilt battery
 2:15 PM - Grace period expires
         - System wants to turn cooling ON
         - But no Tilt signal → ON command BLOCKED
-        - Notification sent: "SAFETY: Cooling Blocked (No Tilt Connection)"
-        - Plug stays OFF for safety
+        - Trigger: cooling_blocked_trigger flipped
+        - Notification sent ✓
+        - Log entry written ✓
+2:17 PM - System tries again (2 min later)
+        - Trigger already flipped → Skip notification and log
+2:19 PM - System tries again (2 min later)
+        - Trigger already flipped → Skip notification and log
 2:20 PM - You move Pi closer to fermenter
         - Tilt starts broadcasting
+        - Trigger reset: cooling_blocked_trigger = False
         - Normal cooling resumes automatically
 ```
+
+**Key Point:** Only 1 notification and 1 log entry (not spam every 2 minutes!)
 
 ### Scenario 3: Normal Operation (No Issues)
 
@@ -121,7 +169,7 @@ Action Required:
 
 ## Logging
 
-All safety events are logged to `temp_control_log.jsonl`:
+All safety events are logged to `temp_control_log.jsonl` **once per incident**:
 
 ### Blocked ON Event
 ```json
@@ -136,6 +184,8 @@ All safety events are logged to `temp_control_log.jsonl`:
 }
 ```
 
+**Frequency:** Once when issue first detected, then skipped until corrected and happens again.
+
 ### Safety OFF Event
 ```json
 {
@@ -148,6 +198,42 @@ All safety events are logged to `temp_control_log.jsonl`:
   "high_limit": 70.0
 }
 ```
+
+**Frequency:** Once when issue first detected, then skipped until corrected and happens again.
+
+## Technical Implementation
+
+### Triggers Used
+
+Four triggers control logging and notifications:
+
+1. `heating_blocked_trigger` - Blocks heating ON when Tilt inactive
+2. `heating_safety_off_trigger` - Turns heating OFF when Tilt inactive
+3. `cooling_blocked_trigger` - Blocks cooling ON when Tilt inactive
+4. `cooling_safety_off_trigger` - Turns cooling OFF when Tilt inactive
+
+### Trigger Logic
+
+```python
+# When issue detected
+if state == "on" and not is_control_tilt_active():
+    # Check trigger
+    if not temp_cfg.get("heating_blocked_trigger"):
+        # First time - log and notify
+        append_control_log("temp_control_blocked_on", {...})
+        send_plug_blocked_notification("heating", tilt_color)
+        # Flip trigger
+        temp_cfg["heating_blocked_trigger"] = True
+    return  # Block the ON command
+
+# When issue corrected
+if is_control_tilt_active():
+    # Reset trigger
+    if temp_cfg.get("heating_blocked_trigger"):
+        temp_cfg["heating_blocked_trigger"] = False
+```
+
+This pattern ensures **once is enough until corrected**.
 
 ## Interaction with Other Features
 
