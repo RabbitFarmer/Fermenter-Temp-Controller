@@ -2718,8 +2718,9 @@ def kasa_result_listener():
                     # Send notification if enabled (user can choose to enable/disable)
                     send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
                 else:
-                    # When plug command fails, ensure heater_on is False for accurate UI state
-                    temp_cfg["heater_on"] = False
+                    # When plug command fails, DO NOT change heater_on state
+                    # The physical plug is still in its previous state since the command didn't reach it
+                    # Changing the state here would create a mismatch that prevents future commands
                     temp_cfg["heating_error"] = True
                     temp_cfg["heating_error_msg"] = error or ''
                     print(f"[KASA_RESULT] ✗ Heating plug {action.upper()} FAILED - error: {error}")
@@ -2741,8 +2742,9 @@ def kasa_result_listener():
                     # Send notification if enabled (user can choose to enable/disable)
                     send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
                 else:
-                    # When plug command fails, ensure cooler_on is False for accurate UI state
-                    temp_cfg["cooler_on"] = False
+                    # When plug command fails, DO NOT change cooler_on state
+                    # The physical plug is still in its previous state since the command didn't reach it
+                    # Changing the state here would create a mismatch that prevents future commands
                     temp_cfg["cooling_error"] = True
                     temp_cfg["cooling_error_msg"] = error or ''
                     print(f"[KASA_RESULT] ✗ Cooling plug {action.upper()} FAILED - error: {error}")
