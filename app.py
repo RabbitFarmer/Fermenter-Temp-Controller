@@ -2315,51 +2315,62 @@ def control_heating(state):
         print(f"[TEMP_CONTROL] Blocking heating ON command - no Tilt connection/signal")
         print(f"[TEMP_CONTROL] Safety: Cannot turn plugs ON without active Tilt signal")
         
-        # Log this safety event
-        tilt_color = temp_cfg.get("tilt_color", "")
-        append_control_log("temp_control_blocked_on", {
-            "mode": "heating",
-            "tilt_color": tilt_color,
-            "reason": "Tilt connection lost - cannot turn heating ON",
-            "low_limit": temp_cfg.get("low_limit"),
-            "high_limit": temp_cfg.get("high_limit")
-        })
+        # Log this safety event (only once per incident)
+        if not temp_cfg.get("heating_blocked_logged"):
+            tilt_color = temp_cfg.get("tilt_color", "")
+            append_control_log("temp_control_blocked_on", {
+                "mode": "heating",
+                "tilt_color": tilt_color,
+                "reason": "Tilt connection lost - cannot turn heating ON",
+                "low_limit": temp_cfg.get("low_limit"),
+                "high_limit": temp_cfg.get("high_limit")
+            })
+            temp_cfg["heating_blocked_logged"] = True
         
         # Send notification about blocked ON command (only once per incident)
         if not temp_cfg.get("heating_blocked_notified"):
+            tilt_color = temp_cfg.get("tilt_color", "")
             send_plug_blocked_notification("heating", tilt_color)
             temp_cfg["heating_blocked_notified"] = True
         
         # Don't send the ON command - plugs stay OFF for safety
         return
     
-    # If we're allowing a command (either OFF, or ON with active Tilt), reset the blocked notification flag
+    # If we're allowing a command (either OFF, or ON with active Tilt), reset the flags
     if state == "off" or is_control_tilt_active():
         if temp_cfg.get("heating_blocked_notified"):
             temp_cfg["heating_blocked_notified"] = False
+        if temp_cfg.get("heating_blocked_logged"):
+            temp_cfg["heating_blocked_logged"] = False
     
     # If turning OFF due to no Tilt connection, log it as a safety action
     if state == "off" and not is_control_tilt_active() and temp_cfg.get("heater_on"):
         print(f"[TEMP_CONTROL] Allowing heating OFF command - safety shutdown (no Tilt connection)")
         
-        # Log this safety event
-        tilt_color = temp_cfg.get("tilt_color", "")
-        append_control_log("temp_control_safety_off", {
-            "mode": "heating",
-            "tilt_color": tilt_color,
-            "reason": "Tilt connection lost - turning heating OFF for safety",
-            "low_limit": temp_cfg.get("low_limit"),
-            "high_limit": temp_cfg.get("high_limit")
-        })
+        # Log this safety event (only once per incident)
+        if not temp_cfg.get("heating_safety_off_logged"):
+            tilt_color = temp_cfg.get("tilt_color", "")
+            append_control_log("temp_control_safety_off", {
+                "mode": "heating",
+                "tilt_color": tilt_color,
+                "reason": "Tilt connection lost - turning heating OFF for safety",
+                "low_limit": temp_cfg.get("low_limit"),
+                "high_limit": temp_cfg.get("high_limit")
+            })
+            temp_cfg["heating_safety_off_logged"] = True
         
         # Send notification about safety shutdown (only once per incident)
         if not temp_cfg.get("heating_safety_off_notified"):
+            tilt_color = temp_cfg.get("tilt_color", "")
             send_plug_safety_off_notification("heating", tilt_color)
             temp_cfg["heating_safety_off_notified"] = True
     
-    # Reset safety OFF notification flag when Tilt becomes active again
-    if is_control_tilt_active() and temp_cfg.get("heating_safety_off_notified"):
-        temp_cfg["heating_safety_off_notified"] = False
+    # Reset safety OFF flags when Tilt becomes active again
+    if is_control_tilt_active():
+        if temp_cfg.get("heating_safety_off_notified"):
+            temp_cfg["heating_safety_off_notified"] = False
+        if temp_cfg.get("heating_safety_off_logged"):
+            temp_cfg["heating_safety_off_logged"] = False
     
     if not _should_send_kasa_command(url, state):
         print(f"[TEMP_CONTROL] Skipping heating {state} command (redundant or rate-limited)")
@@ -2387,51 +2398,62 @@ def control_cooling(state):
         print(f"[TEMP_CONTROL] Blocking cooling ON command - no Tilt connection/signal")
         print(f"[TEMP_CONTROL] Safety: Cannot turn plugs ON without active Tilt signal")
         
-        # Log this safety event
-        tilt_color = temp_cfg.get("tilt_color", "")
-        append_control_log("temp_control_blocked_on", {
-            "mode": "cooling",
-            "tilt_color": tilt_color,
-            "reason": "Tilt connection lost - cannot turn cooling ON",
-            "low_limit": temp_cfg.get("low_limit"),
-            "high_limit": temp_cfg.get("high_limit")
-        })
+        # Log this safety event (only once per incident)
+        if not temp_cfg.get("cooling_blocked_logged"):
+            tilt_color = temp_cfg.get("tilt_color", "")
+            append_control_log("temp_control_blocked_on", {
+                "mode": "cooling",
+                "tilt_color": tilt_color,
+                "reason": "Tilt connection lost - cannot turn cooling ON",
+                "low_limit": temp_cfg.get("low_limit"),
+                "high_limit": temp_cfg.get("high_limit")
+            })
+            temp_cfg["cooling_blocked_logged"] = True
         
         # Send notification about blocked ON command (only once per incident)
         if not temp_cfg.get("cooling_blocked_notified"):
+            tilt_color = temp_cfg.get("tilt_color", "")
             send_plug_blocked_notification("cooling", tilt_color)
             temp_cfg["cooling_blocked_notified"] = True
         
         # Don't send the ON command - plugs stay OFF for safety
         return
     
-    # If we're allowing a command (either OFF, or ON with active Tilt), reset the blocked notification flag
+    # If we're allowing a command (either OFF, or ON with active Tilt), reset the flags
     if state == "off" or is_control_tilt_active():
         if temp_cfg.get("cooling_blocked_notified"):
             temp_cfg["cooling_blocked_notified"] = False
+        if temp_cfg.get("cooling_blocked_logged"):
+            temp_cfg["cooling_blocked_logged"] = False
     
     # If turning OFF due to no Tilt connection, log it as a safety action
     if state == "off" and not is_control_tilt_active() and temp_cfg.get("cooler_on"):
         print(f"[TEMP_CONTROL] Allowing cooling OFF command - safety shutdown (no Tilt connection)")
         
-        # Log this safety event
-        tilt_color = temp_cfg.get("tilt_color", "")
-        append_control_log("temp_control_safety_off", {
-            "mode": "cooling",
-            "tilt_color": tilt_color,
-            "reason": "Tilt connection lost - turning cooling OFF for safety",
-            "low_limit": temp_cfg.get("low_limit"),
-            "high_limit": temp_cfg.get("high_limit")
-        })
+        # Log this safety event (only once per incident)
+        if not temp_cfg.get("cooling_safety_off_logged"):
+            tilt_color = temp_cfg.get("tilt_color", "")
+            append_control_log("temp_control_safety_off", {
+                "mode": "cooling",
+                "tilt_color": tilt_color,
+                "reason": "Tilt connection lost - turning cooling OFF for safety",
+                "low_limit": temp_cfg.get("low_limit"),
+                "high_limit": temp_cfg.get("high_limit")
+            })
+            temp_cfg["cooling_safety_off_logged"] = True
         
         # Send notification about safety shutdown (only once per incident)
         if not temp_cfg.get("cooling_safety_off_notified"):
+            tilt_color = temp_cfg.get("tilt_color", "")
             send_plug_safety_off_notification("cooling", tilt_color)
             temp_cfg["cooling_safety_off_notified"] = True
     
-    # Reset safety OFF notification flag when Tilt becomes active again
-    if is_control_tilt_active() and temp_cfg.get("cooling_safety_off_notified"):
-        temp_cfg["cooling_safety_off_notified"] = False
+    # Reset safety OFF flags when Tilt becomes active again
+    if is_control_tilt_active():
+        if temp_cfg.get("cooling_safety_off_notified"):
+            temp_cfg["cooling_safety_off_notified"] = False
+        if temp_cfg.get("cooling_safety_off_logged"):
+            temp_cfg["cooling_safety_off_logged"] = False
     
     if not _should_send_kasa_command(url, state):
         print(f"[TEMP_CONTROL] Skipping cooling {state} command (redundant or rate-limited)")
