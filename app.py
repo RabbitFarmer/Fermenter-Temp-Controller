@@ -641,6 +641,12 @@ def is_control_tilt_active():
     - This ensures KASA plugs turn off quickly if Tilt signal is lost
     - Much shorter than the general 30-minute inactivity timeout used for display/notifications
     
+    Grace period for newly assigned Tilts:
+    - When a Tilt is first assigned to temp control, there's a 15-minute grace period
+    - During this grace period, the system allows time for the Tilt to start broadcasting
+    - This prevents immediate shutdown when setting up a new batch
+    - After grace period, normal 4-minute timeout applies
+    
     This includes both explicitly assigned Tilts (via tilt_color setting) and
     fallback Tilts (when tilt_color is empty but temperature is sourced from a Tilt).
     
@@ -655,6 +661,28 @@ def is_control_tilt_active():
         # No Tilt is being used for temp control - allow control to proceed
         # (temperature might be set manually)
         return True
+    
+    # Check if we're in the grace period for a newly assigned Tilt
+    # Grace period: 15 minutes from when Tilt was assigned to temp control
+    assignment_timestamp = temp_cfg.get("tilt_assignment_time")
+    if assignment_timestamp:
+        try:
+            from datetime import datetime
+            assignment_time = datetime.fromisoformat(assignment_timestamp)
+            now = datetime.utcnow()
+            minutes_since_assignment = (now - assignment_time).total_seconds() / 60.0
+            
+            # Grace period: 15 minutes
+            grace_period_minutes = 15
+            
+            if minutes_since_assignment < grace_period_minutes:
+                # We're in grace period - allow control to proceed even if Tilt is inactive
+                # This gives time for Tilt to start broadcasting and for user to complete setup
+                print(f"[TEMP_CONTROL] Grace period active: {minutes_since_assignment:.1f}/{grace_period_minutes} minutes elapsed")
+                return True
+        except Exception as e:
+            print(f"[LOG] Error checking assignment time: {e}")
+            # If we can't parse the assignment time, continue with normal checks
     
     # For temperature control, use a much shorter timeout than general monitoring
     # Timeout = 2 × update_interval (2 missed readings)
@@ -3356,8 +3384,12 @@ def temp_config():
 def update_temp_config():
     data = request.form
     try:
+        # Get the current and new tilt assignments
+        old_tilt_color = temp_cfg.get("tilt_color", "")
+        new_tilt_color = data.get('tilt_color', '')
+        
         temp_cfg.update({
-            "tilt_color": data.get('tilt_color', ''),
+            "tilt_color": new_tilt_color,
             "low_limit": float(data.get('low_limit', 0)),
             "high_limit": float(data.get('high_limit', 100)),
             "enable_heating": 'enable_heating' in data,
@@ -3367,6 +3399,18 @@ def update_temp_config():
             "mode": data.get("mode", temp_cfg.get('mode','')),
             "status": data.get("status", temp_cfg.get('status',''))
         })
+        
+        # If a new Tilt is being assigned (or changed), record the assignment time
+        # This starts the grace period for the newly assigned Tilt
+        if new_tilt_color and new_tilt_color != old_tilt_color:
+            from datetime import datetime
+            temp_cfg["tilt_assignment_time"] = datetime.utcnow().isoformat()
+            print(f"[TEMP_CONTROL] Tilt '{new_tilt_color}' assigned to temperature control - starting 15-minute grace period")
+        elif not new_tilt_color and old_tilt_color:
+            # Tilt was unassigned - clear the assignment time
+            temp_cfg.pop("tilt_assignment_time", None)
+            print(f"[TEMP_CONTROL] Tilt unassigned from temperature control")
+            
     except Exception as e:
         print(f"[LOG] Error parsing temp config form: {e}")
     try:
