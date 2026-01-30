@@ -127,8 +127,8 @@ def convert_brewers_friend_to_jsonl(input_file, tilt_color, brewid, beer_name=""
                 "timestamp": timestamp,
                 "tilt_color": tilt_color,
                 "gravity": float(gravity),
-                "temp_f": int(temp),
-                "current_temp": float(temp),
+                "temp_f": round(float(temp), 1),  # Preserve decimal precision (0.1°F)
+                "current_temp": round(float(temp), 1),
                 "brewid": brewid,
                 "rssi": -70  # Default RSSI since BF data doesn't include it
             }
