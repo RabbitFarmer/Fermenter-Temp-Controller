@@ -29,7 +29,8 @@ fi
 
 # Start the application in the background and log output
 echo "Starting the application..."
-if ! (python3 app.py > app.log 2>&1 &); then
+# Set environment variable to prevent app.py from opening browser (start.sh will do it)
+if ! (SKIP_BROWSER_OPEN=1 python3 app.py > app.log 2>&1 &); then
     echo "Failed to start the application. See app.log for details."
     exit 1
 fi

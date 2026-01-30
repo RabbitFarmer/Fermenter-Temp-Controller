@@ -5423,7 +5423,8 @@ if __name__ == '__main__':
 
     # Start a thread to open the browser after Flask starts
     # Only open browser in the main process (not in Werkzeug reloader child process)
-    if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+    # Skip if SKIP_BROWSER_OPEN is set (e.g., when running via start.sh)
+    if os.environ.get('WERKZEUG_RUN_MAIN') != 'true' and not os.environ.get('SKIP_BROWSER_OPEN'):
         browser_thread = threading.Thread(target=open_browser, daemon=True)
         browser_thread.start()
 
