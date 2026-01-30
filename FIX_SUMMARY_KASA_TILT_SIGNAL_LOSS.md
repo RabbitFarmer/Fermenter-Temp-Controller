@@ -3,12 +3,17 @@
 ## Issue
 **GitHub Issue**: "KASA Control Error"
 
-**Problem**: The safety shutdown mechanism was not triggered when a Tilt hydrometer lost signal if the Tilt was not explicitly assigned to temperature control (fallback mode). The KASA heating/cooling plugs would remain on indefinitely, using stale temperature data, potentially damaging the fermentation batch.
+**Problem**: The safety shutdown mechanism was not triggered when a Tilt hydrometer lost signal if the Tilt was not explicitly assigned to temperature control (fallback mode). Additionally, the timeout for temperature control safety was incorrectly using the 30-minute general monitoring timeout instead of a rapid 4-minute timeout based on 2 missed readings.
 
 ### User Report
-> "The setting for the temperature controller to talk to the KASA plug is at 2 minutes. Too, there is logic in the program for emergency shut down of the kasa plugs. However, this does not currently apply to tilt loss of signal when the tilt is assigned to control the temperature. At this writing, for testing purposes, I took the tilt offline 30 minutes ago and the kasa heating plug (the one plug I engaged for this test) remains on. The controller has not received any information from the tilt in the meantime."
+> "The setting for the temperature controller to talk to the KASA plug is at 2 minutes. Too, there is logic in the program for emergency shut down of the kasa plugs. However, this does not currently apply to tilt loss of signal when the tilt is assigned to control the temperature."
 
-## Root Cause
+### Clarification from User
+> "Normally, a tilt used for fermentation is checked every 15 minutes. If it passes 2 readings (aka 30 minutes) then we go into notifications and other stuff. Now, when a tilt is also used for Temperature Control, the temp control setting is at 2 minutes. At 4 minutes without signal, KASA plugs should be turned off."
+
+## Root Causes
+
+### Issue 1: Fallback Mode Not Covered
 
 The temperature control system has two modes for selecting which Tilt to use:
 
@@ -23,7 +28,16 @@ if temp_cfg.get("tilt_color") and not is_control_tilt_active():
     # Trigger safety shutdown
 ```
 
-**The bug:** When `tilt_color` was empty (fallback mode), the condition `temp_cfg.get("tilt_color")` evaluated to falsy, so the safety check never triggered. The system would continue using stale temperature data from an inactive Tilt.
+**The bug:** When `tilt_color` was empty (fallback mode), the condition `temp_cfg.get("tilt_color")` evaluated to falsy, so the safety check never triggered.
+
+### Issue 2: Wrong Timeout for Temperature Control
+
+Temperature control was using the general 30-minute inactivity timeout (designed for display/notification purposes), but it should use a much shorter timeout:
+
+- **General Monitoring**: 15-minute check interval, 30-minute timeout (2 missed readings)
+- **Temperature Control**: 2-minute update interval, 4-minute timeout (2 missed readings)
+
+Temperature control requires rapid response because continued heating/cooling with stale data can damage the fermentation batch.
 
 ## Solution Implemented
 
@@ -52,37 +66,58 @@ def get_control_tilt_color():
     return None
 ```
 
-### 2. Modified `is_control_tilt_active()` Function
+### 2. Modified `is_control_tilt_active()` for Temperature Control Timeout
 
-Updated the function to check if the *actual* Tilt being used (whether explicit or fallback) is active:
+Updated the function to use the correct timeout for temperature control safety:
 
 ```python
 def is_control_tilt_active():
     """
     Check if the Tilt being used for temperature control is currently active.
     
-    This includes both explicitly assigned Tilts (via tilt_color setting) and
-    fallback Tilts (when tilt_color is empty but temperature is sourced from a Tilt).
-    
-    Returns:
-        bool: True if the control Tilt is active (within timeout) OR if no Tilt is being used.
-              False only if a Tilt is being used for control but is inactive (safety shutdown condition).
+    For temperature control safety, uses a shorter timeout than general Tilt monitoring:
+    - Temperature control timeout: 2 × update_interval (default: 2 × 2 min = 4 minutes)
+    - This ensures KASA plugs turn off quickly if Tilt signal is lost
+    - Much shorter than the general 30-minute inactivity timeout used for display/notifications
     """
     # Get the color of the Tilt actually being used for control
     control_color = get_control_tilt_color()
     
     if not control_color:
-        # No Tilt is being used for temp control - allow control to proceed
         return True
     
-    # Check if the control Tilt is in the active tilts list
-    active_tilts = get_active_tilts()
-    return control_color in active_tilts
+    # For temperature control, use timeout = 2 × update_interval (2 missed readings)
+    try:
+        update_interval_minutes = int(system_cfg.get("update_interval", 2))
+    except Exception:
+        update_interval_minutes = 2
+    
+    temp_control_timeout_minutes = update_interval_minutes * 2
+    
+    # Check if the control Tilt has sent data within the temp control timeout
+    if control_color not in live_tilts:
+        return False
+    
+    tilt_info = live_tilts[control_color]
+    timestamp_str = tilt_info.get('timestamp')
+    if not timestamp_str:
+        return False
+    
+    try:
+        timestamp = datetime.fromisoformat(timestamp_str.rstrip('Z'))
+        now = datetime.utcnow()
+        elapsed_minutes = (now - timestamp).total_seconds() / 60.0
+        
+        # Tilt is active if it's within the temp control timeout
+        return elapsed_minutes < temp_control_timeout_minutes
+    except Exception:
+        # If we can't determine activity, assume inactive for safety
+        return False
 ```
 
 ### 3. Updated Safety Check Logic
 
-Modified the safety check in `temperature_control_logic()` to work for both modes:
+Modified the safety check in `temperature_control_logic()` to work for both modes and include better status messages:
 
 ```python
 # NEW CODE (after fix)
@@ -90,7 +125,7 @@ if not is_control_tilt_active():
     control_heating("off")
     control_cooling("off")
     
-    # Get the actual Tilt color being used (may be explicitly assigned or fallback)
+    # Get the actual Tilt color being used
     actual_tilt_color = get_control_tilt_color()
     assigned_tilt_color = temp_cfg.get("tilt_color", "")
     
@@ -101,8 +136,6 @@ if not is_control_tilt_active():
         temp_cfg["status"] = f"Control Tilt Inactive - Safety Shutdown (using {actual_tilt_color} as fallback)"
     else:
         temp_cfg["status"] = "Control Tilt Inactive - Safety Shutdown"
-    
-    # Log and notify...
 ```
 
 ### 4. Enhanced Logging
@@ -124,20 +157,20 @@ append_control_log("temp_control_safety_shutdown", {
 
 ### Unit Tests
 
-1. **`test_tilt_fallback_safety.py`** - New test specifically for fallback mode:
-   - Test 1: Fallback Tilt active - normal operation ✓
-   - Test 2: Fallback Tilt becomes inactive - safety shutdown ✓
-   - Test 3: Explicitly assigned Tilt still works ✓
-   - Test 4: Explicitly assigned Tilt becomes inactive - safety shutdown ✓
+1. **`test_tilt_fallback_safety.py`** - Comprehensive test for fallback mode with correct timeout:
+   - Test 1: Fallback Tilt at 1 minute - active, normal operation ✓
+   - Test 2: Tilt at 3 minutes - still active (< 4 min timeout) ✓
+   - Test 3: Tilt at 5 minutes - inactive, safety shutdown ✓
+   - Test 4: Explicitly assigned Tilt at 2 minutes - active ✓
+   - Test 5: Explicitly assigned Tilt at 5 minutes - inactive, safety shutdown ✓
 
-2. **`test_safety_shutdown.py`** - Updated existing test:
-   - Updated to handle new status message format ✓
+2. **`test_safety_shutdown.py`** - Updated existing test for 4-minute timeout:
+   - Updated timestamps to use 1 minute (active) and 5 minutes (inactive)
    - All 4 tests pass ✓
 
-3. **`test_issue_kasa_control_error.py`** - Simulates exact issue scenario:
-   - Scenario 1: Fallback mode (no explicit Tilt) ✓
-   - Scenario 2: Explicit Tilt assignment ✓
-   - Both trigger safety shutdown after 30 minutes ✓
+3. **`test_issue_kasa_control_error.py`** - Simulates exact issue scenario with 4-minute timeout:
+   - Scenario 1: Fallback mode, shutdown at 4 minutes ✓
+   - Scenario 2: Explicit mode, shutdown at 4 minutes ✓
 
 ### Test Results
 
@@ -154,58 +187,80 @@ append_control_log("temp_control_safety_shutdown", {
 **Fallback Mode (tilt_color is empty):**
 ```
 Time: 10:00 AM - Red Tilt broadcasts (temp 68°F), heater turns on
-Time: 10:15 AM - Red Tilt stops broadcasting (battery dead, out of range, etc.)
-Time: 10:45 AM - Tilt is inactive (30 min passed), BUT heater STAYS ON ✗
-Time: 11:00 AM - Still heating with stale temp, possible batch damage ✗
+Time: 10:02 AM - Tilt check runs, still sees data
+Time: 10:04 AM - Red Tilt stops broadcasting
+Time: 10:06 AM - Tilt check runs, uses STALE data, heater STAYS ON ✗
+Time: 10:30 AM - Still heating with stale temp ✗
+Time: 11:00 AM - Possible batch damage ✗
 ```
 
-**Explicit Mode (tilt_color="Red"):**
+**Explicit Mode with Wrong Timeout:**
 ```
-Time: 10:00 AM - Red Tilt broadcasts (temp 68°F), heater turns on
-Time: 10:15 AM - Red Tilt stops broadcasting
-Time: 10:45 AM - Tilt is inactive, heater turns OFF ✓
+Time: 10:00 AM - Red Tilt broadcasts, heater turns on
+Time: 10:04 AM - Tilt stops broadcasting
+Time: 10:30 AM - After 30 minutes, heater finally turns OFF
+Time: 10:30 AM - 26 minutes of heating with stale data! ✗
 ```
 
 ### After Fix
 
-**Both Modes:**
+**Both Modes with Correct 4-Minute Timeout:**
 ```
 Time: 10:00 AM - Tilt broadcasts (temp 68°F), heater turns on
-Time: 10:15 AM - Tilt stops broadcasting
-Time: 10:45 AM - Tilt is inactive (30 min passed), safety shutdown triggers ✓
+Time: 10:02 AM - Check runs (2 min elapsed), still active ✓
+Time: 10:03 AM - Tilt stops broadcasting (last signal at 10:02)
+Time: 10:04 AM - Check runs (2 min since last signal), still active ✓
+Time: 10:06 AM - Check runs (4 min since last signal), INACTIVE → SAFETY SHUTDOWN ✓
   - All KASA plugs turned OFF immediately
   - Status: "Control Tilt Inactive - Safety Shutdown"
-  - Safety event logged to temp_control_log.jsonl
+  - Safety event logged
   - Email/push notification sent to user
-Time: 11:00 AM - Heater remains OFF, batch is safe ✓
+Time: 10:08 AM - Heater remains OFF, batch is safe ✓
 ```
+
+**Key Improvement:** Safety shutdown now happens after just 4 minutes (2 missed readings at 2-minute intervals) instead of 30+ minutes!
+
+## Timeout Comparison
+
+| Purpose | Check Interval | Timeout (2 Readings) | Use Case |
+|---------|---------------|----------------------|----------|
+| **General Monitoring** | 15 minutes | 30 minutes | Display, notifications, batch tracking |
+| **Temperature Control** | 2 minutes | **4 minutes** | **Safety shutdown of KASA plugs** |
+
+The temperature control timeout is **7.5× faster** than general monitoring, ensuring rapid response to prevent batch damage.
 
 ## Files Changed
 
 1. **app.py**
    - Added `get_control_tilt_color()` function (lines 574-593)
-   - Modified `is_control_tilt_active()` to check both explicit and fallback Tilts (lines 595-625)
+   - Modified `is_control_tilt_active()` to use temp control timeout (lines 603-655)
    - Updated safety check in `temperature_control_logic()` (lines 2203-2241)
    - Enhanced status messages to indicate which Tilt triggered shutdown
    - Improved logging to include both assigned and actual Tilt colors
 
 2. **test_safety_shutdown.py**
-   - Updated assertion to handle new status message format (line 109)
+   - Updated test timestamps for 4-minute timeout
+   - Updated assertions and documentation
 
-3. **test_tilt_fallback_safety.py** (NEW)
-   - Comprehensive test suite for fallback mode safety shutdown
-   - 4 test scenarios covering all cases
+3. **test_tilt_fallback_safety.py**
+   - Completely rewritten for 4-minute timeout testing
+   - Tests at 1, 3, and 5 minutes to verify timeout boundary
+   - Documents the difference between temp control and general monitoring
 
-4. **test_issue_kasa_control_error.py** (NEW)
-   - Simulates exact scenario from GitHub issue
-   - Documents the issue and verifies the fix
+4. **test_issue_kasa_control_error.py**
+   - Updated to simulate 4-minute timeout scenario
+   - Tests both fallback and explicit modes
+   - Documents the requirement clearly
+
+5. **FIX_SUMMARY_KASA_TILT_SIGNAL_LOSS.md** (THIS FILE)
+   - Complete documentation of the fix
 
 ## Safety Features
 
-The temperature control system now has complete safety coverage:
+The temperature control system now has complete safety coverage with correct timeouts:
 
-1. ✓ **Inactive Tilt (Explicit)**: Plugs turn off when assigned Tilt goes offline
-2. ✓ **Inactive Tilt (Fallback)**: Plugs turn off when fallback Tilt goes offline
+1. ✓ **Inactive Tilt (Explicit)**: Plugs turn off 4 minutes after last signal
+2. ✓ **Inactive Tilt (Fallback)**: Plugs turn off 4 minutes after last signal
 3. ✓ **No Temperature Available**: Plugs turn off when temp is None
 4. ✓ **Configuration Error**: Plugs turn off if low_limit >= high_limit
 5. ✓ **Both Plugs On**: Plugs turn off if both heating and cooling activate
@@ -214,36 +269,58 @@ The temperature control system now has complete safety coverage:
 ## User Impact
 
 ### Positive Impact
-- **Prevents batch damage**: Heating/cooling now stops immediately when Tilt signal is lost
+- **Rapid safety response**: Heating/cooling stops after just 4 minutes (2 missed readings) when Tilt signal is lost
 - **Works in both modes**: Safety applies whether Tilt is explicitly assigned or used as fallback
 - **Better notifications**: Status messages clearly indicate which Tilt caused the shutdown
 - **More detailed logging**: Logs include both assigned and actual Tilt colors for troubleshooting
+- **Prevents batch damage**: Much faster response than the previous 30-minute timeout
 
 ### No Breaking Changes
 - ✓ Backward compatible with existing configurations
-- ✓ Existing functionality preserved for explicitly assigned Tilts
+- ✓ Existing functionality preserved for all modes
 - ✓ No changes to user interface or configuration files
 - ✓ No database migrations required
+- ✓ Timeout automatically adapts to `update_interval` setting
+
+## Configuration
+
+The timeout is automatically calculated:
+
+```
+temp_control_timeout = 2 × update_interval
+```
+
+Examples:
+- `update_interval: 1` minute → timeout: 2 minutes
+- `update_interval: 2` minutes (default) → timeout: 4 minutes
+- `update_interval: 5` minutes → timeout: 10 minutes
+
+This ensures the system always waits for exactly 2 missed readings before triggering safety shutdown, regardless of the update interval configuration.
 
 ## Recommendations for Users
 
-1. **Explicit Assignment Preferred**: For better clarity and logging, assign a specific Tilt to temperature control rather than relying on fallback mode.
+1. **Keep Default Update Interval**: The 2-minute default provides good balance (4-minute timeout)
 
-2. **Monitor Notifications**: Enable email/push notifications to be alerted immediately when safety shutdown occurs.
+2. **Monitor Notifications**: Enable email/push notifications to be alerted immediately when safety shutdown occurs
 
-3. **Check Tilt Batteries**: If safety shutdowns occur frequently, check Tilt battery levels and replace as needed.
+3. **Check Tilt Batteries**: If safety shutdowns occur frequently, check Tilt battery levels and replace as needed
 
-4. **Verify Timeout Setting**: Default timeout is 30 minutes. Adjust `tilt_inactivity_timeout_minutes` in `system_config.json` if needed.
+4. **Verify Tilt Range**: Ensure Tilt hydrometers are within Bluetooth range of the controller
+
+5. **Test Safety System**: Periodically test by removing Tilt batteries to verify shutdown occurs within 4 minutes
 
 ## Summary
 
-The issue has been completely resolved. Both explicit and fallback mode temperature control now trigger safety shutdown when the Tilt signal is lost. The fix is:
+The issue has been completely resolved. Both explicit and fallback mode temperature control now:
 
+- ✓ Trigger safety shutdown after 2 missed readings (4 minutes with 2-minute updates)
+- ✓ Use correct temperature control timeout (not the 30-minute general timeout)
 - ✓ Minimal changes to codebase
 - ✓ Fully tested with comprehensive test coverage
 - ✓ Backward compatible
 - ✓ Well documented
 - ✓ No security vulnerabilities
-- ✓ Solves the exact issue reported by the user
 
-Users will no longer experience runaway heating/cooling when their Tilt hydrometer goes offline, preventing potential batch damage and ensuring safe fermentation monitoring.
+Users will no longer experience prolonged runaway heating/cooling when their Tilt hydrometer goes offline. The system now responds within 4 minutes (with default 2-minute update interval), preventing potential batch damage and ensuring safe fermentation monitoring.
+
+**Key Achievement:** Reduced safety shutdown response time from 30+ minutes to just 4 minutes - a **7.5× improvement** in safety response speed!
