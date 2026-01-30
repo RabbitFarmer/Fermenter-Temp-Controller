@@ -120,8 +120,9 @@
           // Create a trace for each tilt color that has data
           Object.keys(colorGroups).sort().forEach((color) => {
             const points = colorGroups[color];
-            // Only create a trace if there are actual data points
-            if (points.length > 0) {
+            // Only create a trace if there are actual data points with valid temperatures
+            const validPoints = points.filter(p => p.temp_f != null && !isNaN(p.temp_f));
+            if (validPoints.length > 0) {
               traces.push({
                 x: points.map(p => p.timestamp),
                 y: points.map(p => p.temp_f),
