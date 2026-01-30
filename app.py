@@ -604,11 +604,16 @@ def is_control_tilt_active():
     """
     Check if the Tilt being used for temperature control is currently active.
     
+    For temperature control safety, uses a shorter timeout than general Tilt monitoring:
+    - Temperature control timeout: 2 × update_interval (default: 2 × 2 min = 4 minutes)
+    - This ensures KASA plugs turn off quickly if Tilt signal is lost
+    - Much shorter than the general 30-minute inactivity timeout used for display/notifications
+    
     This includes both explicitly assigned Tilts (via tilt_color setting) and
     fallback Tilts (when tilt_color is empty but temperature is sourced from a Tilt).
     
     Returns:
-        bool: True if the control Tilt is active (within timeout) OR if no Tilt is being used.
+        bool: True if the control Tilt is active (within temp control timeout) OR if no Tilt is being used.
               False only if a Tilt is being used for control but is inactive (safety shutdown condition).
     """
     # Get the color of the Tilt actually being used for control
@@ -619,9 +624,38 @@ def is_control_tilt_active():
         # (temperature might be set manually)
         return True
     
-    # Check if the control Tilt is in the active tilts list
-    active_tilts = get_active_tilts()
-    return control_color in active_tilts
+    # For temperature control, use a much shorter timeout than general monitoring
+    # Timeout = 2 × update_interval (2 missed readings)
+    # Example: 2 min update interval → 4 min timeout
+    try:
+        update_interval_minutes = int(system_cfg.get("update_interval", 2))
+    except Exception:
+        update_interval_minutes = 2
+    
+    # Temperature control timeout: 2 missed readings
+    temp_control_timeout_minutes = update_interval_minutes * 2
+    
+    # Check if the control Tilt has sent data within the temp control timeout
+    if control_color not in live_tilts:
+        return False
+    
+    tilt_info = live_tilts[control_color]
+    timestamp_str = tilt_info.get('timestamp')
+    if not timestamp_str:
+        return False
+    
+    try:
+        from datetime import datetime
+        timestamp = datetime.fromisoformat(timestamp_str.rstrip('Z'))
+        now = datetime.utcnow()
+        elapsed_minutes = (now - timestamp).total_seconds() / 60.0
+        
+        # Tilt is active if it's within the temp control timeout
+        return elapsed_minutes < temp_control_timeout_minutes
+    except Exception as e:
+        print(f"[LOG] Error checking control Tilt activity for {control_color}: {e}")
+        # If we can't determine activity, assume inactive for safety
+        return False
 
 def log_tilt_reading(color, gravity, temp_f, rssi):
     """
