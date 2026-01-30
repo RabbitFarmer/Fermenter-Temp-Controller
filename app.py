@@ -2588,22 +2588,17 @@ def temperature_control_logic():
 
     current_action = None
     
-    # Calculate midpoint for hysteresis control
-    midpoint = None
+    # Safety check: Ensure low_limit is less than high_limit
     if isinstance(low, (int, float)) and isinstance(high, (int, float)):
-        midpoint = (low + high) / 2.0
-        
-        # Safety check: Ensure low_limit is less than high_limit
         if low >= high:
             temp_cfg["status"] = "Configuration Error: Low limit must be less than high limit"
             control_heating("off")
             control_cooling("off")
             return
 
-    # Heating control with hysteresis:
+    # Heating control:
     # - Turn ON when temp <= low_limit
-    # - SAFETY: Force OFF when temp > high_limit (prevents overheating)
-    # - Turn OFF when temp >= midpoint
+    # - Turn OFF when temp >= high_limit
     if enable_heat:
         if temp <= low:
             # Temperature at or below low limit - turn heating ON
@@ -2617,22 +2612,17 @@ def temperature_control_logic():
                 send_temp_control_notification("temp_below_low_limit", temp, low, high, temp_cfg.get("tilt_color", ""))
                 temp_cfg["below_limit_trigger_armed"] = False
                 temp_cfg["above_limit_trigger_armed"] = False  # Ensure above is disarmed
-        elif high is not None and temp > high:
-            # SAFETY: Temperature above high limit - force heating OFF
-            # This prevents overheating beyond the configured maximum temperature
+        elif high is not None and temp >= high:
+            # Temperature at or above high limit - turn heating OFF
             control_heating("off")
-        elif midpoint is not None and temp >= midpoint:
-            # Temperature at or above midpoint - turn heating OFF
-            control_heating("off")
-        # else: temperature is between low and midpoint - maintain current state
+        # else: temperature is between low and high - maintain current state
         # (don't change heating state, let it continue)
     else:
         control_heating("off")
 
-    # Cooling control with hysteresis:
+    # Cooling control:
     # - Turn ON when temp >= high_limit
-    # - SAFETY: Force OFF when temp < low_limit (prevents overcooling)
-    # - Turn OFF when temp <= midpoint
+    # - Turn OFF when temp <= low_limit
     if enable_cool:
         if temp >= high:
             # Temperature at or above high limit - turn cooling ON
@@ -2646,14 +2636,10 @@ def temperature_control_logic():
                 send_temp_control_notification("temp_above_high_limit", temp, low, high, temp_cfg.get("tilt_color", ""))
                 temp_cfg["above_limit_trigger_armed"] = False
                 temp_cfg["below_limit_trigger_armed"] = False  # Ensure below is disarmed
-        elif low is not None and temp < low:
-            # SAFETY: Temperature below low limit - force cooling OFF
-            # This prevents overcooling beyond the configured minimum temperature
+        elif low is not None and temp <= low:
+            # Temperature at or below low limit - turn cooling OFF
             control_cooling("off")
-        elif midpoint is not None and temp <= midpoint:
-            # Temperature at or below midpoint - turn cooling OFF
-            control_cooling("off")
-        # else: temperature is between midpoint and high - maintain current state
+        # else: temperature is between low and high - maintain current state
         # (don't change cooling state, let it continue)
     else:
         control_cooling("off")
