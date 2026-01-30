@@ -53,9 +53,11 @@ fi
 # Open the application in the default web browser
 echo "Opening the application in your default browser..."
 if command -v xdg-open > /dev/null; then
-    xdg-open http://127.0.0.1:5000 > /dev/null 2>&1 &   # Linux (run in background)
+    # Use nohup and run in subshell to completely detach from script
+    (nohup xdg-open http://127.0.0.1:5000 </dev/null >/dev/null 2>&1 &)
 elif command -v open > /dev/null; then
-    open http://127.0.0.1:5000 > /dev/null 2>&1 &       # macOS (run in background)
+    # macOS - run in background
+    (nohup open http://127.0.0.1:5000 </dev/null >/dev/null 2>&1 &)
 else
     echo "Please open http://127.0.0.1:5000 in your browser manually."
 fi
