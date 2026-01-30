@@ -4477,6 +4477,9 @@ def chart_data_for(tilt_color):
                             ts_str = None
                         try:
                             temp_num = float(tf) if (tf is not None and tf != '') else None
+                            # Filter out 999 readings (battery/connection issues)
+                            if temp_num == 999:
+                                temp_num = None
                         except Exception:
                             temp_num = None
                         try:
@@ -4564,6 +4567,9 @@ def chart_data_for(tilt_color):
                             ts_str = None
                         try:
                             temp_num = float(tf) if (tf is not None and tf != '') else None
+                            # Filter out 999 readings (battery/connection issues)
+                            if temp_num == 999:
+                                temp_num = None
                         except Exception:
                             temp_num = None
                         try:

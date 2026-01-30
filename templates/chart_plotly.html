@@ -13,7 +13,7 @@
     .controls input { width: 80px; margin-right: 12px; }
     .controls button { padding: 6px 16px; margin: 0 4px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
     .controls button:hover { background-color: #45a049; }
-    .date-range { text-align: center; margin-top: 8px; font-size: 14px; color: #555; }
+    .date-range { text-align: center; margin-top: 8px; font-size: 14px; color: #555; display: none; }
     @media print {
       .controls { display: none; }
       body { background: white; margin: 0; }
@@ -117,19 +117,23 @@
             'Unknown': '#808080'
           };
           
-          // Create a trace for each tilt color
+          // Create a trace for each tilt color that has data
           Object.keys(colorGroups).sort().forEach((color) => {
             const points = colorGroups[color];
-            traces.push({
-              x: points.map(p => p.timestamp),
-              y: points.map(p => p.temp_f),
-              mode: 'lines+markers',
-              name: `${color} Tilt`,
-              line: { color: colorMap[color] || '#808080', shape: 'spline', width: 3 },
-              marker: { size: 4 },
-              yaxis: 'y1',
-              connectgaps: false,
-            });
+            // Only create a trace if there are actual data points with valid temperatures
+            const validPoints = points.filter(p => p.temp_f != null && !isNaN(p.temp_f));
+            if (validPoints.length > 0) {
+              traces.push({
+                x: points.map(p => p.timestamp),
+                y: points.map(p => p.temp_f),
+                mode: 'lines+markers',
+                name: `${color} Tilt`,
+                line: { color: colorMap[color] || '#808080', shape: 'spline', width: 3 },
+                marker: { size: 4 },
+                yaxis: 'y1',
+                connectgaps: false,
+              });
+            }
           });
         } else {
           // Original single temperature trace for regular tilt data
@@ -151,9 +155,9 @@
         let tempMax = Math.max(...temps);
         let tempRange = null;
         if (temps.length > 0 && isFinite(tempMin) && isFinite(tempMax)) {
-          // For temperature control, use a base range of 40-100F, expanding as needed
+          // For temperature control, use a base range of 34-100F, expanding as needed
           if (isTempControl) {
-            tempMin = Math.min(40, tempMin - chartTempMargin);
+            tempMin = Math.min(34, tempMin - chartTempMargin);
             tempMax = Math.max(100, tempMax + chartTempMargin);
           } else {
             tempMin = tempMin - chartTempMargin;
@@ -161,8 +165,8 @@
           }
           tempRange = [tempMin, tempMax];
         } else if (isTempControl) {
-          // Default to 40-100F if no data points for temp control
-          tempRange = [40, 100];
+          // Default to 34-100F if no data points for temp control
+          tempRange = [34, 100];
         }
         
         // Calculate x-axis range
@@ -213,53 +217,48 @@
           const coolingOnEvents = dataPoints.filter(p => p.event === 'COOLING-PLUG TURNED ON');
           const coolingOffEvents = dataPoints.filter(p => p.event === 'COOLING-PLUG TURNED OFF');
           
+          // Always show all 4 heating/cooling indicators in legend
+          // Users can see from the chart which ones are actually in use
+          
           // Heating ON markers (red triangles pointing up)
-          if (heatingOnEvents.length > 0) {
-            traces.push({
-              x: heatingOnEvents.map(p => p.timestamp),
-              y: heatingOnEvents.map(p => p.temp_f),
-              mode: 'markers',
-              name: 'Heating ON',
-              marker: { color: 'red', size: 10, symbol: 'triangle-up' },
-              yaxis: 'y1',
-            });
-          }
+          traces.push({
+            x: heatingOnEvents.map(p => p.timestamp),
+            y: heatingOnEvents.map(p => p.temp_f),
+            mode: 'markers',
+            name: 'Heating ON',
+            marker: { color: 'red', size: 10, symbol: 'triangle-up' },
+            yaxis: 'y1',
+          });
           
           // Heating OFF markers (pink triangles pointing down)
-          if (heatingOffEvents.length > 0) {
-            traces.push({
-              x: heatingOffEvents.map(p => p.timestamp),
-              y: heatingOffEvents.map(p => p.temp_f),
-              mode: 'markers',
-              name: 'Heating OFF',
-              marker: { color: 'pink', size: 10, symbol: 'triangle-down' },
-              yaxis: 'y1',
-            });
-          }
+          traces.push({
+            x: heatingOffEvents.map(p => p.timestamp),
+            y: heatingOffEvents.map(p => p.temp_f),
+            mode: 'markers',
+            name: 'Heating OFF',
+            marker: { color: 'pink', size: 10, symbol: 'triangle-down' },
+            yaxis: 'y1',
+          });
           
           // Cooling ON markers (blue squares)
-          if (coolingOnEvents.length > 0) {
-            traces.push({
-              x: coolingOnEvents.map(p => p.timestamp),
-              y: coolingOnEvents.map(p => p.temp_f),
-              mode: 'markers',
-              name: 'Cooling ON',
-              marker: { color: 'blue', size: 10, symbol: 'square' },
-              yaxis: 'y1',
-            });
-          }
+          traces.push({
+            x: coolingOnEvents.map(p => p.timestamp),
+            y: coolingOnEvents.map(p => p.temp_f),
+            mode: 'markers',
+            name: 'Cooling ON',
+            marker: { color: 'blue', size: 10, symbol: 'square' },
+            yaxis: 'y1',
+          });
           
           // Cooling OFF markers (light blue squares)
-          if (coolingOffEvents.length > 0) {
-            traces.push({
-              x: coolingOffEvents.map(p => p.timestamp),
-              y: coolingOffEvents.map(p => p.temp_f),
-              mode: 'markers',
-              name: 'Cooling OFF',
-              marker: { color: 'lightblue', size: 10, symbol: 'square' },
-              yaxis: 'y1',
-            });
-          }
+          traces.push({
+            x: coolingOffEvents.map(p => p.timestamp),
+            y: coolingOffEvents.map(p => p.temp_f),
+            mode: 'markers',
+            name: 'Cooling OFF',
+            marker: { color: 'lightblue', size: 10, symbol: 'square' },
+            yaxis: 'y1',
+          });
           
           // Layout without gravity axis
           // Determine what controls are in use
@@ -305,7 +304,7 @@
               titlefont: { color: 'blue', size: 12 },
               tickfont: { color: 'blue', size: 10 },
               gridcolor: '#eaf2f5',
-              range: tempRange || [40, 100],
+              range: tempRange || [34, 100],
             },
             showlegend: true,
             legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
