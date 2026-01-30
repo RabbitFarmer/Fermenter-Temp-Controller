@@ -791,13 +791,7 @@ def detection_callback(device, advertisement_data):
         if not color:
             return
         try:
-            temp_raw = int.from_bytes(raw[18:20], byteorder='big')
-            # Support Tilt high-resolution mode: values > 500 are temp * 10
-            # This enables 0.1°F precision (e.g., 754 = 75.4°F)
-            if temp_raw > 500:
-                temp_f = temp_raw / 10.0
-            else:
-                temp_f = float(temp_raw)
+            temp_f = int.from_bytes(raw[18:20], byteorder='big')
             gravity = int.from_bytes(raw[20:22], byteorder='big') / 1000.0
         except Exception:
             return
