@@ -56,7 +56,7 @@ if command -v xdg-open > /dev/null; then
     # Use nohup and run in subshell to completely detach from script
     (nohup xdg-open http://127.0.0.1:5000 </dev/null >/dev/null 2>&1 &)
 elif command -v open > /dev/null; then
-    # macOS - run in background
+    # Use nohup and run in subshell to completely detach from script (macOS)
     (nohup open http://127.0.0.1:5000 </dev/null >/dev/null 2>&1 &)
 else
     echo "Please open http://127.0.0.1:5000 in your browser manually."
