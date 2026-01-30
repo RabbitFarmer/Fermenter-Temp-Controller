@@ -54,7 +54,7 @@ def test_heating_safety_logic():
     print("\n" + "=" * 80)
     print("ANALYSIS")
     print("=" * 80)
-    print("\nThe FIXED logic now has three stages:")
+    print("\nThe FIXED logic now has proper safety checks:")
     print("  1. Turn heating ON when temp ≤ 73°F (low_limit)")
     print("  2. SAFETY: Force heating OFF when temp > 75°F (high_limit) ← NEW!")
     print("  3. Turn heating OFF when temp ≥ 74°F (midpoint)")

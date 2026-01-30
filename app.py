@@ -2602,8 +2602,8 @@ def temperature_control_logic():
 
     # Heating control with hysteresis:
     # - Turn ON when temp <= low_limit
+    # - SAFETY: Force OFF when temp > high_limit (prevents overheating)
     # - Turn OFF when temp >= midpoint
-    # - SAFETY: Force OFF when temp > high_limit
     if enable_heat:
         if temp <= low:
             # Temperature at or below low limit - turn heating ON
@@ -2631,8 +2631,8 @@ def temperature_control_logic():
 
     # Cooling control with hysteresis:
     # - Turn ON when temp >= high_limit
+    # - SAFETY: Force OFF when temp < low_limit (prevents overcooling)
     # - Turn OFF when temp <= midpoint
-    # - SAFETY: Force OFF when temp < low_limit
     if enable_cool:
         if temp >= high:
             # Temperature at or above high limit - turn cooling ON
