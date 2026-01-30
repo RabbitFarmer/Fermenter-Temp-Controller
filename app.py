@@ -250,6 +250,8 @@ ALLOWED_EVENTS = {
     "temp_control_mode_changed": "MODE_CHANGED",
     "temp_control_started": "TEMP CONTROL STARTED",
     "temp_control_safety_shutdown": "SAFETY SHUTDOWN - CONTROL TILT INACTIVE",
+    "temp_control_blocked_on": "SAFETY - BLOCKED ON COMMAND (NO TILT CONNECTION)",
+    "temp_control_safety_off": "SAFETY - TURNING OFF (NO TILT CONNECTION)",
 }
 
 # Create a set of allowed event values for O(1) lookup performance
@@ -1520,6 +1522,123 @@ Action Required:
         color=tilt_color
     )
 
+def send_plug_blocked_notification(mode, tilt_color):
+    """
+    Send notification when a plug ON command is blocked due to no Tilt connection.
+    Uses the pending queue system with deduplication to prevent duplicate alerts.
+    
+    Args:
+        mode: 'heating' or 'cooling'
+        tilt_color: The color of the Tilt that is offline
+    """
+    # Get temp control notification settings
+    temp_notif_cfg = system_cfg.get('temp_control_notifications', {})
+    
+    # Check if safety notifications are enabled (default to True for safety)
+    if not temp_notif_cfg.get('enable_safety_shutdown', True):
+        return
+    
+    brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
+    now = datetime.utcnow()
+    
+    mode_name = "Heating" if mode == "heating" else "Cooling"
+    
+    subject = f"{brewery_name} - SAFETY: {mode_name} Blocked (No Tilt Connection)"
+    body = f"""SAFETY ALERT
+
+Brewery Name: {brewery_name}
+Date: {now.strftime('%Y-%m-%d')}
+Time: {now.strftime('%H:%M:%S')}
+Tilt Color: {tilt_color}
+
+{mode_name.upper()} BLOCKED - NO TILT CONNECTION
+
+The system attempted to turn ON the {mode_name.lower()} plug, but the Tilt assigned 
+to temperature control is not transmitting data.
+
+Safety Rule: No connection = No plugs turn ON
+
+The {mode_name.lower()} plug will remain OFF until the Tilt connection is restored.
+
+Action Required:
+1. Check Tilt battery
+2. Verify Tilt is in range
+3. Ensure Tilt is in liquid
+4. Check Bluetooth connectivity
+
+The {mode_name.lower()} plug will automatically resume normal operation once 
+the Tilt starts transmitting again.
+
+This is a safety feature to prevent uncontrolled temperature changes."""
+
+    # Queue notification with deduplication
+    _queue_pending_notification(
+        notification_type=f'plug_blocked_{mode}',
+        subject=subject,
+        body=body,
+        brewid=tilt_color,
+        color=tilt_color
+    )
+
+def send_plug_safety_off_notification(mode, tilt_color):
+    """
+    Send notification when a plug is turned OFF due to no Tilt connection.
+    Uses the pending queue system with deduplication to prevent duplicate alerts.
+    
+    Args:
+        mode: 'heating' or 'cooling'
+        tilt_color: The color of the Tilt that is offline
+    """
+    # Get temp control notification settings
+    temp_notif_cfg = system_cfg.get('temp_control_notifications', {})
+    
+    # Check if safety notifications are enabled (default to True for safety)
+    if not temp_notif_cfg.get('enable_safety_shutdown', True):
+        return
+    
+    brewery_name = system_cfg.get('brewery_name', 'Unknown Brewery')
+    now = datetime.utcnow()
+    
+    mode_name = "Heating" if mode == "heating" else "Cooling"
+    
+    subject = f"{brewery_name} - SAFETY: {mode_name} Turned OFF (No Tilt Connection)"
+    body = f"""SAFETY ALERT
+
+Brewery Name: {brewery_name}
+Date: {now.strftime('%Y-%m-%d')}
+Time: {now.strftime('%H:%M:%S')}
+Tilt Color: {tilt_color}
+
+{mode_name.upper()} TURNED OFF - NO TILT CONNECTION
+
+The Tilt assigned to temperature control is not transmitting data.
+The {mode_name.lower()} plug has been automatically turned OFF for safety.
+
+Safety Rule: No connection = Plugs turn OFF
+
+The {mode_name.lower()} plug was ON but is now being turned OFF because 
+the system cannot read the current temperature.
+
+Action Required:
+1. Check Tilt battery
+2. Verify Tilt is in range
+3. Ensure Tilt is in liquid
+4. Check Bluetooth connectivity
+
+The {mode_name.lower()} plug will automatically resume normal operation once 
+the Tilt starts transmitting again.
+
+This is a safety feature to prevent uncontrolled temperature changes."""
+
+    # Queue notification with deduplication
+    _queue_pending_notification(
+        notification_type=f'plug_safety_off_{mode}',
+        subject=subject,
+        body=body,
+        brewid=tilt_color,
+        color=tilt_color
+    )
+
 def send_kasa_error_notification(mode, url, error_msg):
     """
     Send notifications for Kasa plug connection failures if enabled in settings.
@@ -2195,8 +2314,52 @@ def control_heating(state):
     if state == "on" and not is_control_tilt_active():
         print(f"[TEMP_CONTROL] Blocking heating ON command - no Tilt connection/signal")
         print(f"[TEMP_CONTROL] Safety: Cannot turn plugs ON without active Tilt signal")
+        
+        # Log this safety event
+        tilt_color = temp_cfg.get("tilt_color", "")
+        append_control_log("temp_control_blocked_on", {
+            "mode": "heating",
+            "tilt_color": tilt_color,
+            "reason": "Tilt connection lost - cannot turn heating ON",
+            "low_limit": temp_cfg.get("low_limit"),
+            "high_limit": temp_cfg.get("high_limit")
+        })
+        
+        # Send notification about blocked ON command (only once per incident)
+        if not temp_cfg.get("heating_blocked_notified"):
+            send_plug_blocked_notification("heating", tilt_color)
+            temp_cfg["heating_blocked_notified"] = True
+        
         # Don't send the ON command - plugs stay OFF for safety
         return
+    
+    # If we're allowing a command (either OFF, or ON with active Tilt), reset the blocked notification flag
+    if state == "off" or is_control_tilt_active():
+        if temp_cfg.get("heating_blocked_notified"):
+            temp_cfg["heating_blocked_notified"] = False
+    
+    # If turning OFF due to no Tilt connection, log it as a safety action
+    if state == "off" and not is_control_tilt_active() and temp_cfg.get("heater_on"):
+        print(f"[TEMP_CONTROL] Allowing heating OFF command - safety shutdown (no Tilt connection)")
+        
+        # Log this safety event
+        tilt_color = temp_cfg.get("tilt_color", "")
+        append_control_log("temp_control_safety_off", {
+            "mode": "heating",
+            "tilt_color": tilt_color,
+            "reason": "Tilt connection lost - turning heating OFF for safety",
+            "low_limit": temp_cfg.get("low_limit"),
+            "high_limit": temp_cfg.get("high_limit")
+        })
+        
+        # Send notification about safety shutdown (only once per incident)
+        if not temp_cfg.get("heating_safety_off_notified"):
+            send_plug_safety_off_notification("heating", tilt_color)
+            temp_cfg["heating_safety_off_notified"] = True
+    
+    # Reset safety OFF notification flag when Tilt becomes active again
+    if is_control_tilt_active() and temp_cfg.get("heating_safety_off_notified"):
+        temp_cfg["heating_safety_off_notified"] = False
     
     if not _should_send_kasa_command(url, state):
         print(f"[TEMP_CONTROL] Skipping heating {state} command (redundant or rate-limited)")
@@ -2223,8 +2386,52 @@ def control_cooling(state):
     if state == "on" and not is_control_tilt_active():
         print(f"[TEMP_CONTROL] Blocking cooling ON command - no Tilt connection/signal")
         print(f"[TEMP_CONTROL] Safety: Cannot turn plugs ON without active Tilt signal")
+        
+        # Log this safety event
+        tilt_color = temp_cfg.get("tilt_color", "")
+        append_control_log("temp_control_blocked_on", {
+            "mode": "cooling",
+            "tilt_color": tilt_color,
+            "reason": "Tilt connection lost - cannot turn cooling ON",
+            "low_limit": temp_cfg.get("low_limit"),
+            "high_limit": temp_cfg.get("high_limit")
+        })
+        
+        # Send notification about blocked ON command (only once per incident)
+        if not temp_cfg.get("cooling_blocked_notified"):
+            send_plug_blocked_notification("cooling", tilt_color)
+            temp_cfg["cooling_blocked_notified"] = True
+        
         # Don't send the ON command - plugs stay OFF for safety
         return
+    
+    # If we're allowing a command (either OFF, or ON with active Tilt), reset the blocked notification flag
+    if state == "off" or is_control_tilt_active():
+        if temp_cfg.get("cooling_blocked_notified"):
+            temp_cfg["cooling_blocked_notified"] = False
+    
+    # If turning OFF due to no Tilt connection, log it as a safety action
+    if state == "off" and not is_control_tilt_active() and temp_cfg.get("cooler_on"):
+        print(f"[TEMP_CONTROL] Allowing cooling OFF command - safety shutdown (no Tilt connection)")
+        
+        # Log this safety event
+        tilt_color = temp_cfg.get("tilt_color", "")
+        append_control_log("temp_control_safety_off", {
+            "mode": "cooling",
+            "tilt_color": tilt_color,
+            "reason": "Tilt connection lost - turning cooling OFF for safety",
+            "low_limit": temp_cfg.get("low_limit"),
+            "high_limit": temp_cfg.get("high_limit")
+        })
+        
+        # Send notification about safety shutdown (only once per incident)
+        if not temp_cfg.get("cooling_safety_off_notified"):
+            send_plug_safety_off_notification("cooling", tilt_color)
+            temp_cfg["cooling_safety_off_notified"] = True
+    
+    # Reset safety OFF notification flag when Tilt becomes active again
+    if is_control_tilt_active() and temp_cfg.get("cooling_safety_off_notified"):
+        temp_cfg["cooling_safety_off_notified"] = False
     
     if not _should_send_kasa_command(url, state):
         print(f"[TEMP_CONTROL] Skipping cooling {state} command (redundant or rate-limited)")
