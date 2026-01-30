@@ -575,15 +575,26 @@ def get_control_tilt_color():
     """
     Get the color of the Tilt currently being used for temperature control.
     
+    Important behavior:
+    - If a Tilt is explicitly assigned (tilt_color is set), ALWAYS return that color,
+      even if the Tilt is currently offline or inactive. This ensures safety shutdown
+      triggers when the assigned Tilt is not operational.
+    - If no Tilt is assigned (tilt_color is empty), use fallback logic to find any
+      available Tilt with temperature data.
+    
     Returns:
         str: The color of the Tilt being used, or None if no Tilt is being used.
     """
     # First check if a Tilt is explicitly assigned
     color = temp_cfg.get("tilt_color")
-    if color and color in live_tilts:
+    if color:
+        # If a Tilt is explicitly assigned, ALWAYS return it
+        # Even if it's not in live_tilts (offline/inactive)
+        # This ensures safety shutdown triggers when assigned Tilt is not operational
+        # We do NOT fall back to another Tilt in this case
         return color
     
-    # If no explicit assignment, check if we're using a fallback Tilt
+    # If no explicit assignment (tilt_color is empty), check if we're using a fallback Tilt
     # This happens when tilt_color is empty but we still get temp from a Tilt
     for tilt_color, info in live_tilts.items():
         if info.get("temp_f") is not None:
@@ -592,9 +603,30 @@ def get_control_tilt_color():
     return None
 
 def get_current_temp_for_control_tilt():
+    """
+    Get the current temperature from the Tilt assigned to temperature control.
+    
+    Important behavior:
+    - If a Tilt is explicitly assigned, ONLY use that Tilt's temperature.
+    - Do NOT fall back to another Tilt if the assigned one is offline/inactive.
+    - If no Tilt is assigned, use fallback logic to get temp from any available Tilt.
+    
+    Returns:
+        float: Temperature in Fahrenheit, or None if no temperature available.
+    """
     color = temp_cfg.get("tilt_color")
-    if color and color in live_tilts:
-        return live_tilts[color].get("temp_f")
+    if color:
+        # Tilt is explicitly assigned - ONLY use that Tilt
+        # Do NOT fall back to another Tilt if this one is offline
+        if color in live_tilts:
+            return live_tilts[color].get("temp_f")
+        else:
+            # Assigned Tilt is not available - return None
+            # This will trigger safety shutdown
+            return None
+    
+    # No explicit assignment - use fallback logic
+    # Return temperature from any available Tilt
     for info in live_tilts.values():
         if info.get("temp_f") is not None:
             return info.get("temp_f")
