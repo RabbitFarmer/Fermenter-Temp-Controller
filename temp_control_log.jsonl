@@ -1,10 +1,23 @@
-{"timestamp": "2026-01-29T10:00:00Z", "current_temp": 65.0, "event": "SAMPLE"}
-{"timestamp": "2026-01-29T10:05:00Z", "current_temp": 65.5, "event": "SAMPLE"}
-{"timestamp": "2026-01-29T10:10:00Z", "current_temp": 66.0, "event": "SAMPLE"}
-{"timestamp": "2026-01-29T10:15:00Z", "current_temp": 66.5, "event": "SAMPLE"}
-{"timestamp": "2026-01-29T10:20:00Z", "current_temp": 67.0, "event": "SAMPLE"}
-{"timestamp": "2026-01-29T10:25:00Z", "current_temp": 67.5, "event": "SAMPLE"}
-{"timestamp": "2026-01-29T10:30:00Z", "current_temp": 68.0, "event": "SAMPLE"}
-{"timestamp": "2026-01-29T10:35:00Z", "current_temp": 67.5, "event": "SAMPLE"}
-{"timestamp": "2026-01-29T10:40:00Z", "current_temp": 67.0, "event": "SAMPLE"}
-{"timestamp": "2026-01-29T10:45:00Z", "current_temp": 66.5, "event": "SAMPLE"}
+{"timestamp": "2026-01-30T10:00:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 65, "temp_f": 65, "gravity": 1.05}
+{"timestamp": "2026-01-30T10:05:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 66, "temp_f": 66, "gravity": 1.0490000000000002}
+{"timestamp": "2026-01-30T10:10:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 67, "temp_f": 67, "gravity": 1.048}
+{"timestamp": "2026-01-30T10:15:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 68, "temp_f": 68, "gravity": 1.0470000000000002}
+{"timestamp": "2026-01-30T10:20:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 69, "temp_f": 69, "gravity": 1.046}
+{"timestamp": "2026-01-30T10:25:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 70, "temp_f": 70, "gravity": 1.0450000000000002}
+{"timestamp": "2026-01-30T10:30:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 69, "temp_f": 69, "gravity": 1.044}
+{"timestamp": "2026-01-30T10:35:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 68, "temp_f": 68, "gravity": 1.0430000000000001}
+{"timestamp": "2026-01-30T10:40:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 67, "temp_f": 67, "gravity": 1.042}
+{"timestamp": "2026-01-30T10:45:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 66, "temp_f": 66, "gravity": 1.0410000000000001}
+{"timestamp": "2026-01-30T10:50:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 65, "temp_f": 65, "gravity": 1.04}
+{"timestamp": "2026-01-30T10:50:00Z", "event": "HEATING-PLUG TURNED ON", "tilt_color": "Blue", "current_temp": 65, "temp_f": 65}
+{"timestamp": "2026-01-30T10:55:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 66, "temp_f": 66, "gravity": 1.0390000000000001}
+{"timestamp": "2026-01-30T11:00:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 67, "temp_f": 67, "gravity": 1.038}
+{"timestamp": "2026-01-30T11:00:00Z", "event": "HEATING-PLUG TURNED OFF", "tilt_color": "Blue", "current_temp": 67, "temp_f": 67}
+{"timestamp": "2026-01-30T11:05:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 68, "temp_f": 68, "gravity": 1.0370000000000001}
+{"timestamp": "2026-01-30T11:10:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 69, "temp_f": 69, "gravity": 1.036}
+{"timestamp": "2026-01-30T11:15:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 70, "temp_f": 70, "gravity": 1.0350000000000001}
+{"timestamp": "2026-01-30T11:20:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 71, "temp_f": 71, "gravity": 1.034}
+{"timestamp": "2026-01-30T11:20:00Z", "event": "COOLING-PLUG TURNED ON", "tilt_color": "Blue", "current_temp": 71, "temp_f": 71}
+{"timestamp": "2026-01-30T11:25:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 70, "temp_f": 70, "gravity": 1.0330000000000001}
+{"timestamp": "2026-01-30T11:30:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 69, "temp_f": 69, "gravity": 1.032}
+{"timestamp": "2026-01-30T11:35:00Z", "event": "SAMPLE", "tilt_color": "Blue", "current_temp": 68, "temp_f": 68, "gravity": 1.0310000000000001}

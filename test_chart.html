@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Temperature Control Chart Test</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; background: #f6f6f6; }
+    #chart-container { max-width: 1200px; margin: auto; background: #ffffff; border-radius: 4px; padding: 16px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); }
+    #tempChart { height: 500px; }
+  </style>
+</head>
+<body>
+  <h2 style="text-align: center;">Temperature Control Chart Test</h2>
+  <div id="chart-container">
+    <div id="tempChart"></div>
+  </div>
+
+  <script>
+    // Simulate the data we'd get from /chart_data/Fermenter
+    const testData = [
+      {"timestamp": "2026-01-30T10:00:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 65, "gravity": 1.050},
+      {"timestamp": "2026-01-30T10:05:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 66, "gravity": 1.049},
+      {"timestamp": "2026-01-30T10:10:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 67, "gravity": 1.048},
+      {"timestamp": "2026-01-30T10:10:00Z", "event": "HEATING-PLUG TURNED ON", "tilt_color": "Blue", "temp_f": 67},
+      {"timestamp": "2026-01-30T10:15:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 68, "gravity": 1.047},
+      {"timestamp": "2026-01-30T10:20:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 69, "gravity": 1.046},
+      {"timestamp": "2026-01-30T10:25:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 70, "gravity": 1.045},
+      {"timestamp": "2026-01-30T10:25:00Z", "event": "HEATING-PLUG TURNED OFF", "tilt_color": "Blue", "temp_f": 70},
+      {"timestamp": "2026-01-30T10:30:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 69, "gravity": 1.044},
+      {"timestamp": "2026-01-30T10:35:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 68, "gravity": 1.043},
+      {"timestamp": "2026-01-30T10:40:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 67, "gravity": 1.042},
+      {"timestamp": "2026-01-30T10:45:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 66, "gravity": 1.041},
+      {"timestamp": "2026-01-30T10:50:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 65, "gravity": 1.040},
+      {"timestamp": "2026-01-30T10:55:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 66, "gravity": 1.039},
+      {"timestamp": "2026-01-30T11:00:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 67, "gravity": 1.038},
+      {"timestamp": "2026-01-30T11:05:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 68, "gravity": 1.037},
+      {"timestamp": "2026-01-30T11:10:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 69, "gravity": 1.036},
+      {"timestamp": "2026-01-30T11:15:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 70, "gravity": 1.035},
+      {"timestamp": "2026-01-30T11:20:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 71, "gravity": 1.034},
+      {"timestamp": "2026-01-30T11:20:00Z", "event": "COOLING-PLUG TURNED ON", "tilt_color": "Blue", "temp_f": 71},
+      {"timestamp": "2026-01-30T11:25:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 70, "gravity": 1.033},
+      {"timestamp": "2026-01-30T11:30:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 69, "gravity": 1.032},
+      {"timestamp": "2026-01-30T11:35:00Z", "event": "SAMPLE", "tilt_color": "Blue", "temp_f": 68, "gravity": 1.031}
+    ];
+
+    function renderChart() {
+      const dataPoints = testData;
+      const isTempControl = true;
+      const chartTempMargin = 1.0;
+      const traces = [];
+
+      // Filter to active tilt only (simulating our new logic)
+      const validDataPoints = dataPoints.filter(p => p.tilt_color && p.tilt_color.trim() !== '');
+      let activeTiltColor = null;
+      if (validDataPoints.length > 0) {
+        activeTiltColor = validDataPoints[validDataPoints.length - 1].tilt_color;
+      }
+      
+      const activeTiltData = activeTiltColor 
+        ? validDataPoints.filter(p => p.tilt_color === activeTiltColor)
+        : [];
+      
+      const colorMap = {
+        'Black': '#000000',
+        'Blue': '#0000FF',
+        'Green': '#008000',
+        'Orange': '#FFA500',
+        'Pink': '#FFC0CB',
+        'Purple': '#800080',
+        'Red': '#FF0000',
+        'Yellow': '#FFFF00',
+      };
+      
+      // Temperature trace for active tilt
+      if (activeTiltData.length > 0 && activeTiltColor) {
+        const validPoints = activeTiltData.filter(p => p.temp_f != null && !isNaN(p.temp_f));
+        if (validPoints.length > 0) {
+          traces.push({
+            x: activeTiltData.map(p => p.timestamp),
+            y: activeTiltData.map(p => p.temp_f),
+            mode: 'lines+markers',
+            name: `${activeTiltColor} Tilt`,
+            line: { color: colorMap[activeTiltColor] || '#808080', shape: 'spline', width: 3 },
+            marker: { size: 4 },
+            yaxis: 'y1',
+            connectgaps: false,
+          });
+        }
+      }
+
+      // Calculate temperature range with new logic
+      const temps = activeTiltData.map(p => p.temp_f).filter(t => t != null && !isNaN(t));
+      let tempMin = Math.min(...temps);
+      let tempMax = Math.max(...temps);
+      const dataRange = tempMax - tempMin;
+      const margin = Math.max(dataRange * 0.1, 5);  // 10% of range or 5°F minimum
+      tempMin = tempMin - margin;
+      tempMax = tempMax + margin;
+      const tempRange = [tempMin, tempMax];
+      
+      // Add heating/cooling markers
+      const heatingOnEvents = dataPoints.filter(p => p.event === 'HEATING-PLUG TURNED ON');
+      const heatingOffEvents = dataPoints.filter(p => p.event === 'HEATING-PLUG TURNED OFF');
+      const coolingOnEvents = dataPoints.filter(p => p.event === 'COOLING-PLUG TURNED ON');
+      const coolingOffEvents = dataPoints.filter(p => p.event === 'COOLING-PLUG TURNED OFF');
+      
+      traces.push({
+        x: heatingOnEvents.map(p => p.timestamp),
+        y: heatingOnEvents.map(p => p.temp_f),
+        mode: 'markers',
+        name: 'Heating ON',
+        marker: { color: 'red', size: 10, symbol: 'triangle-up' },
+        yaxis: 'y1',
+      });
+      
+      traces.push({
+        x: heatingOffEvents.map(p => p.timestamp),
+        y: heatingOffEvents.map(p => p.temp_f),
+        mode: 'markers',
+        name: 'Heating OFF',
+        marker: { color: 'pink', size: 10, symbol: 'triangle-down' },
+        yaxis: 'y1',
+      });
+      
+      traces.push({
+        x: coolingOnEvents.map(p => p.timestamp),
+        y: coolingOnEvents.map(p => p.temp_f),
+        mode: 'markers',
+        name: 'Cooling ON',
+        marker: { color: 'blue', size: 10, symbol: 'square' },
+        yaxis: 'y1',
+      });
+      
+      traces.push({
+        x: coolingOffEvents.map(p => p.timestamp),
+        y: coolingOffEvents.map(p => p.temp_f),
+        mode: 'markers',
+        name: 'Cooling OFF',
+        marker: { color: 'lightblue', size: 10, symbol: 'square' },
+        yaxis: 'y1',
+      });
+
+      const layout = {
+        title: {
+          text: '<b style="font-size: 24px;">TEMPERATURE CONTROL ACTIVITY - TEST</b><br><span style="font-size: 12px;">Blue Tilt Active | Range: ' + tempMin.toFixed(1) + '°F - ' + tempMax.toFixed(1) + '°F</span>',
+          font: { size: 20 },
+        },
+        xaxis: {
+          title: 'Timestamp',
+          titlefont: { size: 12 },
+          gridcolor: '#eaf2f5',
+        },
+        yaxis: {
+          title: 'Temperature (°F)',
+          titlefont: { color: 'blue', size: 12 },
+          tickfont: { color: 'blue', size: 10 },
+          gridcolor: '#eaf2f5',
+          range: tempRange,
+        },
+        showlegend: true,
+        legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
+        margin: { l: 50, r: 50, t: 100, b: 80 },
+      };
+
+      Plotly.newPlot('tempChart', traces, layout);
+      
+      console.log('Chart rendered:');
+      console.log('- Active tilt:', activeTiltColor);
+      console.log('- Temperature range:', tempRange);
+      console.log('- Data points:', activeTiltData.length);
+      console.log('- Heating ON events:', heatingOnEvents.length);
+      console.log('- Heating OFF events:', heatingOffEvents.length);
+      console.log('- Cooling ON events:', coolingOnEvents.length);
+      console.log('- Cooling OFF events:', coolingOffEvents.length);
+    }
+
+    renderChart();
+  </script>
+</body>
+</html>
