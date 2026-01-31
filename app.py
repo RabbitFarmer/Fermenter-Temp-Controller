@@ -252,6 +252,7 @@ ALLOWED_EVENTS = {
     "temp_control_safety_shutdown": "SAFETY SHUTDOWN - CONTROL TILT INACTIVE",
     "temp_control_blocked_on": "SAFETY - BLOCKED ON COMMAND (NO TILT CONNECTION)",
     "temp_control_safety_off": "SAFETY - TURNING OFF (NO TILT CONNECTION)",
+    "kasa_command_timeout": "KASA COMMAND TIMEOUT - PENDING FLAG CLEARED",
 }
 
 # Create a set of allowed event values for O(1) lookup performance
@@ -385,6 +386,8 @@ def ensure_temp_defaults():
     temp_cfg.setdefault("cooler_on", False)
     temp_cfg.setdefault("heater_pending", False)
     temp_cfg.setdefault("cooler_pending", False)
+    temp_cfg.setdefault("heater_pending_since", None)
+    temp_cfg.setdefault("cooler_pending_since", None)
     temp_cfg.setdefault("heating_error", False)
     temp_cfg.setdefault("cooling_error", False)
     temp_cfg.setdefault("heating_error_notified", False)
@@ -2267,16 +2270,59 @@ Change since yesterday: {change_since_yesterday:.3f}"""
 # --- Kasa command dedupe & rate limit -------------------------------------
 _last_kasa_command = {}
 _KASA_RATE_LIMIT_SECONDS = int(system_cfg.get("kasa_rate_limit_seconds", 10) or 10)
+_KASA_PENDING_TIMEOUT_SECONDS = int(system_cfg.get("kasa_pending_timeout_seconds", 30) or 30)
 
 def _should_send_kasa_command(url, action):
     if not url:
         return False
     if not kasa_worker:
         return False
+    
+    # Check for timed-out pending flags and clear them
     if url == temp_cfg.get("heating_plug") and temp_cfg.get("heater_pending"):
-        return False
+        pending_since = temp_cfg.get("heater_pending_since")
+        if pending_since and (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
+            elapsed = time.time() - pending_since
+            print(f"[TEMP_CONTROL] Clearing stuck heater_pending flag (pending for {elapsed:.1f}s)")
+            temp_cfg["heater_pending"] = False
+            temp_cfg["heater_pending_since"] = None
+            # Log the timeout event
+            append_control_log("kasa_command_timeout", {
+                "mode": "heating",
+                "action": action,
+                "url": url,
+                "timeout_seconds": _KASA_PENDING_TIMEOUT_SECONDS,
+                "elapsed_seconds": round(elapsed, 1),
+                "tilt_color": temp_cfg.get("tilt_color", ""),
+                "current_temp": temp_cfg.get("current_temp"),
+                "low_limit": temp_cfg.get("low_limit"),
+                "high_limit": temp_cfg.get("high_limit")
+            })
+        elif temp_cfg.get("heater_pending"):
+            return False
+    
     if url == temp_cfg.get("cooling_plug") and temp_cfg.get("cooler_pending"):
-        return False
+        pending_since = temp_cfg.get("cooler_pending_since")
+        if pending_since and (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
+            elapsed = time.time() - pending_since
+            print(f"[TEMP_CONTROL] Clearing stuck cooler_pending flag (pending for {elapsed:.1f}s)")
+            temp_cfg["cooler_pending"] = False
+            temp_cfg["cooler_pending_since"] = None
+            # Log the timeout event
+            append_control_log("kasa_command_timeout", {
+                "mode": "cooling",
+                "action": action,
+                "url": url,
+                "timeout_seconds": _KASA_PENDING_TIMEOUT_SECONDS,
+                "elapsed_seconds": round(elapsed, 1),
+                "tilt_color": temp_cfg.get("tilt_color", ""),
+                "current_temp": temp_cfg.get("current_temp"),
+                "low_limit": temp_cfg.get("low_limit"),
+                "high_limit": temp_cfg.get("high_limit")
+            })
+        elif temp_cfg.get("cooler_pending"):
+            return False
+    
     if url == temp_cfg.get("heating_plug"):
         if temp_cfg.get("heater_on") and action == "on":
             return False
@@ -2302,6 +2348,7 @@ def control_heating(state):
     url = temp_cfg.get("heating_plug", "")
     if not enabled or not url:
         temp_cfg["heater_pending"] = False
+        temp_cfg["heater_pending_since"] = None
         temp_cfg["heater_on"] = False
         # Clear heating errors when heating is disabled
         temp_cfg["heating_error"] = False
@@ -2378,12 +2425,14 @@ def control_heating(state):
     kasa_queue.put({'mode': 'heating', 'url': url, 'action': state})
     _record_kasa_command(url, state)
     temp_cfg["heater_pending"] = True
+    temp_cfg["heater_pending_since"] = time.time()
 
 def control_cooling(state):
     enabled = temp_cfg.get("enable_cooling")
     url = temp_cfg.get("cooling_plug", "")
     if not enabled or not url:
         temp_cfg["cooler_pending"] = False
+        temp_cfg["cooler_pending_since"] = None
         temp_cfg["cooler_on"] = False
         # Clear cooling errors when cooling is disabled
         temp_cfg["cooling_error"] = False
@@ -2460,6 +2509,7 @@ def control_cooling(state):
     kasa_queue.put({'mode': 'cooling', 'url': url, 'action': state})
     _record_kasa_command(url, state)
     temp_cfg["cooler_pending"] = True
+    temp_cfg["cooler_pending_since"] = time.time()
 
 # --- Temperature control logic (normalized + limited logging) -------------
 def temperature_control_logic():
@@ -2620,10 +2670,13 @@ def temperature_control_logic():
                 # Send notification if enabled
                 send_temp_control_notification("temp_below_low_limit", temp, low, high, temp_cfg.get("tilt_color", ""))
                 temp_cfg["below_limit_trigger_armed"] = False
-                temp_cfg["above_limit_trigger_armed"] = False  # Ensure above is disarmed
+                # Arm the above_limit trigger for when temp rises to high limit
+                temp_cfg["above_limit_trigger_armed"] = True
         elif high is not None and temp >= high:
             # Temperature at or above high limit - turn heating OFF
             control_heating("off")
+            # Arm the below_limit trigger for when temp drops to low limit again
+            temp_cfg["below_limit_trigger_armed"] = True
         # else: temperature is between low and high - maintain current state
         # (don't change heating state, let it continue)
     else:
@@ -2644,10 +2697,13 @@ def temperature_control_logic():
                 # Send notification if enabled
                 send_temp_control_notification("temp_above_high_limit", temp, low, high, temp_cfg.get("tilt_color", ""))
                 temp_cfg["above_limit_trigger_armed"] = False
-                temp_cfg["below_limit_trigger_armed"] = False  # Ensure below is disarmed
+                # Arm the below_limit trigger for when temp drops to low limit
+                temp_cfg["below_limit_trigger_armed"] = True
         elif low is not None and temp <= low:
             # Temperature at or below low limit - turn cooling OFF
             control_cooling("off")
+            # Arm the above_limit trigger for when temp rises to high limit again
+            temp_cfg["above_limit_trigger_armed"] = True
         # else: temperature is between low and high - maintain current state
         # (don't change cooling state, let it continue)
     else:
@@ -2682,9 +2738,7 @@ def temperature_control_logic():
             if temp_cfg.get("in_range_trigger_armed") and is_monitoring_active:
                 append_control_log("temp_in_range", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
                 temp_cfg["in_range_trigger_armed"] = False
-            # Re-arm the out-of-range triggers when in range
-            temp_cfg["above_limit_trigger_armed"] = True
-            temp_cfg["below_limit_trigger_armed"] = True
+            # Do NOT rearm out-of-range triggers here - they are rearmed when opposite limit is reached
             temp_cfg["status"] = "In Range"
             return
         else:
@@ -2715,6 +2769,7 @@ def kasa_result_listener():
             
             if mode == 'heating':
                 temp_cfg["heater_pending"] = False
+                temp_cfg["heater_pending_since"] = None
                 if success:
                     temp_cfg["heater_on"] = (action == 'on')
                     temp_cfg["heating_error"] = False
@@ -2739,6 +2794,7 @@ def kasa_result_listener():
                     send_kasa_error_notification('heating', url, error)
             elif mode == 'cooling':
                 temp_cfg["cooler_pending"] = False
+                temp_cfg["cooler_pending_since"] = None
                 if success:
                     temp_cfg["cooler_on"] = (action == 'on')
                     temp_cfg["cooling_error"] = False
