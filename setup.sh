@@ -39,8 +39,8 @@ if ! python3 -m venv --help &> /dev/null; then
 fi
 echo "✓ python3-venv is available"
 
-# Create virtual environment
-VENV_DIR="venv"
+# Create virtual environment (using .venv to match start.sh and service expectations)
+VENV_DIR=".venv"
 echo ""
 echo "Creating virtual environment in '$VENV_DIR/'..."
 if [ -d "$VENV_DIR" ]; then
@@ -104,7 +104,7 @@ echo "=========================================="
 echo ""
 echo "To start the application:"
 echo "  1. Activate the virtual environment:"
-echo "     source venv/bin/activate"
+echo "     source .venv/bin/activate"
 echo ""
 echo "  2. Run the application:"
 echo "     python3 app.py"

@@ -67,11 +67,11 @@ If you prefer to install manually or encounter issues:
 
 2. **Set up a Python virtual environment (REQUIRED on Raspberry Pi):**
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate
+   python3 -m venv .venv
+   source .venv/bin/activate
    ```
    
-   > **Note:** If you get "No module named venv" error, install it first:
+   > **Note:** You can use either `.venv` or `venv` as the directory name. The `start.sh` script automatically detects both. If you get "No module named venv" error, install it first:
    > ```bash
    > sudo apt install python3-venv python3-full
    > ```
@@ -97,19 +97,25 @@ If you prefer to install manually or encounter issues:
 
 ### Running on System Startup (Recommended)
 
-To have the application start automatically when your Raspberry Pi boots up, set up the included systemd service:
+To have the application start automatically when your Raspberry Pi boots up, use the automated service installer:
 
 ```bash
-# Copy the service file
-sudo cp fermenter.service /etc/systemd/system/
+# Run the automated service installer
+./install_service.sh
+```
 
-# Enable and start the service
+The installer will:
+- ✓ Automatically detect your installation directory and username
+- ✓ Generate a service file with correct paths for your setup
+- ✓ Install and optionally enable/start the systemd service
+
+**Alternative - Manual Installation:**
+```bash
+# Edit fermenter.service with your paths, then:
+sudo cp fermenter.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable fermenter
 sudo systemctl start fermenter
-
-# Check status
-sudo systemctl status fermenter
 ```
 
 For detailed instructions, including service management and logging, see the [Running on System Startup](INSTALLATION.md#running-on-system-startup-recommended) section in INSTALLATION.md.
