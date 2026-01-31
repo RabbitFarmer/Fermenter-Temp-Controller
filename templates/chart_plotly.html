@@ -92,6 +92,9 @@
         
         const traces = [];
         
+        // Keep a reference to original data points for temp control event markers
+        const allDataPoints = dataPoints;
+        
         // Temperature trace - for temp control, show only the active tilt
         if (isTempControl) {
           // For temperature control, we only want to show the active tilt
@@ -105,33 +108,45 @@
             activeTiltColor = validDataPoints[validDataPoints.length - 1].tilt_color;
           }
           
-          // Filter to show only the active tilt's data
-          const activeTiltData = activeTiltColor 
-            ? validDataPoints.filter(p => p.tilt_color === activeTiltColor)
-            : [];
+          // Determine which data to display
+          let displayData = [];
+          let displayLabel = 'Temperature';
+          let displayColor = '#808080';
           
-          // Define color mapping for traces
-          const colorMap = {
-            'Black': '#000000',
-            'Blue': '#0000FF',
-            'Green': '#008000',
-            'Orange': '#FFA500',
-            'Pink': '#FFC0CB',
-            'Purple': '#800080',
-            'Red': '#FF0000',
-            'Yellow': '#FFFF00',
-          };
+          if (activeTiltColor) {
+            // If we have an active tilt, show only that tilt's data
+            displayData = validDataPoints.filter(p => p.tilt_color === activeTiltColor);
+            displayLabel = `${activeTiltColor} Tilt`;
+            
+            // Define color mapping for traces
+            const colorMap = {
+              'Black': '#000000',
+              'Blue': '#0000FF',
+              'Green': '#008000',
+              'Orange': '#FFA500',
+              'Pink': '#FFC0CB',
+              'Purple': '#800080',
+              'Red': '#FF0000',
+              'Yellow': '#FFFF00',
+            };
+            displayColor = colorMap[activeTiltColor] || '#808080';
+          } else {
+            // No tilt_color data available, show all data points
+            displayData = allDataPoints;
+            displayLabel = 'Temperature';
+            displayColor = '#0066CC';  // Blue for generic temperature
+          }
           
-          // Create trace only for the active tilt
-          if (activeTiltData.length > 0 && activeTiltColor) {
-            const validPoints = activeTiltData.filter(p => p.temp_f != null && !isNaN(p.temp_f));
+          // Create temperature trace if we have data
+          if (displayData.length > 0) {
+            const validPoints = displayData.filter(p => p.temp_f != null && !isNaN(p.temp_f));
             if (validPoints.length > 0) {
               traces.push({
-                x: activeTiltData.map(p => p.timestamp),
-                y: activeTiltData.map(p => p.temp_f),
+                x: displayData.map(p => p.timestamp),
+                y: displayData.map(p => p.temp_f),
                 mode: 'lines+markers',
-                name: `${activeTiltColor} Tilt`,
-                line: { color: colorMap[activeTiltColor] || '#808080', shape: 'spline', width: 3 },
+                name: displayLabel,
+                line: { color: displayColor, shape: 'spline', width: 3 },
                 marker: { size: 4 },
                 yaxis: 'y1',
                 connectgaps: false,
@@ -139,10 +154,8 @@
             }
           }
           
-          // Update dataPoints to only include active tilt for subsequent processing
-          // But keep original dataPoints for event markers (they might not have tilt_color)
-          const allDataPoints = dataPoints;
-          dataPoints = activeTiltData;
+          // Update dataPoints to only include display data for subsequent processing
+          dataPoints = displayData;
         } else {
           // Original single temperature trace for regular tilt data
           const tempTrace = {
