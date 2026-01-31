@@ -8,6 +8,8 @@ import os
 import sys
 import threading
 import time
+import subprocess
+import shutil
 from unittest.mock import patch, MagicMock
 
 def test_browser_skip_with_env_var():
@@ -16,18 +18,24 @@ def test_browser_skip_with_env_var():
     # Set the environment variable
     os.environ['SKIP_BROWSER_OPEN'] = '1'
     
-    # Import webbrowser to mock it
-    import webbrowser
-    
-    # Mock webbrowser.open to track calls
-    with patch('webbrowser.open') as mock_open:
+    # Mock subprocess.Popen to track calls
+    with patch('subprocess.Popen') as mock_popen, \
+         patch('shutil.which', return_value='/usr/bin/xdg-open'):
         
         # Simulate the app.py browser opening logic
         def open_browser():
-            time.sleep(0.1)  # Simulated delay
+            time.sleep(0.1)
+            url = 'http://127.0.0.1:5000'
             try:
-                webbrowser.open('http://127.0.0.1:5000')
-                print("[LOG] Opened browser at http://127.0.0.1:5000")
+                if shutil.which('xdg-open'):
+                    subprocess.Popen(
+                        ['nohup', 'xdg-open', url],
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True
+                    )
+                    print(f"[LOG] Opened browser at {url} using xdg-open")
             except Exception as e:
                 print(f"[LOG] Could not automatically open browser: {e}")
         
@@ -38,7 +46,7 @@ def test_browser_skip_with_env_var():
             time.sleep(0.3)  # Wait for thread
         
         # Browser should NOT have been opened because SKIP_BROWSER_OPEN is set
-        assert not mock_open.called, "Browser should NOT open when SKIP_BROWSER_OPEN is set"
+        assert not mock_popen.called, "Browser should NOT open when SKIP_BROWSER_OPEN is set"
         print("✓ Test passed: Browser correctly skipped when SKIP_BROWSER_OPEN=1")
     
     # Clean up
@@ -51,18 +59,24 @@ def test_browser_opens_without_env_var():
     # Make sure SKIP_BROWSER_OPEN is not set
     os.environ.pop('SKIP_BROWSER_OPEN', None)
     
-    # Import webbrowser to mock it
-    import webbrowser
-    
-    # Mock webbrowser.open to track calls
-    with patch('webbrowser.open') as mock_open:
+    # Mock subprocess.Popen to track calls
+    with patch('subprocess.Popen') as mock_popen, \
+         patch('shutil.which', return_value='/usr/bin/xdg-open'):
         
         # Simulate the app.py browser opening logic
         def open_browser():
-            time.sleep(0.1)  # Simulated delay
+            time.sleep(0.1)
+            url = 'http://127.0.0.1:5000'
             try:
-                webbrowser.open('http://127.0.0.1:5000')
-                print("[LOG] Opened browser at http://127.0.0.1:5000")
+                if shutil.which('xdg-open'):
+                    subprocess.Popen(
+                        ['nohup', 'xdg-open', url],
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True
+                    )
+                    print(f"[LOG] Opened browser at {url} using xdg-open")
             except Exception as e:
                 print(f"[LOG] Could not automatically open browser: {e}")
         
@@ -73,8 +87,9 @@ def test_browser_opens_without_env_var():
             time.sleep(0.3)  # Wait for thread
         
         # Browser SHOULD have been opened
-        assert mock_open.called, "Browser SHOULD open when SKIP_BROWSER_OPEN is not set"
-        mock_open.assert_called_once_with('http://127.0.0.1:5000')
+        assert mock_popen.called, "Browser SHOULD open when SKIP_BROWSER_OPEN is not set"
+        args = mock_popen.call_args
+        assert args[0][0] == ['nohup', 'xdg-open', 'http://127.0.0.1:5000'], "Should use xdg-open with correct URL"
         print("✓ Test passed: Browser correctly opens when SKIP_BROWSER_OPEN is not set")
 
 

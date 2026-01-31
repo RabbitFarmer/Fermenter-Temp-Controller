@@ -5426,14 +5426,41 @@ def open_browser():
     """
     Open the default web browser to the Flask app URL after a short delay.
     This runs in a separate thread to avoid blocking the Flask startup.
+    Uses system commands (xdg-open, open) for better compatibility with
+    headless and Raspberry Pi environments.
     """
     time.sleep(1.5)  # Wait for Flask to start
+    url = 'http://127.0.0.1:5000'
+    
     try:
-        webbrowser.open('http://127.0.0.1:5000')
-        print("[LOG] Opened browser at http://127.0.0.1:5000")
+        # Try using system commands first (more reliable on Raspberry Pi)
+        if shutil.which('xdg-open'):
+            # Linux - use nohup and start_new_session for complete detachment
+            subprocess.Popen(
+                ['nohup', 'xdg-open', url],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
+            print(f"[LOG] Opened browser at {url} using xdg-open")
+        elif shutil.which('open'):
+            # macOS - use nohup and start_new_session for complete detachment
+            subprocess.Popen(
+                ['nohup', 'open', url],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
+            print(f"[LOG] Opened browser at {url} using open")
+        else:
+            # Fallback to Python's webbrowser module
+            webbrowser.open(url)
+            print(f"[LOG] Opened browser at {url} using webbrowser module")
     except Exception as e:
         print(f"[LOG] Could not automatically open browser: {e}")
-        print("[LOG] Please manually navigate to http://127.0.0.1:5000")
+        print(f"[LOG] Please manually navigate to {url}")
 
 
 if __name__ == '__main__':
