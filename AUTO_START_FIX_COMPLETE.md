@@ -17,12 +17,17 @@ We've created an **automated service installer** that detects your actual instal
 
 ### Quick Fix (Recommended)
 
-Simply run the automated installer:
+Simply run the automated installer with the full path:
 
 ```bash
-cd ~/FermenterApp  # Or wherever you installed the app
-./install_service.sh
+# Run with full path (required)
+bash ~/FermenterApp/install_service.sh
+
+# Or if installed elsewhere:
+# bash /full/path/to/Fermenter-Temp-Controller/install_service.sh
 ```
+
+> **Important:** The installer must be run with the full path to ensure correct service file generation.
 
 The installer will:
 1. ✓ Automatically detect your username (`flc3`)
@@ -121,7 +126,7 @@ No hardcoded paths - it automatically detects where it's installed!
 
 ## Verification
 
-After running `./install_service.sh` and enabling the service:
+After running the installer with the full path and enabling the service:
 
 1. **Reboot your Raspberry Pi:**
    ```bash
@@ -210,7 +215,7 @@ If the service still doesn't start:
 
 ## Next Steps
 
-1. Run `./install_service.sh` to set up auto-start
+1. Run `bash /full/path/to/install_service.sh` to set up auto-start
 2. Reboot and verify the service starts automatically
 3. Enjoy automatic startup on every boot!
 

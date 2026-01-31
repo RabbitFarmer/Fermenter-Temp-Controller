@@ -1,104 +1,54 @@
 #!/bin/bash
 
-# Startup log file
-STARTUP_LOG="startup.log"
-
-# Redirect all output to both terminal and log file
-exec > >(tee -a "$STARTUP_LOG") 2>&1
-
-echo "======================================================================="
-echo "Startup trace log - $(date)"
-echo "======================================================================="
-
-# Enable debug tracing if DEBUG environment variable is set
-# Usage: DEBUG=1 ./start.sh
-# To enable Flask debug mode (with Werkzeug reloader): FLASK_DEBUG=1 ./start.sh
-if [ "${DEBUG:-0}" = "1" ]; then
-    set -x  # Print each command before executing
-    echo "[DEBUG] Debug mode enabled - all commands will be traced"
-fi
-
-# Function to print timestamped debug messages
-debug_log() {
-    if [ "${DEBUG:-0}" = "1" ]; then
-        echo "[DEBUG $(date '+%Y-%m-%d %H:%M:%S')] $*"
-    fi
-}
-
-# Function to print timestamped progress messages
-log_step() {
-    echo "[$(date '+%H:%M:%S')] $*"
-}
-
-# Track startup time
-STARTUP_BEGIN=$(date +%s)
-
-log_step "=== Fermenter Temp Controller Startup ==="
-log_step "Startup log will be saved to: $STARTUP_LOG"
-debug_log "Script: $0"
-debug_log "Working directory: $(pwd)"
+echo "=== Fermenter Temp Controller Startup ==="
 
 # Get the directory where this script is located and navigate to it
-log_step "Navigating to script directory..."
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-debug_log "Script directory: $SCRIPT_DIR"
 cd "$SCRIPT_DIR"
-debug_log "Current directory: $(pwd)"
 
 # Detect or create virtual environment (supports both .venv and venv)
-log_step "Checking for virtual environment..."
+echo "Checking for virtual environment..."
 VENV_DIR=""
 
 if [ -d ".venv" ]; then
     VENV_DIR=".venv"
-    debug_log "Found virtual environment: .venv"
 elif [ -d "venv" ]; then
     VENV_DIR="venv"
-    debug_log "Found virtual environment: venv"
 else
     # No venv found, create .venv as default
     VENV_DIR=".venv"
-    log_step "No virtual environment found. Creating .venv..."
-    debug_log "Running: python3 -m venv $VENV_DIR"
+    echo "No virtual environment found. Creating .venv..."
     if ! python3 -m venv "$VENV_DIR"; then
-        echo "[ERROR] Failed to create a virtual environment. Exiting."
+        echo "ERROR: Failed to create a virtual environment. Exiting."
         exit 1
     fi
-    log_step "Virtual environment created successfully at $VENV_DIR"
+    echo "Virtual environment created successfully at $VENV_DIR"
 fi
 
-log_step "Activating virtual environment ($VENV_DIR)..."
-debug_log "Sourcing $VENV_DIR/bin/activate"
+echo "Activating virtual environment ($VENV_DIR)..."
 source "$VENV_DIR/bin/activate"
-log_step "Virtual environment activated."
-debug_log "Python path: $(which python3)"
-debug_log "Python version: $(python3 --version)"
+echo "Virtual environment activated."
 
 # Install dependencies if 'requirements.txt' exists
 if [ -f "requirements.txt" ]; then
-    log_step "Installing dependencies from requirements.txt..."
-    debug_log "Pip version: $(pip --version)"
+    echo "Installing dependencies from requirements.txt..."
     if ! pip install -r requirements.txt; then
-        echo "[ERROR] Failed to install dependencies. Exiting."
+        echo "ERROR: Failed to install dependencies. Exiting."
         exit 1
     fi
-    log_step "Dependencies installed successfully."
+    echo "Dependencies installed successfully."
 else
-    log_step "Warning: requirements.txt not found. Skipping dependency installation."
+    echo "Warning: requirements.txt not found. Skipping dependency installation."
 fi
 
 # Start the application in the background and log output
-log_step "Starting the application..."
+echo "Starting the application..."
 # Set environment variable to prevent app.py from opening browser (start.sh will do it)
 # Use nohup to ensure the app continues running even if this script exits
 # Get the full path to python3 in the venv to ensure it works after script exits
 PYTHON_PATH="$(which python3)"
-debug_log "Python path for app: $PYTHON_PATH"
-debug_log "Setting SKIP_BROWSER_OPEN=1"
 export SKIP_BROWSER_OPEN=1
 
-log_step "Launching app.py with nohup..."
-debug_log "Command: nohup $PYTHON_PATH app.py > app.log 2>&1 &"
 nohup "$PYTHON_PATH" app.py > app.log 2>&1 &
 APP_PID=$!
 
@@ -106,108 +56,66 @@ APP_PID=$!
 # Use -h flag to mark job as non-SIGHUP without removing from job table (more robust)
 disown -h $APP_PID 2>/dev/null || true
 
-log_step "Application started with PID $APP_PID"
-debug_log "Process status:"
-if [ "${DEBUG:-0}" = "1" ]; then
-    ps -p $APP_PID -o pid,ppid,stat,cmd 2>/dev/null || echo "  Process not found (may have exited immediately)"
-fi
+echo "Application started with PID $APP_PID"
 
 # Give the app a moment to initialize
 sleep 1
 
 # Check if process is still running
 if ! ps -p $APP_PID > /dev/null 2>&1; then
-    echo "[ERROR] Application process $APP_PID died immediately after launch!"
-    echo "[ERROR] Last 20 lines of app.log:"
+    echo "ERROR: Application process $APP_PID died immediately after launch!"
+    echo "Last 20 lines of app.log:"
     tail -20 app.log 2>/dev/null || echo "  (no log file yet)"
     exit 1
 fi
-debug_log "Process $APP_PID is running"
 
 # Wait for the application to start with retries
-log_step "Waiting for application to respond on http://127.0.0.1:5000..."
+echo "Waiting for application to respond on http://127.0.0.1:5000..."
 RETRIES=30
 RETRY_DELAY=2
 for i in $(seq 1 $RETRIES); do
-    log_step "Health check attempt $i/$RETRIES..."
-    debug_log "Running: curl -s http://127.0.0.1:5000"
-    
     if curl -s http://127.0.0.1:5000 > /dev/null 2>&1; then
-        ELAPSED=$(($(date +%s) - STARTUP_BEGIN))
-        log_step "✓ Application is responding! (after ${ELAPSED}s)"
+        echo "✓ Application is responding!"
         break
     fi
-    
-    # Note: We don't check if the original PID is alive because Flask debug mode
-    # uses Werkzeug reloader which forks a child process, causing the original PID
-    # to exit. The HTTP health check above is sufficient to verify the app is running.
-    
-    debug_log "App not ready yet, waiting for HTTP response. Waiting ${RETRY_DELAY}s..."
     sleep $RETRY_DELAY
 done
 
 if ! curl -s http://127.0.0.1:5000 > /dev/null 2>&1; then
-    ELAPSED=$(($(date +%s) - STARTUP_BEGIN))
-    echo "======================================================================="
-    echo "[WARNING] Application did not respond after $((RETRIES * RETRY_DELAY)) seconds (${ELAPSED}s elapsed)"
-    echo "======================================================================="
+    echo "WARNING: Application did not respond after $((RETRIES * RETRY_DELAY)) seconds"
     echo "The application is still starting in the background (PID $APP_PID)."
-    echo ""
-    echo "Process status:"
-    ps -p $APP_PID -o pid,ppid,stat,etime,cmd 2>/dev/null || echo "  Process not found!"
-    echo ""
-    echo "Last 20 lines of app.log:"
-    tail -20 app.log 2>/dev/null || echo "  (no log file yet)"
-    echo ""
-    echo "======================================================================="
-    echo "TROUBLESHOOTING:"
-    echo "  - Check app.log for errors: tail -f app.log"
-    echo "  - Check startup log: cat $STARTUP_LOG"
-    echo "  - Test if app responds: curl http://127.0.0.1:5000"
-    echo "  - Check process: ps -p $APP_PID"
-    echo "  - Try with shell tracing: DEBUG=1 ./start.sh"
-    echo "  - Try with Flask debug: FLASK_DEBUG=1 ./start.sh"
-    echo "  - Manually open browser: http://127.0.0.1:5000"
-    echo "======================================================================="
+    echo "Check app.log for errors: tail -f app.log"
     exit 0
 fi
 
-# Open the application in the default web browser
-log_step "Opening the application in your default browser..."
-debug_log "Checking for browser commands..."
+# Open the application in the default web browser in fullscreen
+echo "Opening the application in your default browser..."
 if command -v xdg-open > /dev/null; then
-    debug_log "Using xdg-open (Linux)"
     # Use nohup and run in subshell to completely detach from script
     (nohup xdg-open http://127.0.0.1:5000 </dev/null >/dev/null 2>&1 &)
-    log_step "Browser launched with xdg-open"
+    # Attempt to send F11 for fullscreen mode if xdotool is available
+    if command -v xdotool > /dev/null; then
+        # Give browser time to open and become the active window
+        sleep 3
+        # Try to find and activate the browser window, then send F11
+        # This is best-effort; if it fails, the browser opens normally
+        xdotool search --class --sync "chromium|firefox|chrome" windowactivate --sync key F11 2>/dev/null || \
+        xdotool key F11 2>/dev/null || true
+    fi
+    echo "Browser launched"
 elif command -v open > /dev/null; then
-    debug_log "Using open (macOS)"
     # Use nohup and run in subshell to completely detach from script (macOS)
     (nohup open http://127.0.0.1:5000 </dev/null >/dev/null 2>&1 &)
-    log_step "Browser launched with open"
+    echo "Browser launched"
 else
-    log_step "No browser command found (xdg-open/open)"
+    echo "No browser command found (xdg-open/open)"
     echo "Please open http://127.0.0.1:5000 in your browser manually."
 fi
 
-STARTUP_END=$(date +%s)
-TOTAL_TIME=$((STARTUP_END - STARTUP_BEGIN))
-
 echo "======================================================================="
-log_step "✓ Startup completed successfully!"
+echo "✓ Startup completed successfully!"
 echo "======================================================================="
 echo "  Application PID: $APP_PID"
-echo "  Total startup time: ${TOTAL_TIME} seconds"
 echo "  Access dashboard: http://127.0.0.1:5000"
-echo "  Startup log saved: $STARTUP_LOG"
 echo "  Application log: app.log"
-echo "======================================================================="
-echo ""
-echo "To view logs:"
-echo "  Startup trace: cat $STARTUP_LOG"
-echo "  App log: tail -f app.log"
-echo ""
-echo "Debug options:"
-echo "  Shell tracing: DEBUG=1 ./start.sh"
-echo "  Flask debug mode: FLASK_DEBUG=1 ./start.sh"
 echo "======================================================================="

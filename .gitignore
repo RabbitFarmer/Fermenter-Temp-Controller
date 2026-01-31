@@ -57,4 +57,3 @@ verify_chart_logic.py
 #wireguard VPN Tunnel Security
 server_private.key
 server_public.key
-startup.log

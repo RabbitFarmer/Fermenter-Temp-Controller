@@ -100,9 +100,14 @@ If you prefer to install manually or encounter issues:
 To have the application start automatically when your Raspberry Pi boots up, use the automated service installer:
 
 ```bash
-# Run the automated service installer
-./install_service.sh
+# Run the automated service installer (requires full path)
+bash /full/path/to/Fermenter-Temp-Controller/install_service.sh
+
+# Example:
+# bash /home/pi/Fermenter-Temp-Controller/install_service.sh
 ```
+
+> **Note:** The installer must be run with the full path to ensure correct service file generation.
 
 The installer will:
 - ✓ Automatically detect your installation directory and username
