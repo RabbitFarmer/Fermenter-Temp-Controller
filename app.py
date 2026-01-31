@@ -5416,7 +5416,7 @@ def open_browser():
     try:
         # Try using system commands first (more reliable on Raspberry Pi)
         if shutil.which('xdg-open'):
-            # Linux - use nohup and subshell for complete detachment
+            # Linux - use nohup and start_new_session for complete detachment
             subprocess.Popen(
                 ['nohup', 'xdg-open', url],
                 stdin=subprocess.DEVNULL,
@@ -5426,7 +5426,7 @@ def open_browser():
             )
             print(f"[LOG] Opened browser at {url} using xdg-open")
         elif shutil.which('open'):
-            # macOS - use nohup and subshell for complete detachment
+            # macOS - use nohup and start_new_session for complete detachment
             subprocess.Popen(
                 ['nohup', 'open', url],
                 stdin=subprocess.DEVNULL,
