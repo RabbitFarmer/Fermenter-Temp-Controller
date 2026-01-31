@@ -37,7 +37,8 @@ export SKIP_BROWSER_OPEN=1
 nohup "$PYTHON_PATH" app.py > app.log 2>&1 &
 APP_PID=$!
 # Also disown the process to fully detach from the shell
-disown $APP_PID 2>/dev/null || true
+# Use -h flag to mark job as non-SIGHUP without removing from job table (more robust)
+disown -h $APP_PID 2>/dev/null || true
 echo "Application started with PID $APP_PID"
 
 # Wait for the application to start with retries
