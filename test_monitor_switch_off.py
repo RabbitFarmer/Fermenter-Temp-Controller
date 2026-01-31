@@ -175,7 +175,7 @@ def test_monitor_switch_off_turns_off_plugs():
         try:
             os.unlink(temp_cfg_file.name)
             os.unlink(system_cfg_file.name)
-        except:
+        except OSError:
             pass
 
 def test_monitor_switch_on_arms_triggers():
@@ -280,7 +280,7 @@ def test_monitor_switch_on_arms_triggers():
         try:
             os.unlink(temp_cfg_file.name)
             os.unlink(system_cfg_file.name)
-        except:
+        except OSError:
             pass
 
 if __name__ == '__main__':
