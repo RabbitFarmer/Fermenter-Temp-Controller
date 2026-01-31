@@ -151,10 +151,9 @@
               traces.push({
                 x: displayData.map(p => p.timestamp),
                 y: displayData.map(p => p.temp_f),
-                mode: 'lines+markers',
+                mode: 'lines',
                 name: displayLabel,
                 line: { color: displayColor, shape: 'spline', width: 3 },
-                marker: { size: 4 },
                 yaxis: 'y1',
                 connectgaps: false,
               });
@@ -252,45 +251,50 @@
           
           // Always show all 4 heating/cooling indicators in legend
           // Users can see from the chart which ones are actually in use
+          // To ensure all traces appear in legend even with no data, we add a dummy null point
           
           // Heating ON markers (red triangles pointing up)
           traces.push({
-            x: heatingOnEvents.map(p => p.timestamp),
-            y: heatingOnEvents.map(p => p.temp_f),
+            x: heatingOnEvents.length > 0 ? heatingOnEvents.map(p => p.timestamp) : [null],
+            y: heatingOnEvents.length > 0 ? heatingOnEvents.map(p => p.temp_f) : [null],
             mode: 'markers',
             name: 'Heating ON',
             marker: { color: 'red', size: 10, symbol: 'triangle-up' },
             yaxis: 'y1',
+            showlegend: true,
           });
           
           // Heating OFF markers (pink triangles pointing down)
           traces.push({
-            x: heatingOffEvents.map(p => p.timestamp),
-            y: heatingOffEvents.map(p => p.temp_f),
+            x: heatingOffEvents.length > 0 ? heatingOffEvents.map(p => p.timestamp) : [null],
+            y: heatingOffEvents.length > 0 ? heatingOffEvents.map(p => p.temp_f) : [null],
             mode: 'markers',
             name: 'Heating OFF',
             marker: { color: 'pink', size: 10, symbol: 'triangle-down' },
             yaxis: 'y1',
+            showlegend: true,
           });
           
           // Cooling ON markers (blue squares)
           traces.push({
-            x: coolingOnEvents.map(p => p.timestamp),
-            y: coolingOnEvents.map(p => p.temp_f),
+            x: coolingOnEvents.length > 0 ? coolingOnEvents.map(p => p.timestamp) : [null],
+            y: coolingOnEvents.length > 0 ? coolingOnEvents.map(p => p.temp_f) : [null],
             mode: 'markers',
             name: 'Cooling ON',
             marker: { color: 'blue', size: 10, symbol: 'square' },
             yaxis: 'y1',
+            showlegend: true,
           });
           
           // Cooling OFF markers (light blue squares)
           traces.push({
-            x: coolingOffEvents.map(p => p.timestamp),
-            y: coolingOffEvents.map(p => p.temp_f),
+            x: coolingOffEvents.length > 0 ? coolingOffEvents.map(p => p.timestamp) : [null],
+            y: coolingOffEvents.length > 0 ? coolingOffEvents.map(p => p.temp_f) : [null],
             mode: 'markers',
             name: 'Cooling OFF',
             marker: { color: 'lightblue', size: 10, symbol: 'square' },
             yaxis: 'y1',
+            showlegend: true,
           });
           
           // Layout without gravity axis
