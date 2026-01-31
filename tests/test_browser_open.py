@@ -7,48 +7,111 @@ This tests that the browser opening logic doesn't break the app startup.
 import threading
 import time
 import webbrowser
+import subprocess
+import shutil
 from unittest.mock import patch, MagicMock
 
 def test_browser_open_function():
     """Test the open_browser function logic"""
     print("Testing browser opening logic...")
     
-    # Mock webbrowser.open to avoid actually opening a browser during test
-    with patch('webbrowser.open') as mock_open:
-        # Define the function exactly as it appears in app.py
+    # Test 1: Normal operation with system commands
+    with patch('subprocess.Popen') as mock_popen, \
+         patch('shutil.which') as mock_which:
+        
+        # Mock xdg-open being available
+        mock_which.return_value = '/usr/bin/xdg-open'
+        mock_popen.return_value = MagicMock()
+        
+        # Define the function with updated logic
         def open_browser():
             """
             Open the default web browser to the Flask app URL after a short delay.
-            This runs in a separate thread to avoid blocking the Flask startup.
+            Uses system commands (xdg-open, open) for better compatibility.
             """
             time.sleep(0.1)  # Reduced delay for testing
+            url = 'http://127.0.0.1:5000'
+            
             try:
-                webbrowser.open('http://127.0.0.1:5000')
-                print("[LOG] Opened browser at http://127.0.0.1:5000")
+                if shutil.which('xdg-open'):
+                    subprocess.Popen(
+                        ['nohup', 'xdg-open', url],
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True
+                    )
+                    print(f"[LOG] Opened browser at {url} using xdg-open")
+                elif shutil.which('open'):
+                    subprocess.Popen(
+                        ['nohup', 'open', url],
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True
+                    )
+                    print(f"[LOG] Opened browser at {url} using open")
+                else:
+                    webbrowser.open(url)
+                    print(f"[LOG] Opened browser at {url} using webbrowser module")
             except Exception as e:
                 print(f"[LOG] Could not automatically open browser: {e}")
-                print("[LOG] Please manually navigate to http://127.0.0.1:5000")
+                print(f"[LOG] Please manually navigate to {url}")
         
-        # Test 1: Normal operation
         browser_thread = threading.Thread(target=open_browser, daemon=True)
         browser_thread.start()
         browser_thread.join(timeout=1)
         
-        # Verify webbrowser.open was called
-        assert mock_open.called, "webbrowser.open should have been called"
-        assert mock_open.call_args[0][0] == 'http://127.0.0.1:5000', "URL should be http://127.0.0.1:5000"
-        print("✓ Browser opening logic works correctly")
+        # Verify subprocess.Popen was called with correct arguments
+        assert mock_popen.called, "subprocess.Popen should have been called"
+        args = mock_popen.call_args
+        assert args[0][0] == ['nohup', 'xdg-open', 'http://127.0.0.1:5000'], "Should use xdg-open with correct URL"
+        print("✓ Browser opening logic works correctly with system commands")
     
-    # Test 2: Exception handling
-    with patch('webbrowser.open', side_effect=Exception("Test error")):
-        def open_browser_with_error():
+    # Test 2: Fallback to webbrowser module
+    with patch('subprocess.Popen') as mock_popen, \
+         patch('shutil.which', return_value=None), \
+         patch('webbrowser.open') as mock_webbrowser:
+        
+        def open_browser_fallback():
             time.sleep(0.1)
+            url = 'http://127.0.0.1:5000'
             try:
-                webbrowser.open('http://127.0.0.1:5000')
-                print("[LOG] Opened browser at http://127.0.0.1:5000")
+                if shutil.which('xdg-open'):
+                    subprocess.Popen(['nohup', 'xdg-open', url],
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, start_new_session=True)
+                elif shutil.which('open'):
+                    subprocess.Popen(['nohup', 'open', url],
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, start_new_session=True)
+                else:
+                    webbrowser.open(url)
             except Exception as e:
                 print(f"[LOG] Could not automatically open browser: {e}")
-                print("[LOG] Please manually navigate to http://127.0.0.1:5000")
+        
+        browser_thread = threading.Thread(target=open_browser_fallback, daemon=True)
+        browser_thread.start()
+        browser_thread.join(timeout=1)
+        
+        assert mock_webbrowser.called, "webbrowser.open should be called as fallback"
+        print("✓ Fallback to webbrowser module works correctly")
+    
+    # Test 3: Exception handling
+    with patch('subprocess.Popen', side_effect=Exception("Test error")), \
+         patch('shutil.which', return_value='/usr/bin/xdg-open'):
+        
+        def open_browser_with_error():
+            time.sleep(0.1)
+            url = 'http://127.0.0.1:5000'
+            try:
+                if shutil.which('xdg-open'):
+                    subprocess.Popen(['nohup', 'xdg-open', url],
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, start_new_session=True)
+            except Exception as e:
+                print(f"[LOG] Could not automatically open browser: {e}")
+                print(f"[LOG] Please manually navigate to {url}")
         
         browser_thread = threading.Thread(target=open_browser_with_error, daemon=True)
         browser_thread.start()
