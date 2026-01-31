@@ -2484,6 +2484,15 @@ def temperature_control_logic():
 
     enable_heat = bool(temp_cfg.get("enable_heating"))
     enable_cool = bool(temp_cfg.get("enable_cooling"))
+    
+    # If the monitoring switch is turned OFF, turn off all plugs immediately
+    # but preserve configuration so settings remain when monitor is turned back ON
+    if not temp_cfg.get("temp_control_active", False):
+        control_heating("off")
+        control_cooling("off")
+        temp_cfg['status'] = "Monitor Off"
+        # Preserve all settings and return early to prevent any control actions
+        return
     if enable_heat and enable_cool:
         temp_cfg['mode'] = "Heating and Cooling Selected"
     elif enable_heat:
