@@ -11,7 +11,7 @@ This file provides the full Flask app used in the conversation:
 - Chart Plotly page and /chart_data/<identifier> endpoint
 - UI routes: dashboard, tilt_config, batch_settings, temp_config, update_temp_config, temp_report,
   export_temp_csv, scan_kasa_plugs, live_snapshot, reset_logs, exit_system, system_config
-- Program entry runs Flask on 0.0.0.0:5000 in debug mode (when run directly)
+- Program entry runs Flask on 0.0.0.0:5000 (debug mode can be enabled via FLASK_DEBUG=1 environment variable)
 """
 
 import asyncio
@@ -5542,5 +5542,8 @@ if __name__ == '__main__':
         browser_thread.start()
 
     # Run the Flask app
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Debug mode can be enabled via FLASK_DEBUG=1 environment variable
+    # Default to False for production to avoid Werkzeug reloader issues
+    debug_mode = os.environ.get('FLASK_DEBUG', '0') == '1'
+    app.run(host='0.0.0.0', port=5000, debug=debug_mode)
 

@@ -12,6 +12,7 @@ echo "======================================================================="
 
 # Enable debug tracing if DEBUG environment variable is set
 # Usage: DEBUG=1 ./start.sh
+# To enable Flask debug mode (with Werkzeug reloader): FLASK_DEBUG=1 ./start.sh
 if [ "${DEBUG:-0}" = "1" ]; then
     set -x  # Print each command before executing
     echo "[DEBUG] Debug mode enabled - all commands will be traced"
@@ -156,7 +157,8 @@ if ! curl -s http://127.0.0.1:5000 > /dev/null 2>&1; then
     echo "  - Check startup log: cat $STARTUP_LOG"
     echo "  - Test if app responds: curl http://127.0.0.1:5000"
     echo "  - Check process: ps -p $APP_PID"
-    echo "  - Try with debug mode: DEBUG=1 ./start.sh"
+    echo "  - Try with shell tracing: DEBUG=1 ./start.sh"
+    echo "  - Try with Flask debug: FLASK_DEBUG=1 ./start.sh"
     echo "  - Manually open browser: http://127.0.0.1:5000"
     echo "======================================================================="
     exit 0
@@ -196,5 +198,8 @@ echo ""
 echo "To view logs:"
 echo "  Startup trace: cat $STARTUP_LOG"
 echo "  App log: tail -f app.log"
-echo "  Debug mode: DEBUG=1 ./start.sh"
+echo ""
+echo "Debug options:"
+echo "  Shell tracing: DEBUG=1 ./start.sh"
+echo "  Flask debug mode: FLASK_DEBUG=1 ./start.sh"
 echo "======================================================================="
