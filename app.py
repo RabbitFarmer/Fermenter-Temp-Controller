@@ -5433,7 +5433,7 @@ def exit_system():
                 temp_cfg['temp_control_active'] = False
                 save_json(TEMP_CFG_FILE, temp_cfg)
             except Exception as e:
-                print(f"[LOG] Error saving temp_control_active=False during shutdown: {e}")
+                print(f"[LOG] Error setting temp_control_active=False during shutdown - monitor may start ON at next startup: {e}")
             
             # Turn off all plugs before shutdown
             try:
