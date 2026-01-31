@@ -30,10 +30,15 @@ fi
 # Start the application in the background and log output
 echo "Starting the application..."
 # Set environment variable to prevent app.py from opening browser (start.sh will do it)
-if ! (SKIP_BROWSER_OPEN=1 python3 app.py > app.log 2>&1 &); then
-    echo "Failed to start the application. See app.log for details."
-    exit 1
-fi
+# Use nohup to ensure the app continues running even if this script exits
+# Get the full path to python3 in the venv to ensure it works after script exits
+PYTHON_PATH="$(which python3)"
+export SKIP_BROWSER_OPEN=1
+nohup "$PYTHON_PATH" app.py > app.log 2>&1 &
+APP_PID=$!
+# Also disown the process to fully detach from the shell
+disown $APP_PID 2>/dev/null || true
+echo "Application started with PID $APP_PID"
 
 # Wait for the application to start with retries
 RETRIES=30
@@ -47,8 +52,14 @@ for i in $(seq 1 $RETRIES); do
 done
 
 if ! curl -s http://127.0.0.1:5000 > /dev/null; then
-    echo "Error: The application never responded after $((RETRIES * 2)) seconds."
-    exit 1
+    echo "Warning: The application did not respond after $((RETRIES * 2)) seconds."
+    echo "The application is still starting in the background (PID $APP_PID)."
+    echo "You can check app.log for startup progress."
+    echo "Please manually open http://127.0.0.1:5000 in your browser once it's ready."
+    echo ""
+    echo "To check if the app is running: curl http://127.0.0.1:5000"
+    echo "To view logs: tail -f app.log"
+    exit 0
 fi
 
 # Open the application in the default web browser
