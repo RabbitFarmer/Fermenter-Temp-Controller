@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chart Timezone Fix - Before/After</title>
+    <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .chart-container { margin: 20px 0; padding: 10px; border: 2px solid #ccc; }
+        h2 { color: #333; }
+        .info { background: #f0f0f0; padding: 10px; margin: 10px 0; border-left: 4px solid #007bff; }
+        .success { border-left-color: #28a745; background: #d4edda; }
+    </style>
+</head>
+<body>
+    <h1>Chart Timezone Fix - Demonstration</h1>
+    
+    <div class="info">
+        <strong>Issue:</strong> Temperature Control chart shows time on x-axis as 16:50 UTC, but user's local time is 11:50 EST (5 hour difference).
+    </div>
+    
+    <div class="chart-container">
+        <h2 style="color: #dc3545;">BEFORE Fix - Showing UTC Time (WRONG)</h2>
+        <div id="chartBefore" style="width: 100%; height: 400px;"></div>
+        <p>❌ This chart shows 16:50 (UTC time from server)</p>
+    </div>
+    
+    <div class="chart-container">
+        <h2 style="color: #28a745;">AFTER Fix - Showing Local Time (CORRECT)</h2>
+        <div id="chartAfter" style="width: 100%; height: 400px;"></div>
+        <p>✅ This chart shows 11:50 (Local EST time - 5 hours behind UTC)</p>
+    </div>
+    
+    <div class="info success">
+        <strong>Solution:</strong> Convert UTC timestamp strings to Date objects before passing to Plotly.
+        This allows the browser to automatically convert times to the user's local timezone.
+    </div>
+    
+    <script>
+        // Sample data with UTC timestamps (what comes from the server)
+        const utcTimestamps = [
+            "2026-01-31T16:50:00Z",  // 4:50 PM UTC
+            "2026-01-31T16:55:00Z",
+            "2026-01-31T17:00:00Z",
+            "2026-01-31T17:05:00Z",
+            "2026-01-31T17:10:00Z"
+        ];
+        
+        const temps = [67.5, 66.0, 68.0, 69.5, 69.0];
+        
+        // BEFORE FIX: Use UTC strings directly (shows UTC time)
+        const traceBefore = {
+            x: utcTimestamps,
+            y: temps,
+            mode: 'lines+markers',
+            name: 'Temperature',
+            line: { color: '#dc3545', width: 3 }
+        };
+        
+        const layoutBefore = {
+            title: 'Before Fix - UTC Timestamps (Shows 16:50)',
+            xaxis: { 
+                title: 'Time (showing UTC - WRONG)',
+                tickformat: '%H:%M'
+            },
+            yaxis: { title: 'Temperature (°F)' },
+            showlegend: false
+        };
+        
+        Plotly.newPlot('chartBefore', [traceBefore], layoutBefore);
+        
+        // AFTER FIX: Convert to Date objects (shows local time)
+        const localTimestamps = utcTimestamps.map(ts => new Date(ts));
+        
+        const traceAfter = {
+            x: localTimestamps,
+            y: temps,
+            mode: 'lines+markers',
+            name: 'Temperature',
+            line: { color: '#28a745', width: 3 }
+        };
+        
+        const layoutAfter = {
+            title: 'After Fix - Date Objects (Shows 11:50 EST)',
+            xaxis: { 
+                title: 'Time (showing Local Time - CORRECT)',
+                tickformat: '%H:%M'
+            },
+            yaxis: { title: 'Temperature (°F)' },
+            showlegend: false
+        };
+        
+        Plotly.newPlot('chartAfter', [traceAfter], layoutAfter);
+        
+        // Log the difference
+        console.log('UTC timestamp:', utcTimestamps[0]);
+        console.log('Converted to Date:', localTimestamps[0]);
+        console.log('Local time string:', localTimestamps[0].toLocaleString());
+    </script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Timezone Fix</title>
+    <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min"></script>
+</head>
+<body>
+    <h1>Timezone Fix Test</h1>
+    <div id="chart" style="width: 800px; height: 600px;"></div>
+    
+    <script>
+        // Simulate UTC timestamp data like we have in the system
+        const utcTimestamps = [
+            "2026-01-31T16:50:00Z",  // 4:50 PM UTC = 11:50 AM EST (5 hour difference)
+            "2026-01-31T16:55:00Z",
+            "2026-01-31T17:00:00Z",
+            "2026-01-31T17:05:00Z",
+            "2026-01-31T17:10:00Z"
+        ];
+        
+        const temps = [67.5, 66.0, 68.0, 69.5, 69.0];
+        
+        console.log("=== Testing Timezone Conversion ===");
+        console.log("Original UTC timestamp:", utcTimestamps[0]);
+        console.log("Expected local time (EST): 11:50 AM");
+        
+        // OLD METHOD (incorrect - displays UTC time)
+        console.log("\n--- OLD METHOD (before fix) ---");
+        const oldDate = new Date(utcTimestamps[0]);
+        console.log("Date object:", oldDate);
+        console.log("ISO String (what Plotly uses):", oldDate.toISOString());
+        console.log("Local String:", oldDate.toLocaleString());
+        
+        // NEW METHOD (correct - converts to local time)
+        console.log("\n--- NEW METHOD (after fix) ---");
+        const localTimestamps = utcTimestamps.map(ts => {
+            const date = new Date(ts);
+            console.log(`UTC: ${ts} -> Local: ${date.toLocaleString()}`);
+            return date;  // Return Date object, not ISO string
+        });
+        
+        // Create chart with OLD method (using ISO strings - shows UTC)
+        const oldTrace = {
+            x: utcTimestamps,  // Using UTC strings directly
+            y: temps,
+            mode: 'lines+markers',
+            name: 'OLD (UTC strings)',
+            line: { color: 'red' }
+        };
+        
+        // Create chart with NEW method (using Date objects - shows local time)
+        const newTrace = {
+            x: localTimestamps,  // Using Date objects
+            y: temps,
+            mode: 'lines+markers',
+            name: 'NEW (Date objects)',
+            line: { color: 'green' }
+        };
+        
+        const layout = {
+            title: 'Timezone Fix Comparison<br><sub>Red (OLD) shows UTC 16:50, Green (NEW) shows Local 11:50 EST</sub>',
+            xaxis: { 
+                title: 'Time',
+                tickformat: '%H:%M'
+            },
+            yaxis: { title: 'Temperature (°F)' }
+        };
+        
+        Plotly.newPlot('chart', [oldTrace, newTrace], layout);
+        
+        console.log("\n=== Summary ===");
+        console.log("RED line (OLD): Shows 16:50 (UTC time - WRONG)");
+        console.log("GREEN line (NEW): Shows 11:50 (Local EST time - CORRECT)");
+    </script>
+</body>
+</html>
