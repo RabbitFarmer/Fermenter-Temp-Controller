@@ -363,7 +363,7 @@ StandardError=journal
 WantedBy=multi-user.target
 ```
 
-> **Note:** If you used `setup.sh`, your venv is named `venv` not `.venv`. If you used `start.sh` or created manually, it's `.venv`. Update the `ExecStart` path to match your actual venv directory.
+> **Note:** Both `setup.sh` and `start.sh` now create/use `.venv` for consistency. However, `start.sh` automatically detects either `.venv` or `venv` if you created it manually. Make sure the `ExecStart` path matches your actual venv directory name.
 
 2. **Install the customized service file:**
 
