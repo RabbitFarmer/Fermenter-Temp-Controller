@@ -405,7 +405,8 @@ def ensure_temp_defaults():
     # New flag to turn on/off the entire temp-control UI and behavior:
     temp_cfg.setdefault("temp_control_enabled", True)
     # New flag to control active monitoring/recording (user-controlled switch):
-    temp_cfg.setdefault("temp_control_active", False)
+    # Always start with monitor OFF for safety and consistency
+    temp_cfg["temp_control_active"] = False
     # Trigger states for event-based logging:
     temp_cfg.setdefault("in_range_trigger_armed", True)
     temp_cfg.setdefault("above_limit_trigger_armed", True)
@@ -5426,6 +5427,14 @@ def exit_system():
     if request.method == 'POST':
         confirm = request.form.get('confirm', 'no')
         if confirm == 'yes':
+            # Set temp_control_active to False before shutdown
+            # This ensures the monitor starts OFF on next startup
+            try:
+                temp_cfg['temp_control_active'] = False
+                save_json(TEMP_CFG_FILE, temp_cfg)
+            except Exception as e:
+                print(f"[LOG] Error setting temp_control_active=False during shutdown - monitor may start ON at next startup: {e}")
+            
             # Turn off all plugs before shutdown
             try:
                 heating_plug = temp_cfg.get("heating_plug", "")
