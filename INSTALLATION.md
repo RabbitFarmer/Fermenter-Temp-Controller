@@ -298,9 +298,14 @@ To ensure the application starts automatically when your Raspberry Pi boots up, 
 The easiest way to install the systemd service is using the automated installation script:
 
 ```bash
-# Run the service installer
-./install_service.sh
+# Run the service installer with full path (required)
+bash /full/path/to/Fermenter-Temp-Controller/install_service.sh
+
+# Example:
+# bash /home/pi/Fermenter-Temp-Controller/install_service.sh
 ```
+
+> **Important:** The installer must be run with the full path to ensure correct service file generation.
 
 The installer will:
 1. ✓ Detect your installation directory automatically
