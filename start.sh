@@ -36,7 +36,8 @@ if ! (SKIP_BROWSER_OPEN=1 python3 app.py > app.log 2>&1 &); then
 fi
 
 # Wait for the application to start with retries
-RETRIES=10
+# Increased from 10 to 20 retries (40 seconds total) to accommodate slower Raspberry Pi startup
+RETRIES=20
 for i in $(seq 1 $RETRIES); do
     echo "Checking if the application is running... Attempt $i/$RETRIES"
     if curl -s http://127.0.0.1:5000 > /dev/null; then
