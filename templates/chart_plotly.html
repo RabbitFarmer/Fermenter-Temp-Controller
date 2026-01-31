@@ -114,7 +114,8 @@
           let displayColor = '#808080';
           
           if (activeTiltColor) {
-            // If we have an active tilt, show only that tilt's data
+            // NORMAL PATH: We have tilt_color data, show only the active tilt
+            // This is the expected path when temperature control is properly configured
             displayData = validDataPoints.filter(p => p.tilt_color === activeTiltColor);
             displayLabel = `${activeTiltColor} Tilt`;
             
@@ -131,7 +132,13 @@
             };
             displayColor = colorMap[activeTiltColor] || '#808080';
           } else {
-            // No tilt_color data available, show all data points
+            // DEFENSIVE PATH: No tilt_color data available
+            // This handles edge cases where tilt_color is missing:
+            // - Legacy data from older system versions
+            // - System events without tilt association (startup_plug_sync, etc.)
+            // - Configuration states where no tilt has been assigned
+            // Instead of failing, we show ALL temperature data with a generic label
+            // See DEFENSIVE_CODE_EXPLANATION.md for details
             displayData = allDataPoints;
             displayLabel = 'Temperature';
             displayColor = '#0066CC';  // Blue for generic temperature

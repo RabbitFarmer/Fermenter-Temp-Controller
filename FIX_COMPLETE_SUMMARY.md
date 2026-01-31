@@ -45,31 +45,40 @@ if (isTempControl) {
 }
 ```
 
-### Change 2: Handle Empty tilt_color (Lines 111-138)
+### Change 2: Added Defensive Handling for Empty tilt_color (Lines 116-138)
+
+**Purpose:** This is defensive code to prevent chart failures in edge cases where `tilt_color` is missing.
+
 **New Logic:**
 ```javascript
-// Determine which data to display
-let displayData = [];
-let displayLabel = 'Temperature';
-let displayColor = '#808080';
-
 if (activeTiltColor) {
-  // If we have an active tilt, show only that tilt's data
+  // NORMAL PATH: We have tilt_color, show only the active tilt's data
   displayData = validDataPoints.filter(p => p.tilt_color === activeTiltColor);
   displayLabel = `${activeTiltColor} Tilt`;
   displayColor = colorMap[activeTiltColor] || '#808080';
 } else {
-  // No tilt_color data available, show all data points
-  displayData = allDataPoints;  // THE FIX!
+  // DEFENSIVE PATH: No tilt_color available
+  // Instead of failing, show ALL temperature data with generic label
+  displayData = allDataPoints;
   displayLabel = 'Temperature';
   displayColor = '#0066CC';
 }
 ```
 
+**When tilt_color can be empty:**
+1. **System events** without tilt association (e.g., `startup_plug_sync`)
+2. **Legacy data** from older system versions
+3. **Configuration states** where no tilt has been assigned yet
+4. **Data migration** or manual edits
+
 **Behavior:**
-- **With tilt_color:** Shows only active tilt's data with specific color (e.g., "Black Tilt")
-- **Without tilt_color:** Shows ALL data with generic "Temperature" label in blue
+- **With tilt_color (normal):** Shows only active tilt's data with specific color (e.g., "Black Tilt")
+- **Without tilt_color (defensive):** Shows ALL data with generic "Temperature" label in blue
 - **Event markers** (heating/cooling on/off) work in both cases
+
+**Why it's needed:** Without this defensive code, charts would show "Failed to load data" for edge cases like system events or legacy data, even though temperature information exists. This ensures users never lose access to their data.
+
+**See DEFENSIVE_CODE_EXPLANATION.md for comprehensive details.**
 
 ## Testing Results
 
