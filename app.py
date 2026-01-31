@@ -3734,6 +3734,16 @@ def toggle_temp_control():
                 "high_limit": temp_cfg.get("high_limit"),
                 "tilt_color": temp_cfg.get("tilt_color", "")
             })
+        else:
+            # When turning OFF, turn off both heating and cooling plugs
+            control_heating("off")
+            control_cooling("off")
+            append_control_log("temp_control_stopped", {
+                "low_limit": temp_cfg.get("low_limit"),
+                "current_temp": temp_cfg.get("current_temp"),
+                "high_limit": temp_cfg.get("high_limit"),
+                "tilt_color": temp_cfg.get("tilt_color", "")
+            })
         
         # Save the state
         save_json(TEMP_CFG_FILE, temp_cfg)
