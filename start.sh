@@ -93,11 +93,14 @@ echo "Opening the application in your default browser..."
 if command -v xdg-open > /dev/null; then
     # Use nohup and run in subshell to completely detach from script
     (nohup xdg-open http://127.0.0.1:5000 </dev/null >/dev/null 2>&1 &)
-    # Give browser time to open before sending F11 for fullscreen
-    sleep 2
-    # Send F11 key to enter fullscreen mode
+    # Attempt to send F11 for fullscreen mode if xdotool is available
     if command -v xdotool > /dev/null; then
-        xdotool key F11
+        # Give browser time to open and become the active window
+        sleep 3
+        # Try to find and activate the browser window, then send F11
+        # This is best-effort; if it fails, the browser opens normally
+        xdotool search --class --sync "chromium|firefox|chrome" windowactivate --sync key F11 2>/dev/null || \
+        xdotool key F11 2>/dev/null || true
     fi
     echo "Browser launched"
 elif command -v open > /dev/null; then
