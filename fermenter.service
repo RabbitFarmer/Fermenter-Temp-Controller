@@ -1,3 +1,20 @@
+# Fermenter Temperature Controller - Systemd Service Template
+#
+# IMPORTANT: This is a TEMPLATE file. Do not use it directly!
+#
+# Use the automated installer instead:
+#   ./install_service.sh
+#
+# Or manually customize this file for your installation:
+#   1. Replace 'pi' with your username
+#   2. Replace '/home/pi/Fermenter-Temp-Controller' with your installation path
+#   3. Update the virtual environment path (.venv or venv)
+#   4. Copy to systemd: sudo cp fermenter.service /etc/systemd/system/
+#   5. Reload systemd: sudo systemctl daemon-reload
+#   6. Enable service: sudo systemctl enable fermenter
+#   7. Start service: sudo systemctl start fermenter
+#
+
 [Unit]
 Description=Fermenter Temperature Controller
 After=network.target bluetooth.service
@@ -7,6 +24,7 @@ Type=simple
 User=pi
 WorkingDirectory=/home/pi/Fermenter-Temp-Controller
 Environment="DISPLAY=:0"
+Environment="SKIP_BROWSER_OPEN=1"
 ExecStart=/home/pi/Fermenter-Temp-Controller/.venv/bin/python3 /home/pi/Fermenter-Temp-Controller/app.py
 Restart=always
 RestartSec=10

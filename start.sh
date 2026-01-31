@@ -45,23 +45,31 @@ debug_log "Script directory: $SCRIPT_DIR"
 cd "$SCRIPT_DIR"
 debug_log "Current directory: $(pwd)"
 
-# Create and activate virtual environment if missing
+# Detect or create virtual environment (supports both .venv and venv)
 log_step "Checking for virtual environment..."
-if [ ! -d ".venv" ]; then
-    log_step "No virtual environment found. Creating one..."
-    debug_log "Running: python3 -m venv .venv"
-    if ! python3 -m venv .venv; then
+VENV_DIR=""
+
+if [ -d ".venv" ]; then
+    VENV_DIR=".venv"
+    debug_log "Found virtual environment: .venv"
+elif [ -d "venv" ]; then
+    VENV_DIR="venv"
+    debug_log "Found virtual environment: venv"
+else
+    # No venv found, create .venv as default
+    VENV_DIR=".venv"
+    log_step "No virtual environment found. Creating .venv..."
+    debug_log "Running: python3 -m venv $VENV_DIR"
+    if ! python3 -m venv "$VENV_DIR"; then
         echo "[ERROR] Failed to create a virtual environment. Exiting."
         exit 1
     fi
-    log_step "Virtual environment created successfully."
-else
-    debug_log "Virtual environment already exists at .venv"
+    log_step "Virtual environment created successfully at $VENV_DIR"
 fi
 
-log_step "Activating virtual environment..."
-debug_log "Sourcing .venv/bin/activate"
-source .venv/bin/activate
+log_step "Activating virtual environment ($VENV_DIR)..."
+debug_log "Sourcing $VENV_DIR/bin/activate"
+source "$VENV_DIR/bin/activate"
 log_step "Virtual environment activated."
 debug_log "Python path: $(which python3)"
 debug_log "Python version: $(python3 --version)"

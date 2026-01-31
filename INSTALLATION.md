@@ -70,16 +70,18 @@ cd Fermenter-Temp-Controller
 - Allows easy cleanup and reinstallation
 
 ```bash
-# Create virtual environment
-python3 -m venv venv
+# Create virtual environment (use .venv for consistency with setup.sh)
+python3 -m venv .venv
 
 # Activate virtual environment
-source venv/bin/activate
+source .venv/bin/activate
 ```
 
-When activated, you'll see `(venv)` in your terminal prompt:
+**Note:** You can use either `.venv` or `venv` as the directory name. The `start.sh` script automatically detects both. For consistency with `setup.sh` and the systemd service, we recommend using `.venv`.
+
+When activated, you'll see `(.venv)` or `(venv)` in your terminal prompt:
 ```
-(venv) user@raspberrypi:~/Fermenter-Temp-Controller$
+(.venv) user@raspberrypi:~/Fermenter-Temp-Controller$
 ```
 
 ### Step 4: Install Dependencies
@@ -122,8 +124,8 @@ This error occurs when trying to install packages globally on modern Python inst
 
 ```bash
 # Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 
 # Now install packages
 pip install -r requirements.txt
@@ -158,27 +160,36 @@ sudo apt install python3-venv python3-full
 ### Virtual Environment Not Activating
 
 **Problem:**
-The `source venv/bin/activate` command doesn't work or doesn't show `(venv)` in prompt.
+The `source .venv/bin/activate` or `source venv/bin/activate` command doesn't work or doesn't show `(.venv)` or `(venv)` in prompt.
 
 **Solution:**
 
-1. Make sure you're in the correct directory:
+1. Make sure you're in the correct directory and check which venv exists:
 ```bash
 cd ~/Fermenter-Temp-Controller
-ls venv/bin/activate  # Should exist
+ls .venv/bin/activate  # Check for .venv
+# OR
+ls venv/bin/activate   # Check for venv
 ```
 
-2. Try alternative activation:
+2. Try alternative activation (using . instead of source):
 ```bash
+. .venv/bin/activate
+# OR
 . venv/bin/activate
 ```
 
 3. If still not working, recreate the virtual environment:
 ```bash
-rm -rf venv
-python3 -m venv venv
-source venv/bin/activate
+# Remove old venv
+rm -rf .venv venv
+
+# Create new one (using .venv for consistency)
+python3 -m venv .venv
+source .venv/bin/activate
 ```
+
+**Note:** The `start.sh` script automatically detects and uses either `.venv` or `venv`, so you don't need to worry about which one you have when using that script.
 
 ---
 
@@ -282,30 +293,54 @@ pip install --user -r requirements.txt
 
 To ensure the application starts automatically when your Raspberry Pi boots up, set up a systemd service. This is the recommended approach as it provides automatic restart on failure and better logging.
 
-### Method 1: systemd service (Recommended)
+### Method 1: Automated Installation (Recommended)
 
-A systemd service file template (`fermenter.service`) is included in the repository. Follow these steps to set it up:
-
-1. **Copy the service file to the system directory:**
+The easiest way to install the systemd service is using the automated installation script:
 
 ```bash
-sudo cp fermenter.service /etc/systemd/system/fermenter.service
+# Run the service installer
+./install_service.sh
 ```
 
-2. **Edit the service file if your paths are different:**
+The installer will:
+1. ✓ Detect your installation directory automatically
+2. ✓ Detect your username automatically
+3. ✓ Find your virtual environment (.venv or venv)
+4. ✓ Generate a service file with correct paths
+5. ✓ Show you the service file before installing
+6. ✓ Install and optionally enable/start the service
 
-If you installed to a different location or use a different username, edit the service file:
+**Important Notes:**
+- The service is configured with `SKIP_BROWSER_OPEN=1` to prevent browser opening attempts when running as a background service
+- Access the dashboard by manually opening `http://<raspberry-pi-ip>:5000` in your browser
+- The service runs in the background without requiring a desktop session
+
+After installation, the application will start automatically on boot.
+
+---
+
+### Method 2: Manual systemd service Installation (Advanced)
+
+If you prefer to install manually or need to customize the service:
+
+1. **Edit the service file template:**
+
+The repository includes a template service file (`fermenter.service`). You need to update it with your specific paths.
 
 ```bash
-sudo nano /etc/systemd/system/fermenter.service
+# Make a copy of the service file
+cp fermenter.service fermenter.service.custom
+
+# Edit the custom file
+nano fermenter.service.custom
 ```
 
-The default service file assumes:
-- User: `pi`
-- Install path: `/home/pi/Fermenter-Temp-Controller`
-- Virtual environment: `.venv` (created by setup.sh)
+Update these values to match your installation:
+- **User**: Your username (e.g., `flc3`, `pi`, etc.)
+- **WorkingDirectory**: Your installation path (e.g., `/home/flc3/FermenterApp`)
+- **ExecStart**: Full path to python3 in your venv and app.py
 
-Update these if needed:
+Example for user `flc3` with installation in `/home/flc3/FermenterApp`:
 
 ```ini
 [Unit]
@@ -314,9 +349,11 @@ After=network.target bluetooth.service
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/Fermenter-Temp-Controller
-ExecStart=/home/pi/Fermenter-Temp-Controller/.venv/bin/python3 /home/pi/Fermenter-Temp-Controller/app.py
+User=flc3
+WorkingDirectory=/home/flc3/FermenterApp
+Environment="DISPLAY=:0"
+Environment="SKIP_BROWSER_OPEN=1"
+ExecStart=/home/flc3/FermenterApp/.venv/bin/python3 /home/flc3/FermenterApp/app.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -326,7 +363,13 @@ StandardError=journal
 WantedBy=multi-user.target
 ```
 
-> **Note:** The service file uses `.venv` (created by setup.sh) not `venv`. If you created your virtual environment manually as `venv`, update the `ExecStart` path accordingly.
+> **Note:** Both `setup.sh` and `start.sh` now create/use `.venv` for consistency. However, `start.sh` automatically detects either `.venv` or `venv` if you created it manually. Make sure the `ExecStart` path matches your actual venv directory name.
+
+2. **Install the customized service file:**
+
+```bash
+sudo cp fermenter.service.custom /etc/systemd/system/fermenter.service
+```
 
 3. **Enable and start the service:**
 
@@ -397,7 +440,7 @@ After installation, verify everything works:
 
 1. **Check virtual environment:**
 ```bash
-source venv/bin/activate
+source .venv/bin/activate
 python3 -c "import flask; import bleak; import kasa; print('All packages OK')"
 ```
 
@@ -427,8 +470,9 @@ cd ~/Fermenter-Temp-Controller
 # Pull latest changes
 git pull
 
-# Activate virtual environment
-source venv/bin/activate
+# Activate virtual environment (use whichever you have: .venv or venv)
+source .venv/bin/activate
+# OR: source venv/bin/activate
 
 # Update dependencies
 pip install -r requirements.txt --upgrade
