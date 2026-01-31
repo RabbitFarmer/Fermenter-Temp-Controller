@@ -129,15 +129,11 @@ for i in $(seq 1 $RETRIES); do
         break
     fi
     
-    # Check if process is still alive
-    if ! ps -p $APP_PID > /dev/null 2>&1; then
-        echo "[ERROR] Application process $APP_PID died during startup!"
-        echo "[ERROR] Last 30 lines of app.log:"
-        tail -30 app.log 2>/dev/null || echo "  (no log file)"
-        exit 1
-    fi
+    # Note: We don't check if the original PID is alive because Flask debug mode
+    # uses Werkzeug reloader which forks a child process, causing the original PID
+    # to exit. The HTTP health check above is sufficient to verify the app is running.
     
-    debug_log "App not ready yet, process still running. Waiting ${RETRY_DELAY}s..."
+    debug_log "App not ready yet, waiting for HTTP response. Waiting ${RETRY_DELAY}s..."
     sleep $RETRY_DELAY
 done
 
