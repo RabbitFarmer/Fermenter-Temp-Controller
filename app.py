@@ -5493,19 +5493,9 @@ def open_browser():
     This runs in a separate thread to avoid blocking the Flask startup.
     Uses system commands (xdg-open, open) for better compatibility with
     headless and Raspberry Pi environments.
-    Skips browser opening when running in headless mode (no DISPLAY).
     """
     time.sleep(1.5)  # Wait for Flask to start
     url = 'http://127.0.0.1:5000'
-    
-    # Check if running in headless mode (no display available)
-    # This happens when running as a systemd service or via SSH without X forwarding
-    display = os.environ.get('DISPLAY')
-    if not display:
-        print(f"[LOG] Running in headless mode (no DISPLAY environment variable)")
-        print(f"[LOG] Skipping automatic browser opening")
-        print(f"[LOG] Access the dashboard at: {url}")
-        return
     
     try:
         # Try using system commands first (more reliable on Raspberry Pi)

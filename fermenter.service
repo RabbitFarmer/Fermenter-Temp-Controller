@@ -6,6 +6,7 @@ After=network.target bluetooth.service
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/Fermenter-Temp-Controller
+Environment="DISPLAY=:0"
 ExecStart=/home/pi/Fermenter-Temp-Controller/.venv/bin/python3 /home/pi/Fermenter-Temp-Controller/app.py
 Restart=always
 RestartSec=10
