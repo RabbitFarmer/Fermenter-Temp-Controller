@@ -80,9 +80,28 @@
           if (temp === null || temp === undefined) {
             temp = p.current_temp;
           }
+          
+          // Convert UTC timestamp to local time for display
+          // The timestamps in the data are in UTC format (ending with Z)
+          // We need to convert them to local time for the chart to display correctly
+          let localTimestamp = ts;
+          if (ts) {
+            try {
+              const date = new Date(ts);
+              if (!isNaN(date.getTime())) {
+                // Convert to local time by using the Date object directly
+                // This will automatically use the browser's timezone
+                localTimestamp = date;
+              }
+            } catch (e) {
+              // If conversion fails, keep the original timestamp
+              console.warn('Failed to convert timestamp:', ts, e);
+            }
+          }
+          
           return {
             ...p,
-            timestamp: ts,
+            timestamp: localTimestamp,
             temp_f: temp
           };
         });
@@ -203,7 +222,13 @@
         // For active fermentations: use actual data range with small padding
         let xAxisRange = null;
         if (dataPoints.length > 0) {
-          const timestamps = dataPoints.map(p => new Date(p.timestamp)).filter(d => !isNaN(d.getTime()));
+          // Timestamps are already Date objects from normalization above
+          const timestamps = dataPoints.map(p => {
+            if (p.timestamp instanceof Date) {
+              return p.timestamp;
+            }
+            return new Date(p.timestamp);
+          }).filter(d => !isNaN(d.getTime()));
           if (timestamps.length > 0) {
             const minDate = new Date(Math.min(...timestamps));
             const maxDate = new Date(Math.max(...timestamps));
@@ -225,7 +250,8 @@
               rangeEnd = new Date(maxDate.getTime() + paddingMs);
             }
             
-            xAxisRange = [rangeStart.toISOString(), rangeEnd.toISOString()];
+            // Use Date objects directly for xAxisRange - Plotly will handle them correctly
+            xAxisRange = [rangeStart, rangeEnd];
             
             // Update date range display (show the extended x-axis range, not just data range)
             const dateRangeEl = document.getElementById('date-range');
