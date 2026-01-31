@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# Startup log file
+STARTUP_LOG="startup.log"
+
+# Redirect all output to both terminal and log file
+exec > >(tee -a "$STARTUP_LOG") 2>&1
+
+echo "======================================================================="
+echo "Startup trace log - $(date)"
+echo "======================================================================="
+
 # Enable debug tracing if DEBUG environment variable is set
 # Usage: DEBUG=1 ./start.sh
 if [ "${DEBUG:-0}" = "1" ]; then
@@ -23,6 +33,7 @@ log_step() {
 STARTUP_BEGIN=$(date +%s)
 
 log_step "=== Fermenter Temp Controller Startup ==="
+log_step "Startup log will be saved to: $STARTUP_LOG"
 debug_log "Script: $0"
 debug_log "Working directory: $(pwd)"
 
@@ -105,38 +116,89 @@ fi
 debug_log "Process $APP_PID is running"
 
 # Wait for the application to start with retries
+log_step "Waiting for application to respond on http://127.0.0.1:5000..."
 RETRIES=30
+RETRY_DELAY=2
 for i in $(seq 1 $RETRIES); do
-    echo "Checking if the application is running... Attempt $i/$RETRIES"
-    if curl -s http://127.0.0.1:5000 > /dev/null; then
-        echo "The application is running!"
+    log_step "Health check attempt $i/$RETRIES..."
+    debug_log "Running: curl -s http://127.0.0.1:5000"
+    
+    if curl -s http://127.0.0.1:5000 > /dev/null 2>&1; then
+        ELAPSED=$(($(date +%s) - STARTUP_BEGIN))
+        log_step "✓ Application is responding! (after ${ELAPSED}s)"
         break
     fi
-    sleep 2
+    
+    # Check if process is still alive
+    if ! ps -p $APP_PID > /dev/null 2>&1; then
+        echo "[ERROR] Application process $APP_PID died during startup!"
+        echo "[ERROR] Last 30 lines of app.log:"
+        tail -30 app.log 2>/dev/null || echo "  (no log file)"
+        exit 1
+    fi
+    
+    debug_log "App not ready yet, process still running. Waiting ${RETRY_DELAY}s..."
+    sleep $RETRY_DELAY
 done
 
-if ! curl -s http://127.0.0.1:5000 > /dev/null; then
-    echo "Warning: The application did not respond after $((RETRIES * 2)) seconds."
+if ! curl -s http://127.0.0.1:5000 > /dev/null 2>&1; then
+    ELAPSED=$(($(date +%s) - STARTUP_BEGIN))
+    echo "======================================================================="
+    echo "[WARNING] Application did not respond after $((RETRIES * RETRY_DELAY)) seconds (${ELAPSED}s elapsed)"
+    echo "======================================================================="
     echo "The application is still starting in the background (PID $APP_PID)."
-    echo "You can check app.log for startup progress."
-    echo "Please manually open http://127.0.0.1:5000 in your browser once it's ready."
     echo ""
-    echo "To check if the app is running: curl http://127.0.0.1:5000"
-    echo "To view logs: tail -f app.log"
+    echo "Process status:"
+    ps -p $APP_PID -o pid,ppid,stat,etime,cmd 2>/dev/null || echo "  Process not found!"
+    echo ""
+    echo "Last 20 lines of app.log:"
+    tail -20 app.log 2>/dev/null || echo "  (no log file yet)"
+    echo ""
+    echo "======================================================================="
+    echo "TROUBLESHOOTING:"
+    echo "  - Check app.log for errors: tail -f app.log"
+    echo "  - Check startup log: cat $STARTUP_LOG"
+    echo "  - Test if app responds: curl http://127.0.0.1:5000"
+    echo "  - Check process: ps -p $APP_PID"
+    echo "  - Try with debug mode: DEBUG=1 ./start.sh"
+    echo "  - Manually open browser: http://127.0.0.1:5000"
+    echo "======================================================================="
     exit 0
 fi
 
 # Open the application in the default web browser
-echo "Opening the application in your default browser..."
+log_step "Opening the application in your default browser..."
+debug_log "Checking for browser commands..."
 if command -v xdg-open > /dev/null; then
+    debug_log "Using xdg-open (Linux)"
     # Use nohup and run in subshell to completely detach from script
     (nohup xdg-open http://127.0.0.1:5000 </dev/null >/dev/null 2>&1 &)
+    log_step "Browser launched with xdg-open"
 elif command -v open > /dev/null; then
+    debug_log "Using open (macOS)"
     # Use nohup and run in subshell to completely detach from script (macOS)
     (nohup open http://127.0.0.1:5000 </dev/null >/dev/null 2>&1 &)
+    log_step "Browser launched with open"
 else
+    log_step "No browser command found (xdg-open/open)"
     echo "Please open http://127.0.0.1:5000 in your browser manually."
 fi
 
-echo "The application is now running."
-echo "Access the dashboard at: http://127.0.0.1:5000"
+STARTUP_END=$(date +%s)
+TOTAL_TIME=$((STARTUP_END - STARTUP_BEGIN))
+
+echo "======================================================================="
+log_step "✓ Startup completed successfully!"
+echo "======================================================================="
+echo "  Application PID: $APP_PID"
+echo "  Total startup time: ${TOTAL_TIME} seconds"
+echo "  Access dashboard: http://127.0.0.1:5000"
+echo "  Startup log saved: $STARTUP_LOG"
+echo "  Application log: app.log"
+echo "======================================================================="
+echo ""
+echo "To view logs:"
+echo "  Startup trace: cat $STARTUP_LOG"
+echo "  App log: tail -f app.log"
+echo "  Debug mode: DEBUG=1 ./start.sh"
+echo "======================================================================="
