@@ -3,8 +3,11 @@
 
 echo "Testing startup timeout configuration..."
 
-# Extract RETRIES value from start.sh
-RETRIES=$(grep "^RETRIES=" ../start.sh | cut -d'=' -f2)
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Extract RETRIES value from start.sh (one level up from tests/)
+RETRIES=$(grep "^RETRIES=" "$SCRIPT_DIR/../start.sh" | cut -d'=' -f2)
 
 if [ -z "$RETRIES" ]; then
     echo "FAIL: Could not find RETRIES variable in start.sh"
