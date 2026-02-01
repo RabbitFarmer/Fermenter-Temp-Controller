@@ -190,7 +190,12 @@ async def kasa_query_state(url):
 
 async def kasa_control(url, action, mode):
     """
-    Perform the plug action and verify resulting state.
+    Perform the plug action and verify resulting state with retry logic.
+    
+    Implements retry logic as recommended for TP-Link Kasa smart plugs to handle
+    network instability and transient failures. Retries up to 3 times with
+    exponential backoff delays.
+    
     Returns:
       None on success
       error string on failure
@@ -198,77 +203,117 @@ async def kasa_control(url, action, mode):
     if PlugClass is None:
         return "kasa plug class not available"
 
-    # Log the command being sent
-    print(f"[kasa_worker] Sending {action.upper()} command to {mode} plug at {url}")
+    # Retry configuration: up to 3 attempts with delays
+    max_retries = 3
+    retry_delays = [0, 1, 2]  # First attempt immediate, then 1s, then 2s
     
-    try:
-        plug = PlugClass(url)
-        # initial update may raise / timeout
-        await asyncio.wait_for(plug.update(), timeout=6)
+    last_error = None
+    
+    for attempt in range(max_retries):
+        if attempt > 0:
+            delay = retry_delays[min(attempt, len(retry_delays) - 1)]
+            print(f"[kasa_worker] Retry attempt {attempt + 1}/{max_retries} after {delay}s delay")
+            await asyncio.sleep(delay)
         
-        # Log initial state before command
-        initial_state = getattr(plug, "is_on", None)
-        # Handle None case explicitly for clarity
-        if initial_state is None:
-            state_str = 'UNKNOWN'
-        elif initial_state:
-            state_str = 'ON'
-        else:
-            state_str = 'OFF'
-        print(f"[kasa_worker] Initial state before {action}: {state_str} (is_on={initial_state})")
+        # Log the command being sent
+        if attempt == 0:
+            print(f"[kasa_worker] Sending {action.upper()} command to {mode} plug at {url}")
         
-    except Exception as e:
-        err = f"Failed to contact plug at {url}: {e}"
-        log_error(err)
-        return err
-
-    try:
-        # Send the command
-        if action == 'on':
-            print(f"[kasa_worker] Executing turn_on() for {mode} plug at {url}")
-            await plug.turn_on()
-        else:
-            print(f"[kasa_worker] Executing turn_off() for {mode} plug at {url}")
-            await plug.turn_off()
-
-        # brief pause to let state change propagate
-        await asyncio.sleep(0.5)
-
-        # try to re-check state; best-effort
-        verification_success = True
         try:
-            await asyncio.wait_for(plug.update(), timeout=5)
+            plug = PlugClass(url)
+            # Initial update to refresh device state - critical for reliability
+            await asyncio.wait_for(plug.update(), timeout=6)
+            
+            # Log initial state before command
+            initial_state = getattr(plug, "is_on", None)
+            # Handle None case explicitly for clarity
+            if initial_state is None:
+                state_str = 'UNKNOWN'
+            elif initial_state:
+                state_str = 'ON'
+            else:
+                state_str = 'OFF'
+            if attempt == 0:
+                print(f"[kasa_worker] Initial state before {action}: {state_str} (is_on={initial_state})")
+            
         except Exception as e:
-            # non-fatal: we'll still attempt to read is_on if available
-            print(f"[kasa_worker] WARNING: State verification update failed: {e}")
-            verification_success = False
+            last_error = f"Failed to contact plug at {url}: {e}"
+            if attempt < max_retries - 1:
+                print(f"[kasa_worker] Connection failed (attempt {attempt + 1}), will retry: {e}")
+                continue
+            else:
+                log_error(last_error)
+                return last_error
 
-        is_on = getattr(plug, "is_on", None)
-        if is_on is None:
-            err = "Unable to determine plug state after command"
-            log_error(f"{mode.upper()} plug at {url}: {err}")
-            return err
+        try:
+            # Send the command
+            if action == 'on':
+                if attempt == 0:
+                    print(f"[kasa_worker] Executing turn_on() for {mode} plug at {url}")
+                await plug.turn_on()
+            else:
+                if attempt == 0:
+                    print(f"[kasa_worker] Executing turn_off() for {mode} plug at {url}")
+                await plug.turn_off()
 
-        # Log the verified state (defensive: handle None case even though we return above)
-        if is_on is None:
-            state_str = 'UNKNOWN'
-        elif is_on:
-            state_str = 'ON'
-        else:
-            state_str = 'OFF'
-        print(f"[kasa_worker] Verified state after {action}: {state_str} (is_on={is_on}, verification_update={'success' if verification_success else 'failed'})")
-        
-        if (action == 'on' and is_on) or (action == 'off' and not is_on):
-            print(f"[kasa_worker] ✓ SUCCESS: {mode} {action} confirmed at {url} - plug state matches expected")
-            return None
-        else:
-            err = f"State mismatch after {action}: expected is_on={action == 'on'}, actual is_on={is_on}"
-            log_error(f"{mode.upper()} plug at {url}: {err}")
-            print(f"[kasa_worker] ✗ FAILURE: State verification failed for {mode} plug at {url}")
-            return err
+            # Brief pause to let state change propagate - important for reliability
+            await asyncio.sleep(0.5)
 
-    except Exception as e:
-        err = str(e)
-        log_error(f"{mode.upper()} plug at {url} error during command execution: {err}")
-        return err
+            # Refresh state to verify command succeeded
+            verification_success = True
+            try:
+                await asyncio.wait_for(plug.update(), timeout=5)
+            except Exception as e:
+                # non-fatal: we'll still attempt to read is_on if available
+                print(f"[kasa_worker] WARNING: State verification update failed: {e}")
+                verification_success = False
+
+            is_on = getattr(plug, "is_on", None)
+            if is_on is None:
+                last_error = "Unable to determine plug state after command"
+                if attempt < max_retries - 1:
+                    print(f"[kasa_worker] Unable to verify state (attempt {attempt + 1}), will retry")
+                    continue
+                else:
+                    log_error(f"{mode.upper()} plug at {url}: {last_error}")
+                    return last_error
+
+            # Log the verified state
+            if is_on is None:
+                state_str = 'UNKNOWN'
+            elif is_on:
+                state_str = 'ON'
+            else:
+                state_str = 'OFF'
+            if attempt == 0 or attempt == max_retries - 1:
+                print(f"[kasa_worker] Verified state after {action}: {state_str} (is_on={is_on}, verification_update={'success' if verification_success else 'failed'})")
+            
+            # Verify state matches expected result
+            if (action == 'on' and is_on) or (action == 'off' and not is_on):
+                if attempt > 0:
+                    print(f"[kasa_worker] ✓ SUCCESS on retry {attempt + 1}: {mode} {action} confirmed at {url}")
+                else:
+                    print(f"[kasa_worker] ✓ SUCCESS: {mode} {action} confirmed at {url} - plug state matches expected")
+                return None
+            else:
+                last_error = f"State mismatch after {action}: expected is_on={action == 'on'}, actual is_on={is_on}"
+                if attempt < max_retries - 1:
+                    print(f"[kasa_worker] State mismatch (attempt {attempt + 1}), will retry")
+                    continue
+                else:
+                    log_error(f"{mode.upper()} plug at {url}: {last_error}")
+                    print(f"[kasa_worker] ✗ FAILURE: State verification failed for {mode} plug at {url} after {max_retries} attempts")
+                    return last_error
+
+        except Exception as e:
+            last_error = str(e)
+            if attempt < max_retries - 1:
+                print(f"[kasa_worker] Command execution failed (attempt {attempt + 1}), will retry: {e}")
+                continue
+            else:
+                log_error(f"{mode.upper()} plug at {url} error during command execution: {last_error}")
+                return last_error
+    
+    # Should not reach here, but return last error if we do
+    return last_error or "Unknown error in kasa_control"
 
