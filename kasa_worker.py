@@ -246,6 +246,10 @@ async def kasa_control(url, action, mode):
                 return last_error
 
         try:
+            # Wake up the plug immediately before sending the command
+            # This ensures the device is ready to receive and process the command
+            await asyncio.wait_for(plug.update(), timeout=6)
+            
             # Send the command
             if action == 'on':
                 if attempt == 0:
