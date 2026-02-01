@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Reproduce the exact issue described by the user:
-- Started at 76F with a set range of 75F to 73F (low=73, high=75)
+- Started at 76F with a set range of 73F to 75F (low=73, high=75)
 - Temperature dropped to 72F but heating didn't turn on
 """
 
