@@ -3131,7 +3131,21 @@ def periodic_temp_control():
             file_cfg = load_json(TEMP_CFG_FILE, {})
             if 'current_temp' in file_cfg and file_cfg['current_temp'] is None and temp_cfg.get('current_temp') is not None:
                 file_cfg.pop('current_temp')
+            
+            # Preserve runtime trigger states - these should NOT be overwritten by config reload
+            # The trigger flags track whether we've already sent a notification for the current condition
+            # and should only be reset when temperature crosses back into range
+            preserved_triggers = {
+                'below_limit_trigger_armed': temp_cfg.get('below_limit_trigger_armed'),
+                'above_limit_trigger_armed': temp_cfg.get('above_limit_trigger_armed'),
+                'in_range_trigger_armed': temp_cfg.get('in_range_trigger_armed'),
+            }
+            
             temp_cfg.update(file_cfg)
+            
+            # Restore the preserved trigger states after config reload
+            temp_cfg.update(preserved_triggers)
+            
             temperature_control_logic()
             
             # Log periodic temperature reading at update_interval frequency
