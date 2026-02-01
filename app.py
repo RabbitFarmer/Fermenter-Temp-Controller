@@ -2281,12 +2281,23 @@ def _should_send_kasa_command(url, action):
     
     # Check for timed-out pending flags and clear them
     if url == temp_cfg.get("heating_plug") and temp_cfg.get("heater_pending"):
+        pending_action = temp_cfg.get("heater_pending_action")
         pending_since = temp_cfg.get("heater_pending_since")
-        if pending_since and (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
+        
+        # If pending action is different from requested action, allow the new command
+        # This prevents blocking opposite commands (e.g., don't block ON when OFF is pending)
+        if pending_action != action:
+            print(f"[TEMP_CONTROL] Allowing heating {action} command (different from pending {pending_action})")
+            # Clear the old pending state since we're sending a different command
+            temp_cfg["heater_pending"] = False
+            temp_cfg["heater_pending_since"] = None
+            temp_cfg["heater_pending_action"] = None
+        elif pending_since and (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
             elapsed = time.time() - pending_since
             print(f"[TEMP_CONTROL] Clearing stuck heater_pending flag (pending for {elapsed:.1f}s)")
             temp_cfg["heater_pending"] = False
             temp_cfg["heater_pending_since"] = None
+            temp_cfg["heater_pending_action"] = None
             # Log the timeout event
             append_control_log("kasa_command_timeout", {
                 "mode": "heating",
@@ -2303,12 +2314,23 @@ def _should_send_kasa_command(url, action):
             return False
     
     if url == temp_cfg.get("cooling_plug") and temp_cfg.get("cooler_pending"):
+        pending_action = temp_cfg.get("cooler_pending_action")
         pending_since = temp_cfg.get("cooler_pending_since")
-        if pending_since and (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
+        
+        # If pending action is different from requested action, allow the new command
+        # This prevents blocking opposite commands (e.g., don't block ON when OFF is pending)
+        if pending_action != action:
+            print(f"[TEMP_CONTROL] Allowing cooling {action} command (different from pending {pending_action})")
+            # Clear the old pending state since we're sending a different command
+            temp_cfg["cooler_pending"] = False
+            temp_cfg["cooler_pending_since"] = None
+            temp_cfg["cooler_pending_action"] = None
+        elif pending_since and (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
             elapsed = time.time() - pending_since
             print(f"[TEMP_CONTROL] Clearing stuck cooler_pending flag (pending for {elapsed:.1f}s)")
             temp_cfg["cooler_pending"] = False
             temp_cfg["cooler_pending_since"] = None
+            temp_cfg["cooler_pending_action"] = None
             # Log the timeout event
             append_control_log("kasa_command_timeout", {
                 "mode": "cooling",
@@ -2346,6 +2368,7 @@ def control_heating(state):
     if not enabled or not url:
         temp_cfg["heater_pending"] = False
         temp_cfg["heater_pending_since"] = None
+        temp_cfg["heater_pending_action"] = None
         temp_cfg["heater_on"] = False
         # Clear heating errors when heating is disabled
         temp_cfg["heating_error"] = False
@@ -2424,6 +2447,7 @@ def control_heating(state):
     # This allows failed commands to be retried without rate limiting
     temp_cfg["heater_pending"] = True
     temp_cfg["heater_pending_since"] = time.time()
+    temp_cfg["heater_pending_action"] = state
 
 def control_cooling(state):
     enabled = temp_cfg.get("enable_cooling")
@@ -2431,6 +2455,7 @@ def control_cooling(state):
     if not enabled or not url:
         temp_cfg["cooler_pending"] = False
         temp_cfg["cooler_pending_since"] = None
+        temp_cfg["cooler_pending_action"] = None
         temp_cfg["cooler_on"] = False
         # Clear cooling errors when cooling is disabled
         temp_cfg["cooling_error"] = False
@@ -2509,6 +2534,7 @@ def control_cooling(state):
     # This allows failed commands to be retried without rate limiting
     temp_cfg["cooler_pending"] = True
     temp_cfg["cooler_pending_since"] = time.time()
+    temp_cfg["cooler_pending_action"] = state
 
 # --- Temperature control logic (normalized + limited logging) -------------
 def temperature_control_logic():
@@ -2769,6 +2795,7 @@ def kasa_result_listener():
             if mode == 'heating':
                 temp_cfg["heater_pending"] = False
                 temp_cfg["heater_pending_since"] = None
+                temp_cfg["heater_pending_action"] = None
                 if success:
                     # Track previous state to detect actual state changes
                     previous_state = temp_cfg.get("heater_on", False)
@@ -2805,6 +2832,7 @@ def kasa_result_listener():
             elif mode == 'cooling':
                 temp_cfg["cooler_pending"] = False
                 temp_cfg["cooler_pending_since"] = None
+                temp_cfg["cooler_pending_action"] = None
                 if success:
                     # Track previous state to detect actual state changes
                     previous_state = temp_cfg.get("cooler_on", False)
