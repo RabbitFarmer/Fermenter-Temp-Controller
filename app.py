@@ -2324,16 +2324,12 @@ def _should_send_kasa_command(url, action):
         elif temp_cfg.get("cooler_pending"):
             return False
     
-    if url == temp_cfg.get("heating_plug"):
-        if temp_cfg.get("heater_on") and action == "on":
-            return False
-        if (not temp_cfg.get("heater_on")) and action == "off":
-            return False
-    if url == temp_cfg.get("cooling_plug"):
-        if temp_cfg.get("cooler_on") and action == "on":
-            return False
-        if (not temp_cfg.get("cooler_on")) and action == "off":
-            return False
+    # Removed state-based redundancy check (heater_on/cooler_on) because it can
+    # prevent necessary commands when state gets out of sync with physical plug.
+    # For example, if plug is physically ON but heater_on=False (due to failed
+    # command or restart), we must still allow OFF commands to be sent.
+    # Rate limiting below provides sufficient protection against excessive commands.
+    
     last = _last_kasa_command.get(url)
     if last and last.get("action") == action:
         if (time.time() - last.get("ts", 0.0)) < _KASA_RATE_LIMIT_SECONDS:
