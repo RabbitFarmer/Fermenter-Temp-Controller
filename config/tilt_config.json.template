@@ -1,0 +1,130 @@
+{
+  "Red": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
+  },
+  "Green": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
+  },
+  "Black": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
+  },
+  "Purple": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
+  },
+  "Orange": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
+  },
+  "Blue": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
+  },
+  "Yellow": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
+  },
+  "Pink": {
+    "beer_name": "",
+    "batch_name": "",
+    "ferm_start_date": "",
+    "recipe_og": "",
+    "recipe_fg": "",
+    "recipe_abv": "",
+    "actual_og": null,
+    "brewid": "",
+    "og_confirmed": false,
+    "notification_state": {
+      "fermentation_start_datetime": null,
+      "fermentation_completion_datetime": null,
+      "last_daily_report": null
+    }
+  }
+}
