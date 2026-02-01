@@ -46,6 +46,18 @@ else
 fi
 ```
 
+### Problem 4: pip upgrade warnings interfere
+**Issue**: pip shows "you should upgrade pip" warnings
+- Adds delays (pip checks for updates)
+- Clutters output making errors hard to see
+- Can cause pip to fail with older versions
+
+**Fix**: Suppress pip version check warnings
+```bash
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+pip install --quiet --disable-pip-version-check -r requirements.txt
+```
+
 ## Changes Made
 
 ### 1. start.sh - Smart Dependency Installation
@@ -58,13 +70,16 @@ fi
 
 **After**:
 ```bash
+# Suppress pip upgrade warnings
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+
 if [ -f "requirements.txt" ]; then
     # Check if deps already installed
     if python3 -c "import flask, bleak" 2>/dev/null; then
         echo "Dependencies already satisfied"
     else
-        # Install only if needed, allow graceful failure
-        if ! pip install --quiet -r requirements.txt; then
+        # Install only if needed, with version check disabled
+        if ! pip install --quiet --disable-pip-version-check -r requirements.txt; then
             # Try to start anyway if Flask is available
             if ! python3 -c "import flask" 2>/dev/null; then
                 exit 1  # Can't run without Flask

@@ -50,6 +50,9 @@ echo "Activating virtual environment ($VENV_DIR)..."
 source "$VENV_DIR/bin/activate"
 echo "Virtual environment activated."
 
+# Suppress pip upgrade warnings to avoid clutter and delays
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+
 # Install dependencies if 'requirements.txt' exists
 if [ -f "requirements.txt" ]; then
     # Only run pip install if dependencies might be missing or outdated
@@ -62,9 +65,9 @@ if [ -f "requirements.txt" ]; then
         echo "Dependencies already satisfied (skipping pip install)"
     else
         echo "Installing/updating dependencies from requirements.txt..."
-        # Use pip with --quiet and allow it to fail gracefully
+        # Use pip with --quiet and --disable-pip-version-check to avoid warnings
         # At boot, network might not be ready yet, so we'll retry if needed
-        if ! pip install --quiet -r requirements.txt 2>>app.log; then
+        if ! pip install --quiet --disable-pip-version-check -r requirements.txt 2>>app.log; then
             echo "WARNING: Failed to install dependencies (network may not be ready)"
             echo "         Will attempt to start anyway if packages are already installed..."
             # Check again if we can at least import the basics
