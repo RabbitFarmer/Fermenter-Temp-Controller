@@ -32,6 +32,7 @@ def simulate_chart_data_processing(log_data):
     
     ALLOWED_EVENT_VALUES = [
         'SAMPLE',
+        'TEMP CONTROL READING',
         'HEATING-PLUG TURNED ON',
         'HEATING-PLUG TURNED OFF',
         'COOLING-PLUG TURNED ON',
