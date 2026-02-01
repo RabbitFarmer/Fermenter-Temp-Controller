@@ -172,7 +172,7 @@
                 y: displayData.map(p => p.temp_f),
                 mode: 'lines',
                 name: displayLabel,
-                line: { color: displayColor, shape: 'spline', width: 3 },
+                line: { color: displayColor, shape: 'linear', width: 3 },
                 yaxis: 'y1',
                 connectgaps: false,
               });
@@ -188,7 +188,7 @@
             y: dataPoints.map((p) => p.temp_f),
             mode: 'lines',
             name: 'Temperature (°F)',
-            line: { color: 'blue', shape: 'spline', width: 3 },
+            line: { color: 'blue', shape: 'linear', width: 3 },
             yaxis: 'y1',
             connectgaps: false,
           };
@@ -323,6 +323,56 @@
             showlegend: true,
           });
           
+          // Add horizontal lines for low and high temperature limits
+          // Extract limit values from data points (use most recent values)
+          let lowLimit = null;
+          let highLimit = null;
+          
+          // Find the most recent limits from data points (iterate backwards)
+          for (let i = allDataPoints.length - 1; i >= 0; i--) {
+            const p = allDataPoints[i];
+            // Get low limit if not yet found
+            if (lowLimit === null && p.low_limit !== null && p.low_limit !== undefined && !isNaN(parseFloat(p.low_limit))) {
+              lowLimit = parseFloat(p.low_limit);
+            }
+            // Get high limit if not yet found
+            if (highLimit === null && p.high_limit !== null && p.high_limit !== undefined && !isNaN(parseFloat(p.high_limit))) {
+              highLimit = parseFloat(p.high_limit);
+            }
+            // Break early if we have both limits
+            if (lowLimit !== null && highLimit !== null) {
+              break;
+            }
+          }
+          
+          // Add low limit line (thin red horizontal line)
+          if (lowLimit !== null && xAxisRange) {
+            traces.push({
+              x: [xAxisRange[0], xAxisRange[1]],
+              y: [lowLimit, lowLimit],
+              mode: 'lines',
+              name: 'Low Limit',
+              line: { color: 'red', width: 1, dash: 'solid' },
+              yaxis: 'y1',
+              showlegend: true,
+              hoverinfo: 'y',
+            });
+          }
+          
+          // Add high limit line (thin red horizontal line)
+          if (highLimit !== null && xAxisRange) {
+            traces.push({
+              x: [xAxisRange[0], xAxisRange[1]],
+              y: [highLimit, highLimit],
+              mode: 'lines',
+              name: 'High Limit',
+              line: { color: 'red', width: 1, dash: 'solid' },
+              yaxis: 'y1',
+              showlegend: true,
+              hoverinfo: 'y',
+            });
+          }
+          
           // Layout without gravity axis
           // Determine what controls are in use
           const heatingInUse = heatingOnEvents.length > 0 || heatingOffEvents.length > 0;
@@ -380,7 +430,7 @@
             y: dataPoints.map((p) => parseFloat(p.gravity)), // Gravity as numeric values
             mode: 'lines',
             name: 'Gravity',
-            line: { color: '#E69D00', shape: 'spline', width: 3 }, // Darker, bolder yellow
+            line: { color: '#E69D00', shape: 'linear', width: 3 }, // Darker, bolder yellow
             yaxis: 'y2',
             connectgaps: false,
           };
