@@ -121,7 +121,8 @@ fi
 # During boot mode, wait extra time for desktop environment to be ready
 if [ "$BOOT_MODE" = true ]; then
     echo "Waiting for desktop environment to be ready..."
-    # Check if DISPLAY becomes available (up to 30 seconds)
+    # Wait for DISPLAY to be set by X server or for xset to respond (up to 30 seconds)
+    # DISPLAY starts empty at boot but gets set once X server is running
     for i in $(seq 1 30); do
         if [ -n "$DISPLAY" ] || xset q &>/dev/null; then
             echo "✓ Desktop environment is ready"
