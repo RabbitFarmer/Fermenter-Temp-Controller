@@ -340,13 +340,24 @@ def log_periodic_temp_reading():
     """
     Log a periodic temperature control reading at the update_interval frequency.
     
-    This function logs temperature readings for the temperature control chart
-    at the configured update_interval, separate from Tilt readings which are
-    logged at tilt_logging_interval_minutes for fermentation monitoring.
+    This function is called by periodic_temp_control() after each control loop
+    iteration to log temperature readings for the temperature control chart.
+    
+    The readings are logged at the configured update_interval (default 1-2 minutes),
+    which is separate from Tilt readings that are logged at tilt_logging_interval_minutes
+    (default 15 minutes) for fermentation monitoring. These serve different purposes:
+    - update_interval: Frequency of temperature control decisions and chart updates
+    - tilt_logging_interval_minutes: Frequency of gravity reading logging for batches
     
     Unlike append_control_log, this bypasses the enable_heating/enable_cooling
     gate to ensure readings are logged whenever temperature control monitoring
     is active, regardless of whether heating or cooling is enabled.
+    
+    The logged data includes:
+    - Current temperature (temp_f)
+    - Low and high temperature limits
+    - Tilt color being monitored
+    - Event type: "TEMP CONTROL READING"
     """
     # Only log if temp control monitoring is active
     if not temp_cfg.get("temp_control_active", False):
