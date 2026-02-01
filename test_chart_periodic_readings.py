@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Integration test to verify temperature control chart displays periodic readings
-at update_interval frequency, not tilt_logging_interval_minutes frequency.
+at update_interval frequency from in-memory buffer.
 """
 
 import json
@@ -14,14 +14,14 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 def test_chart_data_with_periodic_readings():
     """
-    Test that chart_data endpoint returns periodic temperature control readings.
+    Test that chart_data endpoint returns periodic temperature control readings from memory.
     """
     print("\n" + "="*70)
-    print("Testing Chart Data with Periodic Temperature Control Readings")
+    print("Testing Chart Data with In-Memory Periodic Readings")
     print("="*70)
     
     # Import Flask app for testing
-    from app import app, LOG_PATH, log_periodic_temp_reading, temp_cfg, system_cfg
+    from app import app, LOG_PATH, temp_reading_buffer, temp_cfg, system_cfg
     
     # Create a test client
     client = app.test_client()
@@ -34,14 +34,13 @@ def test_chart_data_with_periodic_readings():
     temp_cfg['temp_control_active'] = True  # Enable monitoring
     temp_cfg['low_limit'] = 65.0
     temp_cfg['high_limit'] = 70.0
-    temp_cfg['current_temp'] = 67.5
     temp_cfg['tilt_color'] = 'Blue'
     
     print(f"   Temperature control interval: {system_cfg['update_interval']} minutes")
     print(f"   Tilt logging interval: {system_cfg['tilt_logging_interval_minutes']} minutes")
     print("   ✓ Configuration set")
     
-    # Backup existing log
+    # Backup existing log and clear memory buffer
     print("\n2. Preparing test environment...")
     backup_path = None
     if os.path.exists(LOG_PATH):
@@ -49,22 +48,22 @@ def test_chart_data_with_periodic_readings():
         os.rename(LOG_PATH, backup_path)
         print(f"   ✓ Backed up existing log to {backup_path}")
     
+    # Clear in-memory buffer
+    temp_reading_buffer.clear()
+    print("   ✓ Cleared in-memory buffer")
+    
     # Ensure log directory exists
     log_dir = os.path.dirname(LOG_PATH)
     if log_dir and not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
     
-    # Generate test data with periodic readings at update_interval
+    # Generate test data with periodic readings in memory
     print("\n3. Generating test data...")
-    print("   Creating periodic temperature control readings...")
+    print("   Creating periodic temperature control readings in memory...")
     
     # Simulate 10 readings at 2-minute intervals (update_interval)
     base_time = datetime.utcnow() - timedelta(minutes=20)
     for i in range(10):
-        temp_cfg['current_temp'] = 67.0 + (i * 0.5)  # Gradually increasing temp
-        
-        # Temporarily override the timestamp in the log function
-        # We'll manually create entries with specific timestamps for testing
         entry_time = base_time + timedelta(minutes=i * 2)
         
         entry = {
@@ -72,7 +71,7 @@ def test_chart_data_with_periodic_readings():
             "date": entry_time.strftime("%Y-%m-%d"),
             "time": entry_time.strftime("%H:%M:%S"),
             "tilt_color": "Blue",
-            "brewid": "",
+            "brewid": None,
             "low_limit": 65.0,
             "current_temp": 67.0 + (i * 0.5),
             "temp_f": 67.0 + (i * 0.5),
@@ -81,13 +80,12 @@ def test_chart_data_with_periodic_readings():
             "event": "TEMP CONTROL READING"
         }
         
-        with open(LOG_PATH, 'a') as f:
-            f.write(json.dumps(entry) + "\n")
+        temp_reading_buffer.append(entry)
     
-    print(f"   ✓ Created 10 periodic readings at {system_cfg['update_interval']}-minute intervals")
+    print(f"   ✓ Created 10 periodic readings in memory at {system_cfg['update_interval']}-minute intervals")
     
-    # Add some event-based entries to verify they're also included
-    print("   Adding temperature control events...")
+    # Add some event-based entries to file to verify they're also included
+    print("   Adding temperature control events to file...")
     event_time = base_time + timedelta(minutes=10)
     event_entry = {
         "timestamp": event_time.replace(microsecond=0).isoformat() + "Z",
@@ -106,7 +104,7 @@ def test_chart_data_with_periodic_readings():
     with open(LOG_PATH, 'a') as f:
         f.write(json.dumps(event_entry) + "\n")
     
-    print("   ✓ Added 1 temperature control event")
+    print("   ✓ Added 1 temperature control event to file")
     
     # Test the chart_data endpoint
     print("\n4. Testing chart_data endpoint...")
@@ -171,6 +169,7 @@ def test_chart_data_with_periodic_readings():
     
     # Cleanup
     print("\n10. Cleaning up...")
+    temp_reading_buffer.clear()
     os.remove(LOG_PATH)
     if backup_path and os.path.exists(backup_path):
         os.rename(backup_path, LOG_PATH)
@@ -184,9 +183,10 @@ def test_chart_data_with_periodic_readings():
     print("\nSummary:")
     print("  • Chart data endpoint successfully returns periodic temperature readings")
     print("  • Periodic readings use 'TEMP CONTROL READING' event type")
-    print(f"  • Readings are logged at update_interval ({system_cfg['update_interval']} min)")
-    print(f"  • NOT at tilt_logging_interval_minutes ({system_cfg['tilt_logging_interval_minutes']} min)")
-    print("  • Both periodic readings and events are included in chart data")
+    print(f"  • Readings are stored IN MEMORY at update_interval ({system_cfg['update_interval']} min)")
+    print(f"  • NOT logged to file (avoids 720+ entries/day)")
+    print(f"  • NOT using tilt_logging_interval_minutes ({system_cfg['tilt_logging_interval_minutes']} min)")
+    print("  • Both in-memory readings and file events are included in chart data")
     print("  • Chart will now properly display temperature control history")
     print()
 

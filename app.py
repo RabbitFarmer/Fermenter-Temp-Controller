@@ -97,6 +97,12 @@ MAX_CHART_LIMIT = 3000
 MAX_ALL_LIMIT = 10000
 MAX_FILENAME_LENGTH = 50
 
+# In-memory buffer for temperature control readings
+# Stores recent readings at update_interval frequency without logging to file
+# Max 1440 entries = 2 days at 2-minute intervals (prevents memory bloat)
+TEMP_READING_BUFFER_SIZE = 1440
+temp_reading_buffer = deque(maxlen=TEMP_READING_BUFFER_SIZE)
+
 # --- Initialize config files from templates if they don't exist -------------
 def ensure_config_files():
     """
@@ -338,49 +344,64 @@ def append_control_log(event_type, payload):
 
 def log_periodic_temp_reading():
     """
-    Log a periodic temperature control reading at the update_interval frequency.
+    Record a periodic temperature control reading in memory at update_interval frequency.
     
     This function is called by periodic_temp_control() after each control loop
-    iteration to log temperature readings for the temperature control chart.
+    iteration to record temperature readings for the temperature control chart.
+    
+    The readings are stored in memory (not logged to file) to avoid creating
+    excessive log entries (720/day at 2-min intervals). The in-memory buffer
+    is limited to TEMP_READING_BUFFER_SIZE entries (default 1440 = 2 days).
+    
+    The readings are used for:
+    - Chart visualization (/chart_data/Fermenter endpoint)
+    - Main display (via temp_cfg['current_temp'])
+    - CSV export if users want granular detail
     
     The readings are logged at the configured update_interval (default 1-2 minutes),
     which is separate from Tilt readings that are logged at tilt_logging_interval_minutes
-    (default 15 minutes) for fermentation monitoring. These serve different purposes:
-    - update_interval: Frequency of temperature control decisions and chart updates
-    - tilt_logging_interval_minutes: Frequency of gravity reading logging for batches
+    (default 15 minutes) for fermentation monitoring.
     
-    Unlike append_control_log, this bypasses the enable_heating/enable_cooling
-    gate to ensure readings are logged whenever temperature control monitoring
+    Unlike file-based event logging, this bypasses the enable_heating/enable_cooling
+    gate to ensure readings are recorded whenever temperature control monitoring
     is active, regardless of whether heating or cooling is enabled.
     
-    The logged data includes:
+    The recorded data includes:
     - Current temperature (temp_f)
     - Low and high temperature limits
     - Tilt color being monitored
+    - Timestamp
     - Event type: "TEMP CONTROL READING"
     """
-    # Only log if temp control monitoring is active
+    # Only record if temp control monitoring is active
     if not temp_cfg.get("temp_control_active", False):
         return
     
     try:
-        d = os.path.dirname(LOG_PATH)
-        if d and not os.path.exists(d):
-            os.makedirs(d, exist_ok=True)
+        # Create timestamp
+        ts = datetime.utcnow()
+        iso_ts = ts.replace(microsecond=0).isoformat() + "Z"
         
-        # Create payload with current temperature control state
-        payload = {
+        # Create reading entry
+        entry = {
+            "timestamp": iso_ts,
+            "date": ts.strftime("%Y-%m-%d"),
+            "time": ts.strftime("%H:%M:%S"),
+            "tilt_color": temp_cfg.get("tilt_color", ""),
+            "brewid": None,  # Temperature control readings don't have brewid
             "low_limit": temp_cfg.get("low_limit"),
             "current_temp": temp_cfg.get("current_temp"),
+            "temp_f": temp_cfg.get("current_temp"),
+            "gravity": None,
             "high_limit": temp_cfg.get("high_limit"),
-            "tilt_color": temp_cfg.get("tilt_color", "")
+            "event": "TEMP CONTROL READING"
         }
         
-        entry = _format_control_log_entry("temp_control_reading", payload)
-        with open(LOG_PATH, 'a') as f:
-            f.write(json.dumps(entry) + "\n")
+        # Add to in-memory buffer (automatically drops oldest when full)
+        temp_reading_buffer.append(entry)
+        
     except Exception as e:
-        print(f"[LOG] Failed to log periodic temp reading: {e}")
+        print(f"[LOG] Failed to record periodic temp reading in memory: {e}")
 
 
 @app.template_filter('localtime')
@@ -4594,9 +4615,11 @@ def chart_data_for(tilt_color):
 
     # Handle "Fermenter" as temperature control monitor data
     if tilt_color == "Fermenter":
-        points = deque(maxlen=limit) if (not all_flag and limit is not None) else []
+        # Collect all data points (file events + in-memory readings)
+        all_points = []
         matched = 0
         
+        # First, read event-based entries from file (heating_on, cooling_off, etc.)
         if os.path.exists(LOG_PATH):
             try:
                 with open(LOG_PATH, 'r') as f:
@@ -4607,9 +4630,13 @@ def chart_data_for(tilt_color):
                             obj = json.loads(line)
                         except Exception:
                             continue
-                        # Include all temp control events
+                        # Include all temp control events (but not TEMP CONTROL READING from old logs)
                         event = obj.get('event', '')
                         if event not in ALLOWED_EVENT_VALUES:
+                            continue
+                        # Skip old TEMP CONTROL READING entries from file if they exist
+                        # We'll use in-memory readings instead
+                        if event == "TEMP CONTROL READING":
                             continue
                         
                         matched += 1
@@ -4642,22 +4669,37 @@ def chart_data_for(tilt_color):
                             "low_limit": obj.get('low_limit'),
                             "high_limit": obj.get('high_limit')
                         }
-                        if isinstance(points, deque):
-                            points.append(entry)
-                        else:
-                            points.append(entry)
-                            if len(points) > MAX_ALL_LIMIT:
-                                points.pop(0)
+                        all_points.append(entry)
             except Exception as e:
                 print(f"[LOG] Error reading temp control log for chart_data: {e}")
         
-        if isinstance(points, deque):
-            pts = list(points)
-            truncated = (matched > len(pts))
+        # Add in-memory periodic readings
+        for reading in temp_reading_buffer:
+            matched += 1
+            all_points.append(reading)
+        
+        # Sort all points by timestamp
+        try:
+            all_points.sort(key=lambda x: x.get('timestamp', ''))
+        except Exception:
+            pass  # If sorting fails, just use unsorted
+        
+        # Apply limit if needed
+        if not all_flag and limit is not None:
+            # Take the most recent entries
+            if len(all_points) > limit:
+                truncated = True
+                all_points = all_points[-limit:]
+            else:
+                truncated = False
         else:
-            pts = list(points)
-            truncated = (matched > len(pts))
-        return jsonify({"tilt_color": tilt_color, "points": pts, "truncated": truncated, "matched": matched})
+            truncated = False
+            # For 'all' requests, still enforce MAX_ALL_LIMIT
+            if len(all_points) > MAX_ALL_LIMIT:
+                truncated = True
+                all_points = all_points[-MAX_ALL_LIMIT:]
+        
+        return jsonify({"tilt_color": tilt_color, "points": all_points, "truncated": truncated, "matched": matched})
 
     # Original tilt color logic
     if tilt_color and tilt_color not in tilt_cfg:

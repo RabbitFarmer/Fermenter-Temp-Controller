@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-Test to verify temperature control readings are logged at update_interval frequency,
+Test to verify temperature control readings are recorded at update_interval frequency,
 not at tilt_logging_interval_minutes frequency.
+
+Readings are stored in memory (not logged to file) to avoid excessive log entries.
 """
 
 import json
@@ -17,17 +19,17 @@ def test_temp_control_reading_interval():
     Test that temperature control readings use update_interval, not tilt_logging_interval_minutes.
     """
     print("\n" + "="*70)
-    print("Testing Temperature Control Reading Interval")
+    print("Testing Temperature Control Reading Interval (In-Memory)")
     print("="*70)
     
     # Import after path is set
     from app import (
         log_periodic_temp_reading, temp_cfg, system_cfg, 
-        LOG_PATH, ALLOWED_EVENTS
+        temp_reading_buffer, TEMP_READING_BUFFER_SIZE, ALLOWED_EVENTS
     )
     
-    # Verify the new event type exists
-    print("\n1. Verifying new event type...")
+    # Verify the event type exists
+    print("\n1. Verifying event type...")
     assert "temp_control_reading" in ALLOWED_EVENTS, "temp_control_reading not in ALLOWED_EVENTS"
     assert ALLOWED_EVENTS["temp_control_reading"] == "TEMP CONTROL READING", "Event label mismatch"
     print("   ✓ Event type 'temp_control_reading' is properly defined")
@@ -45,22 +47,15 @@ def test_temp_control_reading_interval():
     
     print(f"   Temperature control interval (update_interval): {system_cfg['update_interval']} minutes")
     print(f"   Tilt logging interval: {system_cfg['tilt_logging_interval_minutes']} minutes")
+    print(f"   In-memory buffer size: {TEMP_READING_BUFFER_SIZE} entries")
     print("   ✓ Configuration set")
     
-    # Clean up old log for test
+    # Clear the in-memory buffer
     print("\n3. Preparing test environment...")
-    if os.path.exists(LOG_PATH):
-        # Backup existing log
-        backup_path = f"{LOG_PATH}.test_backup"
-        os.rename(LOG_PATH, backup_path)
-        print(f"   ✓ Backed up existing log to {backup_path}")
+    temp_reading_buffer.clear()
+    print(f"   ✓ Cleared in-memory buffer (size: {len(temp_reading_buffer)})")
     
-    # Ensure log directory exists
-    log_dir = os.path.dirname(LOG_PATH)
-    if log_dir and not os.path.exists(log_dir):
-        os.makedirs(log_dir, exist_ok=True)
-    
-    # Test the logging function
+    # Test the recording function
     print("\n4. Testing log_periodic_temp_reading()...")
     try:
         log_periodic_temp_reading()
@@ -69,19 +64,14 @@ def test_temp_control_reading_interval():
         print(f"   ✗ Error calling log_periodic_temp_reading: {e}")
         raise
     
-    # Verify log entry was created
-    print("\n5. Verifying log entry...")
-    assert os.path.exists(LOG_PATH), f"Log file not created at {LOG_PATH}"
+    # Verify entry was added to memory buffer
+    print("\n5. Verifying in-memory entry...")
+    assert len(temp_reading_buffer) > 0, "No entries in memory buffer"
+    print(f"   ✓ Found {len(temp_reading_buffer)} entry(ies) in memory buffer")
     
-    with open(LOG_PATH, 'r') as f:
-        lines = f.readlines()
-    
-    assert len(lines) > 0, "No log entries found"
-    print(f"   ✓ Found {len(lines)} log entry(ies)")
-    
-    # Parse and verify the log entry
-    print("\n6. Verifying log entry content...")
-    entry = json.loads(lines[0])
+    # Parse and verify the entry
+    print("\n6. Verifying entry content...")
+    entry = temp_reading_buffer[0]
     
     required_fields = ['timestamp', 'event', 'current_temp', 'low_limit', 'high_limit', 'tilt_color']
     for field in required_fields:
@@ -96,40 +86,49 @@ def test_temp_control_reading_interval():
     print("   ✓ All required fields present with correct values")
     print(f"   Entry: {json.dumps(entry, indent=2)}")
     
-    # Test that logging is skipped when monitoring is off
-    print("\n7. Testing that logging is skipped when monitoring is off...")
+    # Test that recording is skipped when monitoring is off
+    print("\n7. Testing that recording is skipped when monitoring is off...")
     temp_cfg['temp_control_active'] = False
     
-    # Clear the log
-    open(LOG_PATH, 'w').close()
+    # Clear the buffer and try to record
+    initial_count = len(temp_reading_buffer)
+    temp_reading_buffer.clear()
     
     log_periodic_temp_reading()
     
-    with open(LOG_PATH, 'r') as f:
-        lines = f.readlines()
+    assert len(temp_reading_buffer) == 0, "Entry added to buffer when monitoring was off"
+    print("   ✓ No entry added when temp_control_active is False")
     
-    assert len(lines) == 0, "Log entry created when monitoring was off"
-    print("   ✓ No log entry created when temp_control_active is False")
+    # Test buffer size limit
+    print("\n8. Testing buffer size limit...")
+    temp_cfg['temp_control_active'] = True
+    temp_reading_buffer.clear()
     
-    # Restore backup
-    print("\n8. Cleaning up...")
-    os.remove(LOG_PATH)
-    backup_path = f"{LOG_PATH}.test_backup"
-    if os.path.exists(backup_path):
-        os.rename(backup_path, LOG_PATH)
-        print(f"   ✓ Restored backup log")
-    else:
-        print("   ✓ Test log removed")
+    # Add more than buffer size to test automatic dropping
+    for i in range(TEMP_READING_BUFFER_SIZE + 10):
+        temp_cfg['current_temp'] = 67.0 + i
+        log_periodic_temp_reading()
+    
+    assert len(temp_reading_buffer) == TEMP_READING_BUFFER_SIZE, f"Buffer exceeded max size: {len(temp_reading_buffer)}"
+    print(f"   ✓ Buffer respects max size: {TEMP_READING_BUFFER_SIZE} entries")
+    
+    # Cleanup
+    print("\n9. Cleaning up...")
+    temp_reading_buffer.clear()
+    print("   ✓ Cleared memory buffer")
     
     print("\n" + "="*70)
     print("✓ ALL TESTS PASSED")
     print("="*70)
     print("\nSummary:")
     print("  • Temperature control readings use 'temp_control_reading' event")
-    print("  • Readings are logged by log_periodic_temp_reading() function")
-    print("  • This is called from periodic_temp_control() at update_interval frequency")
+    print("  • Readings are stored IN MEMORY (not logged to file)")
+    print("  • Recorded by log_periodic_temp_reading() function")
+    print("  • Called from periodic_temp_control() at update_interval frequency")
     print("  • Separate from Tilt readings which use tilt_logging_interval_minutes")
-    print("  • Logging only happens when temp_control_active is True")
+    print("  • Recording only happens when temp_control_active is True")
+    print(f"  • Buffer limited to {TEMP_READING_BUFFER_SIZE} entries (prevents memory bloat)")
+    print("  • Avoids creating 720+ log entries per day")
     print()
 
 if __name__ == "__main__":
