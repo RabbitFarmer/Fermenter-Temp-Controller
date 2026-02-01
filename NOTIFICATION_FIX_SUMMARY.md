@@ -179,18 +179,25 @@ Look for these messages in the console/logs:
 5. If test fails, check credentials and error messages
 
 #### Verify Configuration
-Check `config/system_config.json`:
-```json
+Check `config/system_config.json` (note: example below uses comments for clarity, but actual JSON cannot contain comments):
+```
 {
-  "warning_mode": "PUSH",  // or "BOTH"
-  "push_provider": "pushover",  // or "ntfy"
-  "pushover_user_key": "u1234567890abcdef...",  // Should not be ""
-  "pushover_api_token": "a1234567890abcdef...",  // Should not be ""
-  // OR for ntfy:
-  "ntfy_topic": "my-unique-topic",  // Should not be ""
+  "warning_mode": "PUSH",
+  "push_provider": "pushover",
+  "pushover_user_key": "u1234567890abcdef...",
+  "pushover_api_token": "a1234567890abcdef...",
+  
+  For ntfy instead of Pushover:
+  "ntfy_topic": "my-unique-topic",
   "ntfy_server": "https://ntfy.sh"
 }
 ```
+
+Key things to verify:
+- `warning_mode` is `"PUSH"` or `"BOTH"` (not `"EMAIL"` or `"NONE"`)
+- `push_provider` is `"pushover"` or `"ntfy"`
+- For Pushover: both `pushover_user_key` and `pushover_api_token` should have values (not empty `""`)
+- For ntfy: `ntfy_topic` should have a value (not empty `""`)
 
 ### Still Not Working?
 
@@ -198,12 +205,14 @@ If push notifications still don't work after checking all of the above:
 
 1. **Check network connectivity**: Ensure the Raspberry Pi can reach the push service
    ```bash
-   # For Pushover:
+   # For Pushover (replace YOUR_TOKEN and YOUR_USER with actual values):
    curl -X POST https://api.pushover.net/1/messages.json -d "token=YOUR_TOKEN&user=YOUR_USER&message=test"
    
-   # For ntfy:
+   # For ntfy (replace YOUR_TOPIC with your actual topic):
    curl -X POST https://ntfy.sh/YOUR_TOPIC -d "test message"
    ```
+   
+   ⚠️ **Security Note**: Command-line arguments (including credentials) may be visible in process lists and shell history. For production use, consider storing credentials in environment variables or using the web UI's test button instead.
 
 2. **Check Python requests library**: 
    ```bash
