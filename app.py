@@ -3131,6 +3131,28 @@ def periodic_temp_control():
             file_cfg = load_json(TEMP_CFG_FILE, {})
             if 'current_temp' in file_cfg and file_cfg['current_temp'] is None and temp_cfg.get('current_temp') is not None:
                 file_cfg.pop('current_temp')
+            
+            # Exclude runtime state variables from file reload to prevent state reset
+            # These variables track the current operational state and should not be
+            # overwritten by potentially stale values from the config file
+            runtime_state_vars = [
+                'heater_on', 'cooler_on',           # Current plug states
+                'heater_pending', 'cooler_pending',  # Pending command flags
+                'heater_pending_since', 'cooler_pending_since',  # Pending timestamps
+                'heater_pending_action', 'cooler_pending_action',  # Pending actions
+                'heating_error', 'cooling_error',    # Error states
+                'heating_error_msg', 'cooling_error_msg',  # Error messages
+                'heating_error_notified', 'cooling_error_notified',  # Notification flags
+                'heating_blocked_trigger', 'heating_safety_off_trigger',  # Safety triggers
+                'below_limit_logged', 'above_limit_logged',  # Limit trigger flags
+                'below_limit_trigger_armed', 'above_limit_trigger_armed',  # Limit triggers
+                'in_range_trigger_armed',  # Range trigger
+                'safety_shutdown_logged',  # Safety shutdown flag
+                'status'  # Current status message
+            ]
+            for var in runtime_state_vars:
+                file_cfg.pop(var, None)
+            
             temp_cfg.update(file_cfg)
             temperature_control_logic()
             
