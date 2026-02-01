@@ -4561,7 +4561,15 @@ def chart_data_for(tilt_color):
                         except Exception:
                             grav_num = None
                         
-                        entry = {"timestamp": ts_str, "temp_f": temp_num, "gravity": grav_num, "event": event, "tilt_color": obj.get('tilt_color', '')}
+                        entry = {
+                            "timestamp": ts_str, 
+                            "temp_f": temp_num, 
+                            "gravity": grav_num, 
+                            "event": event, 
+                            "tilt_color": obj.get('tilt_color', ''),
+                            "low_limit": obj.get('low_limit'),
+                            "high_limit": obj.get('high_limit')
+                        }
                         if isinstance(points, deque):
                             points.append(entry)
                         else:
