@@ -279,14 +279,12 @@ async def kasa_control(url, action, mode):
                     return last_error
 
             # Log the verified state
-            if is_on is None:
-                state_str = 'UNKNOWN'
-            elif is_on:
-                state_str = 'ON'
-            else:
-                state_str = 'OFF'
-            if attempt == 0 or attempt == max_retries - 1:
+            state_str = 'ON' if is_on else 'OFF'
+            # Log on first attempt and any retry attempts for diagnostics
+            if attempt == 0:
                 print(f"[kasa_worker] Verified state after {action}: {state_str} (is_on={is_on}, verification_update={'success' if verification_success else 'failed'})")
+            elif attempt > 0:
+                print(f"[kasa_worker] Retry {attempt + 1}: Verified state after {action}: {state_str} (is_on={is_on})")
             
             # Verify state matches expected result
             if (action == 'on' and is_on) or (action == 'off' and not is_on):
