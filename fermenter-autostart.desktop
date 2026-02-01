@@ -1,0 +1,39 @@
+# Fermenter Temperature Controller - Desktop Autostart File
+#
+# This is a TEMPLATE for desktop autostart (alternative to systemd service).
+# Use this if you want the browser to open automatically on boot.
+#
+# INSTALLATION INSTRUCTIONS:
+#
+# 1. Edit this file and replace the paths:
+#    - Replace /home/pi/Fermenter-Temp-Controller with your actual installation path
+#
+# 2. Copy to autostart directory:
+#    mkdir -p ~/.config/autostart
+#    cp fermenter-autostart.desktop ~/.config/autostart/
+#
+# 3. Make sure it's executable:
+#    chmod +x ~/.config/autostart/fermenter-autostart.desktop
+#
+# 4. Reboot to test
+#
+# NOTE: This method will open the browser automatically at boot.
+# If you prefer the application to run in the background without
+# opening the browser, use the systemd service instead (see INSTALLATION.md).
+#
+# TROUBLESHOOTING:
+# - Check logs: ~/.config/autostart/fermenter.log
+# - Manually test: bash ~/Fermenter-Temp-Controller/start.sh
+# - Verify paths are correct in this file
+#
+
+[Desktop Entry]
+Type=Application
+Name=Fermenter Temperature Controller
+Comment=Start fermenter monitoring and temperature control
+Exec=/home/pi/Fermenter-Temp-Controller/start.sh
+Terminal=false
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+StartupNotify=false
