@@ -87,20 +87,26 @@ fi
 echo "Opening the application in your default browser..."
 BROWSER_OPENED=false
 
+# Create secure temporary file for error logging
+BROWSER_ERROR_LOG=$(mktemp /tmp/fermenter_browser_error.XXXXXX)
+
 if command -v xdg-open > /dev/null; then
     echo "  Using xdg-open to launch browser..."
-    if xdg-open http://127.0.0.1:5000 2>/tmp/browser_error_$$.log &
+    if xdg-open http://127.0.0.1:5000 2>"$BROWSER_ERROR_LOG" &
     then
         echo "✓ Browser command executed successfully"
         BROWSER_OPENED=true
     else
         echo "⚠️  Warning: xdg-open command failed"
-        if [ -f /tmp/browser_error_$$.log ]; then
+        if [ -f "$BROWSER_ERROR_LOG" ] && [ -s "$BROWSER_ERROR_LOG" ]; then
             echo "  Error details:"
-            cat /tmp/browser_error_$$.log
+            cat "$BROWSER_ERROR_LOG"
         fi
     fi
 fi
+
+# Clean up temporary error log
+rm -f "$BROWSER_ERROR_LOG"
 
 # Show final status
 if [ "$BROWSER_OPENED" = true ]; then
@@ -131,7 +137,9 @@ if [ "$BROWSER_OPENED" != true ]; then
     echo ""
     echo "Terminal will remain open. Close this window after you've opened the browser."
     echo "Press Ctrl+C or close this window when done."
-    read -p "Press Enter to close this terminal..." -t 300 || true
+    # Keep the script running so terminal stays open
+    # No timeout - let user close when ready
+    read -p "Press Enter to close this terminal..." || true
 else
     # Browser opened successfully - brief pause to let user see success message
     echo ""
