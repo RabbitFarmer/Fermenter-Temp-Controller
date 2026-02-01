@@ -324,20 +324,22 @@
           });
           
           // Add horizontal lines for low and high temperature limits
-          // Extract limit values from data points (they should be consistent across points)
+          // Extract limit values from data points (use most recent values)
           let lowLimit = null;
           let highLimit = null;
           
-          // Find the most recent limits from data points
+          // Find the most recent limits from data points (iterate backwards)
           for (let i = allDataPoints.length - 1; i >= 0; i--) {
             const p = allDataPoints[i];
-            if (p.low_limit !== null && p.low_limit !== undefined && !isNaN(parseFloat(p.low_limit))) {
+            // Get low limit if not yet found
+            if (lowLimit === null && p.low_limit !== null && p.low_limit !== undefined && !isNaN(parseFloat(p.low_limit))) {
               lowLimit = parseFloat(p.low_limit);
             }
-            if (p.high_limit !== null && p.high_limit !== undefined && !isNaN(parseFloat(p.high_limit))) {
+            // Get high limit if not yet found
+            if (highLimit === null && p.high_limit !== null && p.high_limit !== undefined && !isNaN(parseFloat(p.high_limit))) {
               highLimit = parseFloat(p.high_limit);
             }
-            // Break if we have both limits
+            // Break early if we have both limits
             if (lowLimit !== null && highLimit !== null) {
               break;
             }
