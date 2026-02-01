@@ -125,16 +125,20 @@ def test_issue_reproduction():
     print(f"Result: Heater ON = {heater_on_at_76}, Heater Pending = {heater_pending_at_76}")
     
     # Check if OFF command was sent
+    # Note: heater_on stays True until KASA confirms the command succeeded
     if heater_pending_at_76 and not heater_on_at_76:
+        # Rare: command sent and state already False (maybe from previous confirmation)
         print("✓ Heating OFF command sent (pending confirmation)")
         success = True
     elif not heater_on_at_76 and not heater_pending_at_76:
         print("✓ Heating is OFF (already confirmed)")
         success = True
     elif heater_pending_at_76 and heater_on_at_76:
+        # Expected: OFF command sent, waiting for KASA worker confirmation
         print("⚠ Heating OFF command sent but heater_on still True (waiting for confirmation)")
         success = True
     else:
+        # Bug: heater_on=True and heater_pending=False means no OFF command was sent
         print("✗ BUG REPRODUCED: Heating is still ON even though temp > high_limit")
         print(f"   heater_on = {heater_on_at_76}")
         print(f"   heater_pending = {heater_pending_at_76}")

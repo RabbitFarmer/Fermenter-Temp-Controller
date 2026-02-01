@@ -27,8 +27,7 @@ def test_heating_retry_after_failure():
         live_tilts,
         update_live_tilt,
         kasa_result_queue,
-        _last_kasa_command,
-        _record_kasa_command
+        _last_kasa_command
     )
     
     print("=" * 80)
@@ -151,6 +150,8 @@ def test_heating_retry_after_failure():
     print("✓ SUCCESS: Successful command was recorded in rate limiter")
     
     # Step 6: Verify that duplicate OFF command is now blocked (rate limited)
+    # Note: Rate limiting check happens immediately since the successful command
+    # was just recorded and the rate limit period (default 10s) has not elapsed
     temperature_control_logic()
     
     third_pending = temp_cfg.get('heater_pending', False)
