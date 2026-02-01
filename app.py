@@ -3132,13 +3132,22 @@ def periodic_temp_control():
             if 'current_temp' in file_cfg and file_cfg['current_temp'] is None and temp_cfg.get('current_temp') is not None:
                 file_cfg.pop('current_temp')
             
-            # Preserve runtime trigger states - these should NOT be overwritten by config reload
-            # The trigger flags track whether we've already sent a notification for the current condition
-            # and should only be reset when temperature crosses back into range
+            # Preserve ALL runtime trigger states - these should NOT be overwritten by config reload
+            # There are multiple trigger types:
+            # 1. Notification triggers (below/above/in_range) - limit temperature notification spam
+            # 2. Safety triggers (heating/cooling blocked/off) - limit Tilt safety notification spam
+            # All triggers track whether we've already logged/notified for the current condition
+            # and are reset only when the condition is resolved
             preserved_triggers = {
+                # Temperature limit notification triggers
                 'below_limit_trigger_armed': temp_cfg.get('below_limit_trigger_armed'),
                 'above_limit_trigger_armed': temp_cfg.get('above_limit_trigger_armed'),
                 'in_range_trigger_armed': temp_cfg.get('in_range_trigger_armed'),
+                # Safety notification triggers (Tilt connection loss)
+                'heating_blocked_trigger': temp_cfg.get('heating_blocked_trigger'),
+                'cooling_blocked_trigger': temp_cfg.get('cooling_blocked_trigger'),
+                'heating_safety_off_trigger': temp_cfg.get('heating_safety_off_trigger'),
+                'cooling_safety_off_trigger': temp_cfg.get('cooling_safety_off_trigger'),
             }
             
             temp_cfg.update(file_cfg)
