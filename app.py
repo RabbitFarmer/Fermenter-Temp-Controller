@@ -239,6 +239,7 @@ def append_batch_metadata_to_batch_jsonl(color, batch_entry):
 # --- Restricted control-log writer -----------------------------------------
 ALLOWED_EVENTS = {
     "tilt_reading": "SAMPLE",
+    "temp_control_reading": "TEMP CONTROL READING",
     "heating_on": "HEATING-PLUG TURNED ON",
     "heating_off": "HEATING-PLUG TURNED OFF",
     "cooling_on": "COOLING-PLUG TURNED ON",
@@ -334,6 +335,42 @@ def append_control_log(event_type, payload):
             f.write(json.dumps(entry) + "\n")
     except Exception as e:
         print(f"[LOG] Failed to append to control log: {e}")
+
+def log_periodic_temp_reading():
+    """
+    Log a periodic temperature control reading at the update_interval frequency.
+    
+    This function logs temperature readings for the temperature control chart
+    at the configured update_interval, separate from Tilt readings which are
+    logged at tilt_logging_interval_minutes for fermentation monitoring.
+    
+    Unlike append_control_log, this bypasses the enable_heating/enable_cooling
+    gate to ensure readings are logged whenever temperature control monitoring
+    is active, regardless of whether heating or cooling is enabled.
+    """
+    # Only log if temp control monitoring is active
+    if not temp_cfg.get("temp_control_active", False):
+        return
+    
+    try:
+        d = os.path.dirname(LOG_PATH)
+        if d and not os.path.exists(d):
+            os.makedirs(d, exist_ok=True)
+        
+        # Create payload with current temperature control state
+        payload = {
+            "low_limit": temp_cfg.get("low_limit"),
+            "current_temp": temp_cfg.get("current_temp"),
+            "high_limit": temp_cfg.get("high_limit"),
+            "tilt_color": temp_cfg.get("tilt_color", "")
+        }
+        
+        entry = _format_control_log_entry("temp_control_reading", payload)
+        with open(LOG_PATH, 'a') as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception as e:
+        print(f"[LOG] Failed to log periodic temp reading: {e}")
+
 
 @app.template_filter('localtime')
 def localtime_filter(iso_str):
@@ -3036,6 +3073,10 @@ def periodic_temp_control():
                 file_cfg.pop('current_temp')
             temp_cfg.update(file_cfg)
             temperature_control_logic()
+            
+            # Log periodic temperature reading at update_interval frequency
+            # This is separate from Tilt readings (logged at tilt_logging_interval_minutes)
+            log_periodic_temp_reading()
         except Exception as e:
             append_control_log("temp_control_mode_changed", {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
             print("[LOG] Exception in periodic_temp_control:", e)
