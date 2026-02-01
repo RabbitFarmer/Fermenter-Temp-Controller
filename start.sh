@@ -182,21 +182,35 @@ if ! curl -s http://127.0.0.1:5000 > /dev/null 2>&1; then
 fi
 
 # Open the application in the default web browser in fullscreen
-# During boot mode, wait extra time for desktop environment to be ready
+# Wait for desktop environment to be ready before opening browser
+# This is critical for autostart scenarios where DISPLAY may be set but
+# the window manager and desktop components aren't fully initialized yet
+echo "Ensuring desktop environment is ready for browser launch..."
+show_notification "Fermenter Starting" "Waiting for desktop to be ready..." "low"
+
+# Wait for DISPLAY to be set and X server to be responsive (up to 30 seconds)
+# Check both DISPLAY variable and xset command to ensure X server is ready
+for i in $(seq 1 30); do
+    if [ -n "$DISPLAY" ] && xset q &>/dev/null; then
+        echo "✓ Desktop environment is ready (DISPLAY=$DISPLAY, X server responding)"
+        break
+    fi
+    if [ $((i % 5)) -eq 0 ]; then
+        echo "  Still waiting for desktop... ($i/30 seconds)"
+    fi
+    sleep 1
+done
+
+# Additional delay to ensure window manager and browser are ready
+# This is especially important for autostart where services start in parallel
 if [ "$BOOT_MODE" = true ]; then
-    echo "Waiting for desktop environment to be ready..."
-    show_notification "Fermenter Starting" "Waiting for desktop to be ready..." "low"
-    # Wait for DISPLAY to be set by X server or for xset to respond (up to 30 seconds)
-    # DISPLAY starts empty at boot but gets set once X server is running
-    for i in $(seq 1 30); do
-        if [ -n "$DISPLAY" ] || xset q &>/dev/null; then
-            echo "✓ Desktop environment is ready"
-            break
-        fi
-        sleep 1
-    done
-    # Additional delay to ensure window manager is fully initialized
-    sleep 3
+    # Longer delay during boot when many services are starting
+    echo "Allowing extra time for window manager initialization (boot mode)..."
+    sleep 5
+else
+    # Shorter delay for manual runs, but still give WM time to stabilize
+    echo "Allowing window manager to stabilize..."
+    sleep 2
 fi
 
 echo "Opening the application in your default browser..."
