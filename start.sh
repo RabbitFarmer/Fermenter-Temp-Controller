@@ -214,26 +214,68 @@ else
 fi
 
 echo "Opening the application in your default browser..."
+BROWSER_OPENED=false
+
 if command -v xdg-open > /dev/null; then
-    # Use nohup and run in subshell to completely detach from script
-    (nohup xdg-open http://127.0.0.1:5000 </dev/null >/dev/null 2>&1 &)
-    # Attempt to send F11 for fullscreen mode if xdotool is available
-    if command -v xdotool > /dev/null; then
-        # Give browser time to open and become the active window
-        sleep 3
-        # Try to find and activate the browser window, then send F11
-        # This is best-effort; if it fails, the browser opens normally
-        xdotool search --class --sync "chromium|firefox|chrome" windowactivate --sync key F11 2>/dev/null || \
-        xdotool key F11 2>/dev/null || true
+    echo "  Using xdg-open to launch browser..."
+    # Try to open browser and capture any errors
+    if xdg-open http://127.0.0.1:5000 2>/tmp/browser_error_$$.log &
+    then
+        echo "✓ Browser command executed successfully"
+        BROWSER_OPENED=true
+        # Attempt to send F11 for fullscreen mode if xdotool is available
+        if command -v xdotool > /dev/null; then
+            echo "  Attempting to set fullscreen mode..."
+            # Give browser time to open and become the active window
+            sleep 3
+            # Try to find and activate the browser window, then send F11
+            # This is best-effort; if it fails, the browser opens normally
+            if xdotool search --class --sync "chromium|firefox|chrome" windowactivate --sync key F11 2>/dev/null; then
+                echo "✓ Fullscreen mode activated"
+            else
+                # Fallback: just send F11 to active window
+                xdotool key F11 2>/dev/null || true
+                echo "  (Fullscreen mode attempted - may not have worked)"
+            fi
+        fi
+    else
+        echo "⚠️  Warning: xdg-open command failed"
+        if [ -f /tmp/browser_error_$$.log ]; then
+            echo "  Error details:"
+            cat /tmp/browser_error_$$.log
+            rm -f /tmp/browser_error_$$.log
+        fi
     fi
-    echo "Browser launched"
 elif command -v open > /dev/null; then
-    # Use nohup and run in subshell to completely detach from script (macOS)
-    (nohup open http://127.0.0.1:5000 </dev/null >/dev/null 2>&1 &)
-    echo "Browser launched"
+    echo "  Using open to launch browser (macOS)..."
+    # Try to open browser and capture any errors (macOS)
+    if open http://127.0.0.1:5000 2>/tmp/browser_error_$$.log
+    then
+        echo "✓ Browser command executed successfully"
+        BROWSER_OPENED=true
+    else
+        echo "⚠️  Warning: open command failed"
+        if [ -f /tmp/browser_error_$$.log ]; then
+            echo "  Error details:"
+            cat /tmp/browser_error_$$.log
+            rm -f /tmp/browser_error_$$.log
+        fi
+    fi
 else
-    echo "No browser command found (xdg-open/open)"
-    echo "Please open http://127.0.0.1:5000 in your browser manually."
+    echo "⚠️  No browser command found (xdg-open/open not available)"
+fi
+
+# Show final status
+if [ "$BROWSER_OPENED" = true ]; then
+    show_notification "Fermenter Ready" "Browser opened successfully!" "normal"
+else
+    echo ""
+    echo "=========================================="
+    echo "⚠️  BROWSER DID NOT OPEN AUTOMATICALLY"
+    echo "=========================================="
+    echo "Please open http://127.0.0.1:5000 manually in your browser."
+    echo ""
+    show_notification "Fermenter Ready" "Please open browser manually to 127.0.0.1:5000" "normal"
 fi
 
 echo "======================================================================="
@@ -243,3 +285,17 @@ echo "  Application PID: $APP_PID"
 echo "  Access dashboard: http://127.0.0.1:5000"
 echo "  Application log: app.log"
 echo "======================================================================="
+
+# If browser didn't open automatically, keep terminal open for user to see instructions
+if [ "$BROWSER_OPENED" != true ]; then
+    echo ""
+    echo "Terminal will remain open. Close this window after you've opened the browser."
+    echo "Press Ctrl+C or close this window when done."
+    # Keep the script running so terminal stays open
+    read -p "Press Enter to close this terminal..." -t 300 || true
+else
+    # Browser opened successfully - brief pause to let user see success message
+    echo ""
+    echo "This terminal will close in 5 seconds..."
+    sleep 5
+fi
