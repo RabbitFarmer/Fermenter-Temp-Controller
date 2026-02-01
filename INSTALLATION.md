@@ -291,10 +291,47 @@ pip install --user -r requirements.txt
 
 ## Running on System Startup (Recommended)
 
-To ensure the application starts automatically when your Raspberry Pi boots up, set up a systemd service. This is the recommended approach as it provides automatic restart on failure and better logging.
+You have three options for auto-starting the application at boot. Choose based on your setup:
 
-### Method 1: Automated Installation (Recommended)
+### Method 1: Desktop Autostart (Best for setups with monitor)
 
+**Use this if:**
+- ✓ You have a Raspberry Pi with monitor, keyboard, and mouse
+- ✓ You want the browser to open automatically at boot
+- ✓ You prefer a simple user-friendly setup
+
+**Installation:**
+```bash
+cd /path/to/Fermenter-Temp-Controller
+bash install_desktop_autostart.sh
+```
+
+**What it does:**
+- Installs a desktop autostart entry in `~/.config/autostart/`
+- Runs `start.sh` when you log in to the desktop
+- Automatically opens browser when Flask is ready
+- Waits up to 3 minutes for system to be ready (handles boot delays)
+- No sudo required
+
+**After installation:**
+- Reboot or log out and back in
+- Application starts automatically
+- Browser opens to http://127.0.0.1:5000
+
+**To disable:**
+```bash
+rm ~/.config/autostart/fermenter.desktop
+```
+
+### Method 2: Systemd Service (Best for headless/server setups)
+
+**Use this if:**
+- ✓ You access the Pi via SSH (headless)
+- ✓ You want the app to run without browser opening
+- ✓ You want automatic restart on failure
+- ✓ You need detailed logging via journalctl
+
+**Installation:**
 The easiest way to install the systemd service is using the automated installation script:
 
 ```bash
@@ -422,9 +459,11 @@ sudo systemctl disable fermenter
 sudo systemctl enable fermenter
 ```
 
-### Method 2: crontab (Alternative)
+### Method 3: crontab @reboot (Not Recommended)
 
-If you prefer not to use systemd, you can use crontab to start the application on boot:
+> **⚠️ Warning:** This method is NOT recommended. Use **Desktop Autostart** (Method 1) or **Systemd Service** (Method 2) instead.
+
+If you still want to use crontab (for legacy compatibility):
 
 ```bash
 crontab -e
@@ -435,7 +474,30 @@ Add this line:
 @reboot cd /home/pi/Fermenter-Temp-Controller && ./start.sh
 ```
 
-**Note:** This method uses start.sh which will attempt to open a browser. On a headless Raspberry Pi, this may produce harmless error messages. The systemd method is more robust for headless operation.
+**Why this method is not recommended:**
+- ✗ Runs very early in boot (network/desktop may not be ready)
+- ✗ Timing issues can cause browser to open before Flask is ready
+- ✗ Less reliable than desktop autostart or systemd
+- ✗ Difficult to debug if issues occur
+
+**However:** The enhanced `start.sh` now includes boot detection and will automatically:
+- Wait up to 3 minutes for Flask to be ready (vs 1 minute in interactive mode)
+- Wait for desktop environment to load before opening browser
+- Show progress updates every 10 attempts
+
+So while this method still works, **Desktop Autostart (Method 1)** is more reliable for desktop setups, and **Systemd Service (Method 2)** is better for headless setups.
+
+**Comparison:**
+
+| Feature | Desktop Autostart | Systemd Service | Crontab @reboot |
+|---------|------------------|-----------------|-----------------|
+| Browser opens automatically | ✓ Yes | ✗ No | ✓ Yes (may fail) |
+| Waits for desktop ready | ✓ Yes | N/A | ⚠️ With delays |
+| Reliable timing | ✓ Yes | ✓ Yes | ⚠️ Sometimes |
+| Easy to debug | ✓ Yes | ✓ Yes | ✗ No |
+| Requires sudo | ✗ No | ✓ Yes | ✗ No |
+| Works headless | ✗ No | ✓ Yes | ⚠️ Partial |
+| **Recommended** | **Desktop** | **Headless** | **Not recommended** |
 
 ---
 

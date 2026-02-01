@@ -95,9 +95,28 @@ If you prefer to install manually or encounter issues:
    ```
    Then visit `http://<raspberry-pi-ip>:5000` in your browser.
 
-### Running on System Startup (Recommended)
+### Running on System Startup
 
-To have the application start automatically when your Raspberry Pi boots up, use the automated service installer:
+You have two options for auto-starting the application at boot:
+
+#### Option 1: Desktop Autostart (Recommended for setups with monitor)
+
+If you have a Raspberry Pi with a monitor, keyboard, and mouse, and want the browser to open automatically:
+
+```bash
+# Run the desktop autostart installer
+bash install_desktop_autostart.sh
+```
+
+This will:
+- ✓ Start the application when you log in
+- ✓ Open the browser automatically to the dashboard
+- ✓ Wait for the Flask server to be ready (up to 3 minutes at boot)
+- ✓ No sudo required
+
+#### Option 2: Systemd Service (Recommended for headless setups)
+
+For headless setups or if you prefer the application to run as a background service:
 
 ```bash
 # Run the automated service installer (requires full path)
@@ -113,8 +132,9 @@ The installer will:
 - ✓ Automatically detect your installation directory and username
 - ✓ Generate a service file with correct paths for your setup
 - ✓ Install and optionally enable/start the systemd service
+- ✓ Run in background without opening browser (access via network)
 
-**Alternative - Manual Installation:**
+**Alternative - Manual systemd Installation:**
 ```bash
 # Edit fermenter.service with your paths, then:
 sudo cp fermenter.service /etc/systemd/system/
@@ -123,7 +143,9 @@ sudo systemctl enable fermenter
 sudo systemctl start fermenter
 ```
 
-For detailed instructions, including service management and logging, see the [Running on System Startup](INSTALLATION.md#running-on-system-startup-recommended) section in INSTALLATION.md.
+For detailed instructions, troubleshooting, and comparison of auto-start methods, see:
+- [AUTO_START_TIMING_FIX.md](AUTO_START_TIMING_FIX.md) - Complete guide to auto-start options
+- [INSTALLATION.md](INSTALLATION.md#running-on-system-startup-recommended) - Detailed installation steps
 
 ### Troubleshooting Installation
 
