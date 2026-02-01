@@ -2770,16 +2770,24 @@ def kasa_result_listener():
                 temp_cfg["heater_pending"] = False
                 temp_cfg["heater_pending_since"] = None
                 if success:
-                    temp_cfg["heater_on"] = (action == 'on')
+                    # Track previous state to detect actual state changes
+                    previous_state = temp_cfg.get("heater_on", False)
+                    new_state = (action == 'on')
+                    temp_cfg["heater_on"] = new_state
                     temp_cfg["heating_error"] = False
                     temp_cfg["heating_error_msg"] = ""
                     # Reset the notified flag when plug starts working again
                     temp_cfg["heating_error_notified"] = False
-                    event = "heating_on" if action == 'on' else "heating_off"
-                    print(f"[KASA_RESULT] ✓ Heating plug {action.upper()} confirmed - updating heater_on={action == 'on'}")
-                    append_control_log(event, {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
-                    # Send notification if enabled (user can choose to enable/disable)
-                    send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
+                    
+                    # Only log and notify if state actually changed
+                    if new_state != previous_state:
+                        event = "heating_on" if action == 'on' else "heating_off"
+                        print(f"[KASA_RESULT] ✓ Heating plug {action.upper()} confirmed - state changed from {previous_state} to {new_state}")
+                        append_control_log(event, {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
+                        # Send notification if enabled (user can choose to enable/disable)
+                        send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
+                    else:
+                        print(f"[KASA_RESULT] ✓ Heating plug {action.upper()} confirmed - no state change (already {previous_state})")
                     # Record successful command for rate limiting
                     _record_kasa_command(url, action)
                 else:
@@ -2798,16 +2806,24 @@ def kasa_result_listener():
                 temp_cfg["cooler_pending"] = False
                 temp_cfg["cooler_pending_since"] = None
                 if success:
-                    temp_cfg["cooler_on"] = (action == 'on')
+                    # Track previous state to detect actual state changes
+                    previous_state = temp_cfg.get("cooler_on", False)
+                    new_state = (action == 'on')
+                    temp_cfg["cooler_on"] = new_state
                     temp_cfg["cooling_error"] = False
                     temp_cfg["cooling_error_msg"] = ""
                     # Reset the notified flag when plug starts working again
                     temp_cfg["cooling_error_notified"] = False
-                    event = "cooling_on" if action == 'on' else "cooling_off"
-                    print(f"[KASA_RESULT] ✓ Cooling plug {action.upper()} confirmed - updating cooler_on={action == 'on'}")
-                    append_control_log(event, {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
-                    # Send notification if enabled (user can choose to enable/disable)
-                    send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
+                    
+                    # Only log and notify if state actually changed
+                    if new_state != previous_state:
+                        event = "cooling_on" if action == 'on' else "cooling_off"
+                        print(f"[KASA_RESULT] ✓ Cooling plug {action.upper()} confirmed - state changed from {previous_state} to {new_state}")
+                        append_control_log(event, {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
+                        # Send notification if enabled (user can choose to enable/disable)
+                        send_temp_control_notification(event, temp_cfg.get("current_temp", 0), temp_cfg.get("low_limit", 0), temp_cfg.get("high_limit", 0), temp_cfg.get("tilt_color", ""))
+                    else:
+                        print(f"[KASA_RESULT] ✓ Cooling plug {action.upper()} confirmed - no state change (already {previous_state})")
                     # Record successful command for rate limiting
                     _record_kasa_command(url, action)
                 else:
