@@ -344,7 +344,7 @@ def append_control_log(event_type, payload):
 
 def log_periodic_temp_reading():
     """
-    Record a periodic temperature control reading in memory at update_interval frequency.
+    Record a periodic temperature control reading in memory at temp_control_update_interval frequency.
     
     This function is called by periodic_temp_control() after each control loop
     iteration to record temperature readings for the temperature control chart.
@@ -358,7 +358,7 @@ def log_periodic_temp_reading():
     - Main display (via temp_cfg['current_temp'])
     - CSV export if users want granular detail
     
-    The readings are logged at the configured update_interval (default 1-2 minutes),
+    The readings are logged at the configured temp_control_update_interval (default 2 minutes),
     which is separate from Tilt readings that are logged at tilt_logging_interval_minutes
     (default 15 minutes) for fermentation monitoring.
     
@@ -476,6 +476,9 @@ def ensure_temp_defaults():
     # New flag to control active monitoring/recording (user-controlled switch):
     # Always start with monitor OFF for safety and consistency
     temp_cfg["temp_control_active"] = False
+    # Temperature control update interval (minutes) - separate from fermentation logging interval
+    # Default to 2 minutes for responsive temperature control
+    temp_cfg.setdefault("temp_control_update_interval", 2)
     # Trigger states for event-based logging:
     temp_cfg.setdefault("in_range_trigger_armed", True)
     temp_cfg.setdefault("above_limit_trigger_armed", True)
@@ -674,7 +677,7 @@ def is_control_tilt_active():
     Check if the Tilt being used for temperature control is currently active.
     
     For temperature control safety, uses a shorter timeout than general Tilt monitoring:
-    - Temperature control timeout: 2 × update_interval (default: 2 × 2 min = 4 minutes)
+    - Temperature control timeout: 2 × temp_control_update_interval (default: 2 × 2 min = 4 minutes)
     - This ensures KASA plugs turn off quickly if Tilt signal is lost
     - Much shorter than the general 30-minute inactivity timeout used for display/notifications
     
@@ -722,10 +725,10 @@ def is_control_tilt_active():
             # If we can't parse the assignment time, continue with normal checks
     
     # For temperature control, use a much shorter timeout than general monitoring
-    # Timeout = 2 × update_interval (2 missed readings)
+    # Timeout = 2 × temp_control_update_interval (2 missed readings)
     # Example: 2 min update interval → 4 min timeout
     try:
-        update_interval_minutes = int(system_cfg.get("update_interval", 2))
+        update_interval_minutes = int(temp_cfg.get("temp_control_update_interval", 2))
     except Exception:
         update_interval_minutes = 2
     
@@ -3156,7 +3159,7 @@ def periodic_temp_control():
             
             temperature_control_logic()
             
-            # Log periodic temperature reading at update_interval frequency
+            # Log periodic temperature reading at temp_control_update_interval frequency
             # This is separate from Tilt readings (logged at tilt_logging_interval_minutes)
             log_periodic_temp_reading()
         except Exception as e:
@@ -3164,9 +3167,11 @@ def periodic_temp_control():
             print("[LOG] Exception in periodic_temp_control:", e)
 
         try:
-            interval_minutes = int(system_cfg.get("update_interval", 1))
+            # Use temp_control_update_interval for temperature control loop frequency
+            # This is separate from system update_interval which controls fermentation monitoring
+            interval_minutes = int(temp_cfg.get("temp_control_update_interval", 2))
         except Exception:
-            interval_minutes = 1
+            interval_minutes = 2  # Default to 2 minutes for responsive temperature control
         interval_seconds = max(1, interval_minutes * 60)
         time.sleep(interval_seconds)
 
@@ -3845,6 +3850,7 @@ def update_temp_config():
             "tilt_color": new_tilt_color,
             "low_limit": float(data.get('low_limit', 0)),
             "high_limit": float(data.get('high_limit', 100)),
+            "temp_control_update_interval": int(data.get('temp_control_update_interval', 2)),
             "enable_heating": 'enable_heating' in data,
             "enable_cooling": 'enable_cooling' in data,
             "heating_plug": data.get("heating_plug", ""),

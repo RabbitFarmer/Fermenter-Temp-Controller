@@ -164,6 +164,12 @@
           </div>
 
           <div class="form-row">
+            <label for="temp_control_update_interval">Control Update Interval (minutes):</label>
+            <input id="temp_control_update_interval" name="temp_control_update_interval" type="number" min="1" max="60" value="{{ temp_control.temp_control_update_interval|default('2') }}">
+            <span class="small">How often temperature is checked and control decisions are made (default: 2 minutes). Separate from fermentation logging interval.</span>
+          </div>
+
+          <div class="form-row">
             <label>Enabled Actions:</label>
             <div>
               <label style="display:inline-block; width:auto;"><input type="checkbox" name="enable_heating" {% if temp_control.enable_heating %}checked{% endif %}> Enable Heating</label>
