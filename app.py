@@ -523,51 +523,13 @@ except Exception:
     pass
 
 # --- Inter-process queues and kasa worker startup --------------------------
-# Set multiprocessing start method to 'fork' for better network access in worker
-# The 'fork' method preserves the network stack and environment from parent process
-# This is critical for KASA plug communication in the worker process
-try:
-    # Check if 'fork' is available on this platform (not available on Windows)
-    available_methods = multiprocessing.get_all_start_methods()
-    if 'fork' in available_methods:
-        # Only set if not already set (avoid errors if called multiple times)
-        if multiprocessing.get_start_method(allow_none=True) is None:
-            multiprocessing.set_start_method('fork')
-            print("[LOG] Set multiprocessing start method to 'fork' for network access")
-        else:
-            current = multiprocessing.get_start_method()
-            print(f"[LOG] Multiprocessing start method already set to: {current}")
-            if current != 'fork':
-                print(f"[LOG] WARNING: Using '{current}' instead of 'fork' - may affect KASA plug reliability")
-    else:
-        print(f"[LOG] WARNING: 'fork' method not available on this platform ({sys.platform})")
-        print(f"[LOG] Available methods: {available_methods}")
-        print(f"[LOG] KASA plug control may experience network issues")
-except RuntimeError as e:
-    print(f"[LOG] Could not set multiprocessing start method: {e}")
-
-kasa_queue = Queue()
-kasa_result_queue = Queue()
+# Initialize these as None at module level so they exist when module is imported
+# They will be properly initialized in the if __name__ == '__main__' block
+# This prevents issues with multiprocessing.set_start_method() being called
+# multiple times when werkzeug reloader imports the module
+kasa_queue = None
+kasa_result_queue = None
 kasa_proc = None
-
-if kasa_worker:
-    try:
-        kasa_proc = Process(target=kasa_worker, args=(kasa_queue, kasa_result_queue))
-        kasa_proc.daemon = True
-        kasa_proc.start()
-        print("[LOG] Started kasa_worker process")
-        # Give the worker process time to initialize before attempting queries
-        # This prevents race conditions where sync_plug_states_at_startup() runs
-        # before the worker is ready to process commands
-        time.sleep(2)
-        if kasa_proc.is_alive():
-            print("[LOG] kasa_worker process is running and ready")
-        else:
-            print("[LOG] WARNING: kasa_worker process failed to start properly")
-    except Exception as e:
-        print("[LOG] Could not start kasa_worker:", e)
-else:
-    print("[LOG] kasa_worker not available — plug control disabled")
 
 # --- Live runtime data -----------------------------------------------------
 live_tilts = {}
@@ -2943,7 +2905,8 @@ def kasa_result_listener():
             print(f"[LOG] Exception in kasa_result_listener: {e}")
             continue
 
-threading.Thread(target=kasa_result_listener, daemon=True).start()
+# NOTE: kasa_result_listener thread is started in if __name__ == '__main__' block
+# after kasa_result_queue is initialized to avoid NoneType errors
 
 # --- Startup plug state synchronization -------------------------------------
 def sync_plug_states_at_startup():
@@ -3042,7 +3005,8 @@ def _background_startup_sync():
     except Exception as e:
         print(f"[LOG] Exception in background startup sync: {e}")
 
-threading.Thread(target=_background_startup_sync, daemon=True).start()
+# NOTE: _background_startup_sync thread is started in if __name__ == '__main__' block
+# after kasa components are initialized
 
 # --- Offsite push helpers (kept, forwarding enabled) -----------------------
 def get_predefined_field_maps():
@@ -3170,7 +3134,8 @@ def periodic_temp_control():
         interval_seconds = max(1, interval_minutes * 60)
         time.sleep(interval_seconds)
 
-threading.Thread(target=periodic_temp_control, daemon=True).start()
+# NOTE: periodic_temp_control thread is started in if __name__ == '__main__' block
+# after kasa_queue is initialized to avoid NoneType errors
 
 # --- Periodic batch monitoring thread -------------------------------------
 def periodic_batch_monitoring():
@@ -3220,7 +3185,7 @@ def periodic_batch_monitoring():
         # Sleep for BATCH_MONITORING_INTERVAL_SECONDS
         time.sleep(BATCH_MONITORING_INTERVAL_SECONDS)
 
-threading.Thread(target=periodic_batch_monitoring, daemon=True).start()
+# NOTE: periodic_batch_monitoring thread is started in if __name__ == '__main__' block
 
 # --- BLE scanner thread ---------------------------------------------------
 def ble_loop():
@@ -3243,7 +3208,7 @@ def ble_loop():
     except Exception as e:
         print(f"[LOG] BLE loop failed to start: {e}")
 
-threading.Thread(target=ble_loop, daemon=True).start()
+# NOTE: ble_loop thread is started in if __name__ == '__main__' block
 
 # --- Flask routes ---------------------------------------------------------
 @app.route('/')
@@ -5705,6 +5670,74 @@ if __name__ == '__main__':
         os.makedirs(BATCHES_DIR, exist_ok=True)
     except Exception:
         pass
+
+    # Set multiprocessing start method to 'fork' for better network access in worker
+    # MUST be called in if __name__ == '__main__' block to avoid issues with werkzeug reloader
+    # The 'fork' method preserves the network stack and environment from parent process
+    # This is critical for KASA plug communication in the worker process
+    try:
+        # Check if 'fork' is available on this platform (not available on Windows)
+        available_methods = multiprocessing.get_all_start_methods()
+        if 'fork' in available_methods:
+            # Only set if not already set (avoid errors if called multiple times)
+            if multiprocessing.get_start_method(allow_none=True) is None:
+                multiprocessing.set_start_method('fork')
+                print("[LOG] Set multiprocessing start method to 'fork' for network access")
+            else:
+                current = multiprocessing.get_start_method()
+                print(f"[LOG] Multiprocessing start method already set to: {current}")
+                if current != 'fork':
+                    print(f"[LOG] WARNING: Using '{current}' instead of 'fork' - may affect KASA plug reliability")
+        else:
+            print(f"[LOG] WARNING: 'fork' method not available on this platform ({sys.platform})")
+            print(f"[LOG] Available methods: {available_methods}")
+            print(f"[LOG] KASA plug control may experience network issues")
+    except RuntimeError as e:
+        print(f"[LOG] Could not set multiprocessing start method: {e}")
+
+    # Initialize kasa worker queues and process
+    # These are initialized here (not at module level) to ensure multiprocessing.set_start_method
+    # is called first and to avoid issues with werkzeug reloader
+    kasa_queue = Queue()
+    kasa_result_queue = Queue()
+    
+    # Start kasa_result_listener thread after queues are initialized
+    # This thread processes results from the kasa worker process
+    threading.Thread(target=kasa_result_listener, daemon=True).start()
+    print("[LOG] Started kasa_result_listener thread")
+    
+    if kasa_worker:
+        try:
+            kasa_proc = Process(target=kasa_worker, args=(kasa_queue, kasa_result_queue))
+            kasa_proc.daemon = True
+            kasa_proc.start()
+            print("[LOG] Started kasa_worker process")
+            # Give the worker process time to initialize before attempting queries
+            # This prevents race conditions where sync_plug_states_at_startup() runs
+            # before the worker is ready to process commands
+            time.sleep(2)
+            if kasa_proc.is_alive():
+                print("[LOG] kasa_worker process is running and ready")
+            else:
+                print("[LOG] WARNING: kasa_worker process failed to start properly")
+        except Exception as e:
+            print("[LOG] Could not start kasa_worker:", e)
+    else:
+        print("[LOG] kasa_worker not available — plug control disabled")
+
+    # Start all other background threads after kasa components are initialized
+    # These threads may use kasa_queue for temperature control
+    threading.Thread(target=periodic_temp_control, daemon=True).start()
+    print("[LOG] Started periodic_temp_control thread")
+    
+    threading.Thread(target=periodic_batch_monitoring, daemon=True).start()
+    print("[LOG] Started periodic_batch_monitoring thread")
+    
+    threading.Thread(target=ble_loop, daemon=True).start()
+    print("[LOG] Started ble_loop thread")
+    
+    threading.Thread(target=_background_startup_sync, daemon=True).start()
+    print("[LOG] Started background_startup_sync thread")
 
     # Start a thread to open the browser after Flask starts
     # Only open browser in the main process (not in Werkzeug reloader child process)
