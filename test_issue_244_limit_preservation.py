@@ -148,10 +148,6 @@ def test_limit_preservation():
         for var in config_persistence_vars:
             if var in file_cfg and file_cfg[var] is None and temp_cfg.get(var) is not None:
                 file_cfg.pop(var)  # Remove the None so in-memory value is preserved
-            # Also handle case where var is missing from file_cfg entirely
-            elif var not in file_cfg and temp_cfg.get(var) is not None:
-                # Don't add anything, update() will preserve the existing value
-                pass
         
         # Create fixed copy for testing
         fixed_cfg = temp_cfg.copy()

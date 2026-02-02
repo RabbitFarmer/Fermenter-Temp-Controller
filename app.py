@@ -3142,6 +3142,8 @@ def push_offsite_snapshot():
 def periodic_temp_control():
     while True:
         try:
+            # Load config from disk
+            # Note: Critical values are preserved later if disk has None (see config_persistence_vars)
             file_cfg = load_json(TEMP_CFG_FILE, {})
             
             # Exclude runtime state variables from file reload to prevent state reset
