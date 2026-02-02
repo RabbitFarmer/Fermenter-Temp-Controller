@@ -299,7 +299,7 @@
               line: { color: 'red', width: 2, shape: 'linear' },
               marker: { 
                 color: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'red' : 'pink'),
-                size: 8,
+                size: 10,
                 symbol: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'triangle-up' : 'triangle-down')
               },
               yaxis: 'y1',
@@ -318,7 +318,7 @@
               line: { color: 'blue', width: 2, shape: 'linear' },
               marker: { 
                 color: coolingEvents.map(p => p.event === 'COOLING-PLUG TURNED ON' ? 'blue' : 'lightblue'),
-                size: 8,
+                size: 10,
                 symbol: 'square'
               },
               yaxis: 'y1',

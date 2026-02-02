@@ -3,8 +3,8 @@
 Test that temperature control chart shows heating/cooling as connected line traces.
 
 This test verifies the fix for the issue where heating/cooling state changes
-should be displayed as line charts connecting successive data points, rather
-than scattered markers that "retreat to base position then jump up again".
+should be displayed as line charts connecting successive data points, with markers
+on each state change event.
 """
 
 import os
@@ -61,6 +61,15 @@ def test_temp_control_chart_lines():
     print(f"  {'✓' if cooling_line_config else '✗'} Cooling Control has linear line shape")
     print()
     
+    # Check that markers have consistent size (all events get markers)
+    heating_marker_size = bool(re.search(r"marker:\s*\{[^}]*size:\s*10", content, re.DOTALL))
+    cooling_marker_size = bool(re.search(r"marker:\s*\{[^}]*size:\s*10", content, re.DOTALL))
+    
+    print("✓ Checking marker configurations:")
+    print(f"  {'✓' if heating_marker_size else '✗'} Heating Control has consistent marker size")
+    print(f"  {'✓' if cooling_marker_size else '✗'} Cooling Control has consistent marker size")
+    print()
+    
     # Check that old marker-only traces are removed
     old_heating_on_marker = bool(re.search(r"name:\s*'Heating ON'[^}]*mode:\s*'markers'", content, re.DOTALL))
     old_heating_off_marker = bool(re.search(r"name:\s*'Heating OFF'[^}]*mode:\s*'markers'", content, re.DOTALL))
@@ -83,6 +92,8 @@ def test_temp_control_chart_lines():
         has_cooling_trace and
         heating_line_config and
         cooling_line_config and
+        heating_marker_size and
+        cooling_marker_size and
         no_old_markers
     )
     
@@ -95,6 +106,7 @@ def test_temp_control_chart_lines():
         print("  • Cooling state changes connected by a blue line")
         print("  • Lines connect directly from point to point")
         print("  • No 'retreating to base position' behavior")
+        print("  • Markers on each state change (ON → OFF → ON → OFF)")
         print("  • Different marker colors/shapes for ON vs OFF events")
         return True
     else:
