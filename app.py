@@ -3143,8 +3143,6 @@ def periodic_temp_control():
     while True:
         try:
             file_cfg = load_json(TEMP_CFG_FILE, {})
-            if 'current_temp' in file_cfg and file_cfg['current_temp'] is None and temp_cfg.get('current_temp') is not None:
-                file_cfg.pop('current_temp')
             
             # Exclude runtime state variables from file reload to prevent state reset
             # These variables track the current operational state and should not be
@@ -3168,6 +3166,21 @@ def periodic_temp_control():
             ]
             for var in runtime_state_vars:
                 file_cfg.pop(var, None)
+            
+            # Preserve critical configuration values from being overwritten with None
+            # Issue #244: Prevents temperature limits and other critical settings from being lost
+            # when the config file on disk contains None values
+            config_persistence_vars = [
+                'current_temp',                     # Current temperature reading
+                'low_limit', 'high_limit',          # Temperature limits - CRITICAL for heater control
+                'tilt_color',                       # Selected monitoring Tilt
+                'enable_heating', 'enable_cooling', # Control modes
+                'heating_plug', 'cooling_plug',     # Kasa plug URLs
+            ]
+            for var in config_persistence_vars:
+                # If file has None but memory has a valid value, preserve the memory value
+                if var in file_cfg and file_cfg[var] is None and temp_cfg.get(var) is not None:
+                    file_cfg.pop(var)  # Remove None from file_cfg so update() preserves memory value
             
             temp_cfg.update(file_cfg)
             
