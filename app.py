@@ -2757,8 +2757,9 @@ def temperature_control_logic():
             # Temperature at or below low limit - turn heating ON
             control_heating("on")
             current_action = "Heating"
-            # Log with trigger when temp goes below low limit
-            if temp_cfg.get("below_limit_trigger_armed") and is_monitoring_active:
+            # Log with trigger when temp goes BELOW low limit (strictly less than)
+            # Notification only when limit is EXCEEDED, not when equal
+            if temp < low and temp_cfg.get("below_limit_trigger_armed") and is_monitoring_active:
                 append_control_log("temp_below_low_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
                 temp_cfg["below_limit_logged"] = True
                 # Send notification if enabled
@@ -2784,8 +2785,9 @@ def temperature_control_logic():
             # Temperature at or above high limit - turn cooling ON
             control_cooling("on")
             current_action = "Cooling"
-            # Log with trigger when temp goes above high limit
-            if temp_cfg.get("above_limit_trigger_armed") and is_monitoring_active:
+            # Log with trigger when temp goes ABOVE high limit (strictly greater than)
+            # Notification only when limit is EXCEEDED, not when equal
+            if temp > high and temp_cfg.get("above_limit_trigger_armed") and is_monitoring_active:
                 append_control_log("temp_above_high_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
                 temp_cfg["above_limit_logged"] = True
                 # Send notification if enabled
