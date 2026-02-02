@@ -2750,8 +2750,9 @@ def temperature_control_logic():
             # Temperature at or below low limit - turn heating ON
             control_heating("on")
             current_action = "Heating"
-            # Log with trigger when temp goes below low limit
-            if temp_cfg.get("below_limit_trigger_armed") and is_monitoring_active:
+            # Log with trigger when temp goes BELOW low limit (strictly less than)
+            # Notification only when limit is EXCEEDED, not when equal
+            if temp < low and temp_cfg.get("below_limit_trigger_armed") and is_monitoring_active:
                 append_control_log("temp_below_low_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
                 temp_cfg["below_limit_logged"] = True
                 # Send notification if enabled
@@ -2777,8 +2778,9 @@ def temperature_control_logic():
             # Temperature at or above high limit - turn cooling ON
             control_cooling("on")
             current_action = "Cooling"
-            # Log with trigger when temp goes above high limit
-            if temp_cfg.get("above_limit_trigger_armed") and is_monitoring_active:
+            # Log with trigger when temp goes ABOVE high limit (strictly greater than)
+            # Notification only when limit is EXCEEDED, not when equal
+            if temp > high and temp_cfg.get("above_limit_trigger_armed") and is_monitoring_active:
                 append_control_log("temp_above_high_limit", {"low_limit": low, "current_temp": temp, "high_limit": high, "tilt_color": temp_cfg.get("tilt_color", "")})
                 temp_cfg["above_limit_logged"] = True
                 # Send notification if enabled
@@ -3138,9 +3140,11 @@ def periodic_temp_control():
                 'heating_error', 'cooling_error',    # Error states
                 'heating_error_msg', 'cooling_error_msg',  # Error messages
                 'heating_error_notified', 'cooling_error_notified',  # Notification flags
-                'heating_blocked_trigger', 'heating_safety_off_trigger',  # Safety triggers
+                # ALL 7 notification triggers (temperature + safety)
+                'heating_blocked_trigger', 'cooling_blocked_trigger',  # Safety triggers - heating/cooling blocked
+                'heating_safety_off_trigger', 'cooling_safety_off_trigger',  # Safety triggers - turned off for safety
                 'below_limit_logged', 'above_limit_logged',  # Limit trigger flags
-                'below_limit_trigger_armed', 'above_limit_trigger_armed',  # Limit triggers
+                'below_limit_trigger_armed', 'above_limit_trigger_armed',  # Temperature limit triggers
                 'in_range_trigger_armed',  # Range trigger
                 'safety_shutdown_logged',  # Safety shutdown flag
                 'status'  # Current status message
@@ -3149,6 +3153,7 @@ def periodic_temp_control():
                 file_cfg.pop(var, None)
             
             temp_cfg.update(file_cfg)
+            
             temperature_control_logic()
             
             # Log periodic temperature reading at update_interval frequency
