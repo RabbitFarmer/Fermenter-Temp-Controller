@@ -188,18 +188,43 @@ fi
 echo "Ensuring desktop environment is ready for browser launch..."
 show_notification "Fermenter Starting" "Waiting for desktop to be ready..." "low"
 
-# Wait for DISPLAY to be set and X server to be responsive (up to 30 seconds)
-# Check both DISPLAY variable and xset command to ensure X server is ready
-for i in $(seq 1 30); do
+# Wait for DISPLAY to be set and X server to be responsive (up to 60 seconds for autostart)
+# Check multiple conditions to ensure desktop is truly ready
+DESKTOP_READY=false
+MAX_WAIT=60  # Extended to 60 seconds for slow systems
+
+for i in $(seq 1 $MAX_WAIT); do
+    # Check all conditions for a ready desktop:
+    # 1. DISPLAY is set
+    # 2. X server responds to xset
+    # 3. Window manager is running (check for common WM processes)
     if [ -n "$DISPLAY" ] && xset q &>/dev/null; then
-        echo "✓ Desktop environment is ready (DISPLAY=$DISPLAY, X server responding)"
-        break
+        # Check if a window manager is running
+        if pgrep -x "mutter|marco|xfwm4|openbox|kwin|metacity|compiz" > /dev/null 2>&1; then
+            echo "✓ Desktop environment is ready (DISPLAY=$DISPLAY, X server responding, WM active)"
+            DESKTOP_READY=true
+            break
+        elif [ $i -gt 30 ]; then
+            # After 30 seconds, proceed even without detecting WM
+            # Some systems may use uncommon window managers
+            echo "✓ Desktop environment is ready (DISPLAY=$DISPLAY, X server responding)"
+            echo "  Note: Window manager not detected, but proceeding anyway"
+            DESKTOP_READY=true
+            break
+        fi
     fi
-    if [ $((i % 5)) -eq 0 ]; then
-        echo "  Still waiting for desktop... ($i/30 seconds)"
+    if [ $((i % 10)) -eq 0 ]; then
+        echo "  Still waiting for desktop... ($i/$MAX_WAIT seconds)"
     fi
     sleep 1
 done
+
+if [ "$DESKTOP_READY" = false ]; then
+    echo "⚠️  Warning: Desktop environment not detected after $MAX_WAIT seconds"
+    echo "  Application is running, but browser may not open automatically."
+    echo "  Please open browser manually to: http://127.0.0.1:5000"
+    show_notification "Fermenter Ready" "Desktop not ready. Open browser manually to 127.0.0.1:5000" "normal"
+fi
 
 # Additional delay to ensure window manager and browser are ready
 # This is especially important for autostart where services start in parallel
@@ -218,51 +243,56 @@ BROWSER_OPENED=false
 # Create secure temporary file for error logging
 BROWSER_ERROR_LOG=$(mktemp /tmp/fermenter_browser_error.XXXXXX)
 
-if command -v xdg-open > /dev/null; then
-    echo "  Using xdg-open to launch browser..."
-    # Try to open browser and capture any errors
-    if xdg-open http://127.0.0.1:5000 2>"$BROWSER_ERROR_LOG" &
-    then
-        echo "✓ Browser command executed successfully"
-        BROWSER_OPENED=true
-        # Attempt to send F11 for fullscreen mode if xdotool is available
-        if command -v xdotool > /dev/null; then
-            echo "  Attempting to set fullscreen mode..."
-            # Give browser time to open and become the active window
-            sleep 3
-            # Try to find and activate the browser window, then send F11
-            # This is best-effort; if it fails, the browser opens normally
-            if xdotool search --class --sync "chromium|firefox|chrome" windowactivate --sync key F11 2>/dev/null; then
-                echo "✓ Fullscreen mode activated"
-            else
-                # Fallback: just send F11 to active window
-                xdotool key F11 2>/dev/null || true
-                echo "  (Fullscreen mode attempted - may not have worked)"
+# Only attempt to open browser if desktop is ready
+if [ "$DESKTOP_READY" = true ]; then
+    if command -v xdg-open > /dev/null; then
+        echo "  Using xdg-open to launch browser..."
+        # Try to open browser and capture any errors
+        if xdg-open http://127.0.0.1:5000 2>"$BROWSER_ERROR_LOG" &
+        then
+            echo "✓ Browser command executed successfully"
+            BROWSER_OPENED=true
+            # Attempt to send F11 for fullscreen mode if xdotool is available
+            if command -v xdotool > /dev/null; then
+                echo "  Attempting to set fullscreen mode..."
+                # Give browser time to open and become the active window
+                sleep 3
+                # Try to find and activate the browser window, then send F11
+                # This is best-effort; if it fails, the browser opens normally
+                if xdotool search --class --sync "chromium|firefox|chrome" windowactivate --sync key F11 2>/dev/null; then
+                    echo "✓ Fullscreen mode activated"
+                else
+                    # Fallback: just send F11 to active window
+                    xdotool key F11 2>/dev/null || true
+                    echo "  (Fullscreen mode attempted - may not have worked)"
+                fi
+            fi
+        else
+            echo "⚠️  Warning: xdg-open command failed"
+            if [ -f "$BROWSER_ERROR_LOG" ] && [ -s "$BROWSER_ERROR_LOG" ]; then
+                echo "  Error details:"
+                cat "$BROWSER_ERROR_LOG"
+            fi
+        fi
+    elif command -v open > /dev/null; then
+        echo "  Using open to launch browser (macOS)..."
+        # Try to open browser and capture any errors (macOS)
+        if open http://127.0.0.1:5000 2>"$BROWSER_ERROR_LOG"
+        then
+            echo "✓ Browser command executed successfully"
+            BROWSER_OPENED=true
+        else
+            echo "⚠️  Warning: open command failed"
+            if [ -f "$BROWSER_ERROR_LOG" ] && [ -s "$BROWSER_ERROR_LOG" ]; then
+                echo "  Error details:"
+                cat "$BROWSER_ERROR_LOG"
             fi
         fi
     else
-        echo "⚠️  Warning: xdg-open command failed"
-        if [ -f "$BROWSER_ERROR_LOG" ] && [ -s "$BROWSER_ERROR_LOG" ]; then
-            echo "  Error details:"
-            cat "$BROWSER_ERROR_LOG"
-        fi
-    fi
-elif command -v open > /dev/null; then
-    echo "  Using open to launch browser (macOS)..."
-    # Try to open browser and capture any errors (macOS)
-    if open http://127.0.0.1:5000 2>"$BROWSER_ERROR_LOG"
-    then
-        echo "✓ Browser command executed successfully"
-        BROWSER_OPENED=true
-    else
-        echo "⚠️  Warning: open command failed"
-        if [ -f "$BROWSER_ERROR_LOG" ] && [ -s "$BROWSER_ERROR_LOG" ]; then
-            echo "  Error details:"
-            cat "$BROWSER_ERROR_LOG"
-        fi
+        echo "⚠️  No browser command found (xdg-open/open not available)"
     fi
 else
-    echo "⚠️  No browser command found (xdg-open/open not available)"
+    echo "⚠️  Skipping browser launch - desktop environment not ready"
 fi
 
 # Clean up temporary error log
