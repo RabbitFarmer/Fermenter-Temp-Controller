@@ -523,51 +523,13 @@ except Exception:
     pass
 
 # --- Inter-process queues and kasa worker startup --------------------------
-# Set multiprocessing start method to 'fork' for better network access in worker
-# The 'fork' method preserves the network stack and environment from parent process
-# This is critical for KASA plug communication in the worker process
-try:
-    # Check if 'fork' is available on this platform (not available on Windows)
-    available_methods = multiprocessing.get_all_start_methods()
-    if 'fork' in available_methods:
-        # Only set if not already set (avoid errors if called multiple times)
-        if multiprocessing.get_start_method(allow_none=True) is None:
-            multiprocessing.set_start_method('fork')
-            print("[LOG] Set multiprocessing start method to 'fork' for network access")
-        else:
-            current = multiprocessing.get_start_method()
-            print(f"[LOG] Multiprocessing start method already set to: {current}")
-            if current != 'fork':
-                print(f"[LOG] WARNING: Using '{current}' instead of 'fork' - may affect KASA plug reliability")
-    else:
-        print(f"[LOG] WARNING: 'fork' method not available on this platform ({sys.platform})")
-        print(f"[LOG] Available methods: {available_methods}")
-        print(f"[LOG] KASA plug control may experience network issues")
-except RuntimeError as e:
-    print(f"[LOG] Could not set multiprocessing start method: {e}")
-
-kasa_queue = Queue()
-kasa_result_queue = Queue()
+# Initialize these as None at module level so they exist when module is imported
+# They will be properly initialized in the if __name__ == '__main__' block
+# This prevents issues with multiprocessing.set_start_method() being called
+# multiple times when werkzeug reloader imports the module
+kasa_queue = None
+kasa_result_queue = None
 kasa_proc = None
-
-if kasa_worker:
-    try:
-        kasa_proc = Process(target=kasa_worker, args=(kasa_queue, kasa_result_queue))
-        kasa_proc.daemon = True
-        kasa_proc.start()
-        print("[LOG] Started kasa_worker process")
-        # Give the worker process time to initialize before attempting queries
-        # This prevents race conditions where sync_plug_states_at_startup() runs
-        # before the worker is ready to process commands
-        time.sleep(2)
-        if kasa_proc.is_alive():
-            print("[LOG] kasa_worker process is running and ready")
-        else:
-            print("[LOG] WARNING: kasa_worker process failed to start properly")
-    except Exception as e:
-        print("[LOG] Could not start kasa_worker:", e)
-else:
-    print("[LOG] kasa_worker not available — plug control disabled")
 
 # --- Live runtime data -----------------------------------------------------
 live_tilts = {}
@@ -2342,6 +2304,29 @@ _last_kasa_command = {}
 _KASA_RATE_LIMIT_SECONDS = int(system_cfg.get("kasa_rate_limit_seconds", 10) or 10)
 _KASA_PENDING_TIMEOUT_SECONDS = int(system_cfg.get("kasa_pending_timeout_seconds", 30) or 30)
 
+def _is_redundant_command(url, action, current_state):
+    """
+    Check if sending this command would be redundant based on current state.
+    
+    Returns True if command is redundant (should be skipped).
+    Exception: Returns False if enough time has passed for state recovery.
+    """
+    # If trying to send ON when already ON (or OFF when already OFF), it's redundant
+    command_matches_state = (action == "on" and current_state) or (action == "off" and not current_state)
+    if not command_matches_state:
+        return False  # Not redundant - state needs to change
+    
+    # Command matches current state, but allow recovery after timeout
+    last = _last_kasa_command.get(url)
+    if last and last.get("action") == action:
+        time_since_last = time.time() - last.get("ts", 0.0)
+        if time_since_last >= _KASA_RATE_LIMIT_SECONDS:
+            # Enough time has passed - allow resending for state recovery
+            return False
+    
+    # Command is redundant - skip it
+    return True
+
 def _should_send_kasa_command(url, action):
     if not url:
         return False
@@ -2415,12 +2400,20 @@ def _should_send_kasa_command(url, action):
         elif temp_cfg.get("cooler_pending"):
             return False
     
-    # Removed state-based redundancy check (heater_on/cooler_on) because it can
-    # prevent necessary commands when state gets out of sync with physical plug.
-    # For example, if plug is physically ON but heater_on=False (due to failed
-    # command or restart), we must still allow OFF commands to be sent.
-    # Rate limiting below provides sufficient protection against excessive commands.
+    # Check for redundant commands based on current state
+    # This prevents sending ON when already ON, or OFF when already OFF
+    # Exception: Allow resending after timeout period to recover from out-of-sync state
+    if url == temp_cfg.get("heating_plug"):
+        heater_on = temp_cfg.get("heater_on", False)
+        if _is_redundant_command(url, action, heater_on):
+            return False
     
+    if url == temp_cfg.get("cooling_plug"):
+        cooler_on = temp_cfg.get("cooler_on", False)
+        if _is_redundant_command(url, action, cooler_on):
+            return False
+    
+    # Rate limiting: prevent the same command from being sent too frequently
     last = _last_kasa_command.get(url)
     if last and last.get("action") == action:
         if (time.time() - last.get("ts", 0.0)) < _KASA_RATE_LIMIT_SECONDS:
@@ -2767,7 +2760,7 @@ def temperature_control_logic():
                 temp_cfg["below_limit_trigger_armed"] = False
                 # Arm the above_limit trigger for when temp rises to high limit
                 temp_cfg["above_limit_trigger_armed"] = True
-        elif high is not None and temp >= high:
+        elif temp >= high:
             # Temperature at or above high limit - turn heating OFF
             control_heating("off")
             # Arm the below_limit trigger for when temp drops to low limit again
@@ -2795,7 +2788,7 @@ def temperature_control_logic():
                 temp_cfg["above_limit_trigger_armed"] = False
                 # Arm the below_limit trigger for when temp drops to low limit
                 temp_cfg["below_limit_trigger_armed"] = True
-        elif low is not None and temp <= low:
+        elif temp <= low:
             # Temperature at or below low limit - turn cooling OFF
             control_cooling("off")
             # Arm the above_limit trigger for when temp rises to high limit again
@@ -2945,7 +2938,8 @@ def kasa_result_listener():
             print(f"[LOG] Exception in kasa_result_listener: {e}")
             continue
 
-threading.Thread(target=kasa_result_listener, daemon=True).start()
+# NOTE: kasa_result_listener thread is started in if __name__ == '__main__' block
+# after kasa_result_queue is initialized to avoid NoneType errors
 
 # --- Startup plug state synchronization -------------------------------------
 def sync_plug_states_at_startup():
@@ -3044,7 +3038,8 @@ def _background_startup_sync():
     except Exception as e:
         print(f"[LOG] Exception in background startup sync: {e}")
 
-threading.Thread(target=_background_startup_sync, daemon=True).start()
+# NOTE: _background_startup_sync thread is started in if __name__ == '__main__' block
+# after kasa components are initialized
 
 # --- Offsite push helpers (kept, forwarding enabled) -----------------------
 def get_predefined_field_maps():
@@ -3175,7 +3170,8 @@ def periodic_temp_control():
         interval_seconds = max(1, interval_minutes * 60)
         time.sleep(interval_seconds)
 
-threading.Thread(target=periodic_temp_control, daemon=True).start()
+# NOTE: periodic_temp_control thread is started in if __name__ == '__main__' block
+# after kasa_queue is initialized to avoid NoneType errors
 
 # --- Periodic batch monitoring thread -------------------------------------
 def periodic_batch_monitoring():
@@ -3225,7 +3221,7 @@ def periodic_batch_monitoring():
         # Sleep for BATCH_MONITORING_INTERVAL_SECONDS
         time.sleep(BATCH_MONITORING_INTERVAL_SECONDS)
 
-threading.Thread(target=periodic_batch_monitoring, daemon=True).start()
+# NOTE: periodic_batch_monitoring thread is started in if __name__ == '__main__' block
 
 # --- BLE scanner thread ---------------------------------------------------
 def ble_loop():
@@ -3248,7 +3244,7 @@ def ble_loop():
     except Exception as e:
         print(f"[LOG] BLE loop failed to start: {e}")
 
-threading.Thread(target=ble_loop, daemon=True).start()
+# NOTE: ble_loop thread is started in if __name__ == '__main__' block
 
 # --- Flask routes ---------------------------------------------------------
 @app.route('/')
@@ -5710,6 +5706,74 @@ if __name__ == '__main__':
         os.makedirs(BATCHES_DIR, exist_ok=True)
     except Exception:
         pass
+
+    # Set multiprocessing start method to 'fork' for better network access in worker
+    # MUST be called in if __name__ == '__main__' block to avoid issues with werkzeug reloader
+    # The 'fork' method preserves the network stack and environment from parent process
+    # This is critical for KASA plug communication in the worker process
+    try:
+        # Check if 'fork' is available on this platform (not available on Windows)
+        available_methods = multiprocessing.get_all_start_methods()
+        if 'fork' in available_methods:
+            # Only set if not already set (avoid errors if called multiple times)
+            if multiprocessing.get_start_method(allow_none=True) is None:
+                multiprocessing.set_start_method('fork')
+                print("[LOG] Set multiprocessing start method to 'fork' for network access")
+            else:
+                current = multiprocessing.get_start_method()
+                print(f"[LOG] Multiprocessing start method already set to: {current}")
+                if current != 'fork':
+                    print(f"[LOG] WARNING: Using '{current}' instead of 'fork' - may affect KASA plug reliability")
+        else:
+            print(f"[LOG] WARNING: 'fork' method not available on this platform ({sys.platform})")
+            print(f"[LOG] Available methods: {available_methods}")
+            print(f"[LOG] KASA plug control may experience network issues")
+    except RuntimeError as e:
+        print(f"[LOG] Could not set multiprocessing start method: {e}")
+
+    # Initialize kasa worker queues and process
+    # These are initialized here (not at module level) to ensure multiprocessing.set_start_method
+    # is called first and to avoid issues with werkzeug reloader
+    kasa_queue = Queue()
+    kasa_result_queue = Queue()
+    
+    # Start kasa_result_listener thread after queues are initialized
+    # This thread processes results from the kasa worker process
+    threading.Thread(target=kasa_result_listener, daemon=True).start()
+    print("[LOG] Started kasa_result_listener thread")
+    
+    if kasa_worker:
+        try:
+            kasa_proc = Process(target=kasa_worker, args=(kasa_queue, kasa_result_queue))
+            kasa_proc.daemon = True
+            kasa_proc.start()
+            print("[LOG] Started kasa_worker process")
+            # Give the worker process time to initialize before attempting queries
+            # This prevents race conditions where sync_plug_states_at_startup() runs
+            # before the worker is ready to process commands
+            time.sleep(2)
+            if kasa_proc.is_alive():
+                print("[LOG] kasa_worker process is running and ready")
+            else:
+                print("[LOG] WARNING: kasa_worker process failed to start properly")
+        except Exception as e:
+            print("[LOG] Could not start kasa_worker:", e)
+    else:
+        print("[LOG] kasa_worker not available — plug control disabled")
+
+    # Start all other background threads after kasa components are initialized
+    # These threads may use kasa_queue for temperature control
+    threading.Thread(target=periodic_temp_control, daemon=True).start()
+    print("[LOG] Started periodic_temp_control thread")
+    
+    threading.Thread(target=periodic_batch_monitoring, daemon=True).start()
+    print("[LOG] Started periodic_batch_monitoring thread")
+    
+    threading.Thread(target=ble_loop, daemon=True).start()
+    print("[LOG] Started ble_loop thread")
+    
+    threading.Thread(target=_background_startup_sync, daemon=True).start()
+    print("[LOG] Started background_startup_sync thread")
 
     # Start a thread to open the browser after Flask starts
     # Only open browser in the main process (not in Werkzeug reloader child process)
