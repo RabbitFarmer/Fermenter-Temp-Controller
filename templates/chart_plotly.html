@@ -172,7 +172,7 @@
                 y: displayData.map(p => p.temp_f),
                 mode: 'lines',
                 name: displayLabel,
-                line: { color: displayColor, shape: 'linear', width: 3 },
+                line: { color: displayColor, shape: 'linear', width: 1.5 },  // Reduced from 3 to 1.5
                 yaxis: 'y1',
                 connectgaps: false,
               });
@@ -188,7 +188,7 @@
             y: dataPoints.map((p) => p.temp_f),
             mode: 'lines',
             name: 'Temperature (°F)',
-            line: { color: 'blue', shape: 'linear', width: 3 },
+            line: { color: 'blue', shape: 'linear', width: 1.5 },  // Reduced from 3 to 1.5
             yaxis: 'y1',
             connectgaps: false,
           };
@@ -289,41 +289,43 @@
             return aTime - bTime;
           });
           
-          // Create heating state line trace (connects all heating state changes)
+          // Create heating state markers (show events without connecting lines for clarity)
           if (heatingEvents.length > 0) {
             traces.push({
               x: heatingEvents.map(p => p.timestamp),
               y: heatingEvents.map(p => p.temp_f),
-              mode: 'lines+markers',
+              mode: 'markers',  // Changed from 'lines+markers' to just 'markers' for clarity
               name: 'Heating Control',
-              line: { color: 'red', width: 2, shape: 'linear' },
               marker: { 
                 color: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'red' : 'pink'),
-                size: 10,
-                symbol: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'triangle-up' : 'triangle-down')
+                size: 12,  // Increased from 10 to 12 for better visibility
+                symbol: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'triangle-up' : 'triangle-down'),
+                line: { color: 'darkred', width: 1 }  // Add border for better visibility
               },
               yaxis: 'y1',
               showlegend: true,
-              connectgaps: false,
+              hovertemplate: '%{y:.1f}°F<br>%{x}<br>%{text}<extra></extra>',
+              text: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'Heating ON' : 'Heating OFF'),
             });
           }
           
-          // Create cooling state line trace (connects all cooling state changes)
+          // Create cooling state markers (show events without connecting lines for clarity)
           if (coolingEvents.length > 0) {
             traces.push({
               x: coolingEvents.map(p => p.timestamp),
               y: coolingEvents.map(p => p.temp_f),
-              mode: 'lines+markers',
+              mode: 'markers',  // Changed from 'lines+markers' to just 'markers' for clarity
               name: 'Cooling Control',
-              line: { color: 'blue', width: 2, shape: 'linear' },
               marker: { 
                 color: coolingEvents.map(p => p.event === 'COOLING-PLUG TURNED ON' ? 'blue' : 'lightblue'),
-                size: 10,
-                symbol: 'square'
+                size: 12,  // Increased from 10 to 12 for better visibility
+                symbol: 'square',
+                line: { color: 'darkblue', width: 1 }  // Add border for better visibility
               },
               yaxis: 'y1',
               showlegend: true,
-              connectgaps: false,
+              hovertemplate: '%{y:.1f}°F<br>%{x}<br>%{text}<extra></extra>',
+              text: coolingEvents.map(p => p.event === 'COOLING-PLUG TURNED ON' ? 'Cooling ON' : 'Cooling OFF'),
             });
           }
           
