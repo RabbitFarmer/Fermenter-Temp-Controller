@@ -3146,6 +3146,13 @@ def periodic_temp_control():
             if 'current_temp' in file_cfg and file_cfg['current_temp'] is None and temp_cfg.get('current_temp') is not None:
                 file_cfg.pop('current_temp')
             
+            # Prevent null/None values from overwriting valid limit values in memory
+            # This preserves limits if the file was corrupted or saved with null values
+            if 'low_limit' in file_cfg and file_cfg['low_limit'] is None and temp_cfg.get('low_limit') is not None:
+                file_cfg.pop('low_limit')
+            if 'high_limit' in file_cfg and file_cfg['high_limit'] is None and temp_cfg.get('high_limit') is not None:
+                file_cfg.pop('high_limit')
+            
             # Exclude runtime state variables from file reload to prevent state reset
             # These variables track the current operational state and should not be
             # overwritten by potentially stale values from the config file
