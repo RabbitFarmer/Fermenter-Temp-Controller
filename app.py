@@ -2733,6 +2733,11 @@ def temperature_control_logic():
             control_heating("off")
             # Arm the below_limit trigger for when temp drops to low limit again
             temp_cfg["below_limit_trigger_armed"] = True
+        elif high is None:
+            # SAFETY: If high_limit is not configured but heating is enabled, turn heating OFF
+            # This prevents runaway heating when high_limit is missing
+            control_heating("off")
+            temp_cfg["status"] = "Configuration Error: High limit not set"
         # else: temperature is between low and high - maintain current state
         # (don't change heating state, let it continue)
     else:
@@ -2760,6 +2765,11 @@ def temperature_control_logic():
             control_cooling("off")
             # Arm the above_limit trigger for when temp rises to high limit again
             temp_cfg["above_limit_trigger_armed"] = True
+        elif low is None:
+            # SAFETY: If low_limit is not configured but cooling is enabled, turn cooling OFF
+            # This prevents runaway cooling when low_limit is missing
+            control_cooling("off")
+            temp_cfg["status"] = "Configuration Error: Low limit not set"
         # else: temperature is between low and high - maintain current state
         # (don't change cooling state, let it continue)
     else:
