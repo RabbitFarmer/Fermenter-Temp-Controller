@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Temp Control Chart - Line Fix Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; background: #f6f6f6; }
+    #chart-container { max-width: 1200px; margin: auto; background: #ffffff; border-radius: 4px; padding: 16px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); }
+    #tempChart { height: 500px; }
+    h2 { text-align: center; }
+    .info { text-align: center; margin: 16px 0; padding: 12px; background: #e8f4f8; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h2>Temperature Control Chart - Line Fix Demonstration</h2>
+  <div class="info">
+    <strong>Before:</strong> Heating/cooling state changes shown as scattered markers<br>
+    <strong>After:</strong> State changes connected by lines showing progression over time
+  </div>
+  <div id="chart-container">
+    <div id="tempChart"></div>
+  </div>
+
+  <script>
+    // Simulate temperature control data with heating/cooling events
+    const now = new Date();
+    const baseTime = new Date(now.getTime() - 6 * 60 * 60 * 1000); // 6 hours ago
+    
+    // Create sample data points
+    const allDataPoints = [];
+    
+    // Temperature readings every 2 minutes
+    for (let i = 0; i < 180; i++) {
+      const timestamp = new Date(baseTime.getTime() + i * 2 * 60 * 1000);
+      
+      // Simulate temperature cycling between 64-68°F
+      let temp = 66 + 2 * Math.sin(i / 20);
+      
+      allDataPoints.push({
+        timestamp: timestamp,
+        temp_f: temp,
+        tilt_color: 'Blue',
+        event: null
+      });
+    }
+    
+    // Add heating events
+    allDataPoints.push({
+      timestamp: new Date(baseTime.getTime() + 10 * 60 * 1000),
+      temp_f: 64.2,
+      tilt_color: 'Blue',
+      event: 'HEATING-PLUG TURNED ON'
+    });
+    
+    allDataPoints.push({
+      timestamp: new Date(baseTime.getTime() + 45 * 60 * 1000),
+      temp_f: 67.8,
+      tilt_color: 'Blue',
+      event: 'HEATING-PLUG TURNED OFF'
+    });
+    
+    allDataPoints.push({
+      timestamp: new Date(baseTime.getTime() + 120 * 60 * 1000),
+      temp_f: 64.5,
+      tilt_color: 'Blue',
+      event: 'HEATING-PLUG TURNED ON'
+    });
+    
+    allDataPoints.push({
+      timestamp: new Date(baseTime.getTime() + 160 * 60 * 1000),
+      temp_f: 67.5,
+      tilt_color: 'Blue',
+      event: 'HEATING-PLUG TURNED OFF'
+    });
+    
+    // Add some cooling events
+    allDataPoints.push({
+      timestamp: new Date(baseTime.getTime() + 200 * 60 * 1000),
+      temp_f: 68.2,
+      tilt_color: 'Blue',
+      event: 'COOLING-PLUG TURNED ON'
+    });
+    
+    allDataPoints.push({
+      timestamp: new Date(baseTime.getTime() + 250 * 60 * 1000),
+      temp_f: 65.8,
+      tilt_color: 'Blue',
+      event: 'COOLING-PLUG TURNED OFF'
+    });
+    
+    // Sort all data by timestamp
+    allDataPoints.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    
+    // Filter for active tilt data
+    const validDataPoints = allDataPoints.filter(p => p.tilt_color && p.tilt_color.trim() !== '');
+    const displayData = validDataPoints.filter(p => p.tilt_color === 'Blue');
+    
+    const traces = [];
+    
+    // Temperature trace
+    traces.push({
+      x: displayData.map(p => p.timestamp),
+      y: displayData.map(p => p.temp_f),
+      mode: 'lines',
+      name: 'Blue Tilt',
+      line: { color: '#0000FF', shape: 'linear', width: 3 },
+      yaxis: 'y1',
+      connectgaps: false,
+    });
+    
+    // Filter events
+    const heatingOnEvents = allDataPoints.filter(p => p.event === 'HEATING-PLUG TURNED ON');
+    const heatingOffEvents = allDataPoints.filter(p => p.event === 'HEATING-PLUG TURNED OFF');
+    const coolingOnEvents = allDataPoints.filter(p => p.event === 'COOLING-PLUG TURNED ON');
+    const coolingOffEvents = allDataPoints.filter(p => p.event === 'COOLING-PLUG TURNED OFF');
+    
+    // Combine heating events and sort by timestamp
+    const heatingEvents = [...heatingOnEvents, ...heatingOffEvents].sort((a, b) => {
+      return a.timestamp.getTime() - b.timestamp.getTime();
+    });
+    
+    // Combine cooling events and sort by timestamp
+    const coolingEvents = [...coolingOnEvents, ...coolingOffEvents].sort((a, b) => {
+      return a.timestamp.getTime() - b.timestamp.getTime();
+    });
+    
+    // NEW BEHAVIOR: Create heating state line trace (connects all heating state changes)
+    if (heatingEvents.length > 0) {
+      traces.push({
+        x: heatingEvents.map(p => p.timestamp),
+        y: heatingEvents.map(p => p.temp_f),
+        mode: 'lines+markers',
+        name: 'Heating Control',
+        line: { color: 'red', width: 2, shape: 'linear' },
+        marker: { 
+          color: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'red' : 'pink'),
+          size: 10,
+          symbol: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'triangle-up' : 'triangle-down')
+        },
+        yaxis: 'y1',
+        showlegend: true,
+        connectgaps: false,
+      });
+    }
+    
+    // NEW BEHAVIOR: Create cooling state line trace (connects all cooling state changes)
+    if (coolingEvents.length > 0) {
+      traces.push({
+        x: coolingEvents.map(p => p.timestamp),
+        y: coolingEvents.map(p => p.temp_f),
+        mode: 'lines+markers',
+        name: 'Cooling Control',
+        line: { color: 'blue', width: 2, shape: 'linear' },
+        marker: { 
+          color: coolingEvents.map(p => p.event === 'COOLING-PLUG TURNED ON' ? 'blue' : 'lightblue'),
+          size: 10,
+          symbol: 'square'
+        },
+        yaxis: 'y1',
+        showlegend: true,
+        connectgaps: false,
+      });
+    }
+    
+    // Add limit lines
+    const lowLimit = 65.0;
+    const highLimit = 68.0;
+    const xAxisRange = [allDataPoints[0].timestamp, allDataPoints[allDataPoints.length - 1].timestamp];
+    
+    traces.push({
+      x: [xAxisRange[0], xAxisRange[1]],
+      y: [lowLimit, lowLimit],
+      mode: 'lines',
+      name: 'Low Limit',
+      line: { color: 'red', width: 1, dash: 'solid' },
+      yaxis: 'y1',
+      showlegend: true,
+      hoverinfo: 'y',
+    });
+    
+    traces.push({
+      x: [xAxisRange[0], xAxisRange[1]],
+      y: [highLimit, highLimit],
+      mode: 'lines',
+      name: 'High Limit',
+      line: { color: 'red', width: 1, dash: 'solid' },
+      yaxis: 'y1',
+      showlegend: true,
+      hoverinfo: 'y',
+    });
+    
+    const layout = {
+      title: {
+        text: '<b style="font-size: 24px;">TEMPERATURE CONTROL ACTIVITY</b><br><span style="font-size: 12px;">Demonstration of Line Chart Fix</span>',
+        font: { size: 20 },
+      },
+      xaxis: {
+        title: 'Timestamp',
+        titlefont: { size: 12 },
+        gridcolor: '#eaf2f5',
+      },
+      yaxis: {
+        title: 'Temperature (°F)',
+        titlefont: { color: 'blue', size: 12 },
+        tickfont: { color: 'blue', size: 10 },
+        gridcolor: '#eaf2f5',
+        range: [62, 70],
+      },
+      showlegend: true,
+      legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
+      margin: { l: 50, r: 50, t: 100, b: 80 },
+    };
+
+    Plotly.newPlot('tempChart', traces, layout);
+  </script>
+</body>
+</html>
