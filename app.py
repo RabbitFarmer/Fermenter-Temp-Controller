@@ -2661,6 +2661,8 @@ def temperature_control_logic():
             try:
                 temp = float(temp_from_tilt)
                 temp_cfg['current_temp'] = round(temp, 1)
+                # Update timestamp when temperature is read
+                temp_cfg['last_reading_time'] = datetime.utcnow().isoformat() + "Z"
             except Exception:
                 temp = None
 
@@ -3254,6 +3256,8 @@ def ble_loop():
                 temp = get_current_temp_for_control_tilt()
                 if temp is not None:
                     temp_cfg['current_temp'] = round(float(temp), 1)
+                    # Update timestamp when temperature is read
+                    temp_cfg['last_reading_time'] = datetime.utcnow().isoformat() + "Z"
             except Exception as e:
                 print(f"[LOG] Error in ble_loop run_scanner: {e}")
     try:
