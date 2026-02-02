@@ -3134,28 +3134,30 @@ def periodic_temp_control():
             if 'current_temp' in file_cfg and file_cfg['current_temp'] is None and temp_cfg.get('current_temp') is not None:
                 file_cfg.pop('current_temp')
             
-            # Preserve ALL runtime trigger states - these should NOT be overwritten by config reload
-            # There are multiple trigger types:
-            # 1. Notification triggers (below/above/in_range) - limit temperature notification spam
-            # 2. Safety triggers (heating/cooling blocked/off) - limit Tilt safety notification spam
-            # All triggers track whether we've already logged/notified for the current condition
-            # and are reset only when the condition is resolved
-            preserved_triggers = {
-                # Temperature limit notification triggers
-                'below_limit_trigger_armed': temp_cfg.get('below_limit_trigger_armed'),
-                'above_limit_trigger_armed': temp_cfg.get('above_limit_trigger_armed'),
-                'in_range_trigger_armed': temp_cfg.get('in_range_trigger_armed'),
-                # Safety notification triggers (Tilt connection loss)
-                'heating_blocked_trigger': temp_cfg.get('heating_blocked_trigger'),
-                'cooling_blocked_trigger': temp_cfg.get('cooling_blocked_trigger'),
-                'heating_safety_off_trigger': temp_cfg.get('heating_safety_off_trigger'),
-                'cooling_safety_off_trigger': temp_cfg.get('cooling_safety_off_trigger'),
-            }
+            # Exclude runtime state variables from file reload to prevent state reset
+            # These variables track the current operational state and should not be
+            # overwritten by potentially stale values from the config file
+            runtime_state_vars = [
+                'heater_on', 'cooler_on',           # Current plug states
+                'heater_pending', 'cooler_pending',  # Pending command flags
+                'heater_pending_since', 'cooler_pending_since',  # Pending timestamps
+                'heater_pending_action', 'cooler_pending_action',  # Pending actions
+                'heating_error', 'cooling_error',    # Error states
+                'heating_error_msg', 'cooling_error_msg',  # Error messages
+                'heating_error_notified', 'cooling_error_notified',  # Notification flags
+                # ALL 7 notification triggers (temperature + safety)
+                'heating_blocked_trigger', 'cooling_blocked_trigger',  # Safety triggers - heating/cooling blocked
+                'heating_safety_off_trigger', 'cooling_safety_off_trigger',  # Safety triggers - turned off for safety
+                'below_limit_logged', 'above_limit_logged',  # Limit trigger flags
+                'below_limit_trigger_armed', 'above_limit_trigger_armed',  # Temperature limit triggers
+                'in_range_trigger_armed',  # Range trigger
+                'safety_shutdown_logged',  # Safety shutdown flag
+                'status'  # Current status message
+            ]
+            for var in runtime_state_vars:
+                file_cfg.pop(var, None)
             
             temp_cfg.update(file_cfg)
-            
-            # Restore the preserved trigger states after config reload
-            temp_cfg.update(preserved_triggers)
             
             temperature_control_logic()
             

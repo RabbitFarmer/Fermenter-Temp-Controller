@@ -93,29 +93,28 @@ def test_trigger_preservation():
         else:
             print("   ✅ Trigger remained False")
         
-        # NEW FIXED BEHAVIOR (preserves ALL trigger states):
-        print("\n4. NEW FIXED BEHAVIOR (WITH FIX - ALL TRIGGERS):")
+        # NEW FIXED BEHAVIOR (excludes runtime state vars from reload):
+        print("\n4. NEW FIXED BEHAVIOR (WITH FIX - EXCLUDE RUNTIME STATE):")
         
-        # Preserve ALL runtime trigger states before reload
-        preserved_triggers = {
-            # Temperature limit notification triggers
-            'below_limit_trigger_armed': temp_cfg.get('below_limit_trigger_armed'),
-            'above_limit_trigger_armed': temp_cfg.get('above_limit_trigger_armed'),
-            'in_range_trigger_armed': temp_cfg.get('in_range_trigger_armed'),
-            # Safety notification triggers (Tilt connection loss)
-            'heating_blocked_trigger': temp_cfg.get('heating_blocked_trigger'),
-            'cooling_blocked_trigger': temp_cfg.get('cooling_blocked_trigger'),
-            'heating_safety_off_trigger': temp_cfg.get('heating_safety_off_trigger'),
-            'cooling_safety_off_trigger': temp_cfg.get('cooling_safety_off_trigger'),
-        }
+        # List of runtime state variables to exclude from file reload
+        runtime_state_vars = [
+            'below_limit_trigger_armed', 
+            'above_limit_trigger_armed', 
+            'in_range_trigger_armed',
+            'heating_blocked_trigger',
+            'cooling_blocked_trigger',
+            'heating_safety_off_trigger',
+            'cooling_safety_off_trigger'
+        ]
         
-        # Reload config from disk
+        # Remove runtime state vars from file_cfg BEFORE updating
+        for var in runtime_state_vars:
+            file_cfg.pop(var, None)
+        
+        # Reload config from disk (without runtime state vars)
         temp_cfg.update(file_cfg)
         
-        # Restore preserved triggers
-        temp_cfg.update(preserved_triggers)
-        
-        print(f"   After config reload with preservation:")
+        print(f"   After config reload with exclusion:")
         print(f"      below_limit_trigger_armed: {temp_cfg['below_limit_trigger_armed']}")
         print(f"      heating_blocked_trigger: {temp_cfg['heating_blocked_trigger']}")
         print(f"      cooling_safety_off_trigger: {temp_cfg['cooling_safety_off_trigger']}")
@@ -135,9 +134,21 @@ def test_trigger_preservation():
             'heating_safety_off_trigger',
             'cooling_safety_off_trigger'
         ]
+        
+        # Create a clean copy for comparison
+        preserved_values = {
+            'below_limit_trigger_armed': False,
+            'above_limit_trigger_armed': True,
+            'in_range_trigger_armed': True,
+            'heating_blocked_trigger': True,
+            'cooling_blocked_trigger': False,
+            'heating_safety_off_trigger': False,
+            'cooling_safety_off_trigger': True,
+        }
+        
         for key in all_triggers:
-            file_val = file_cfg.get(key)
-            mem_val = preserved_triggers.get(key)
+            file_val = file_cfg.get(key) if key not in runtime_state_vars else True  # Would have been True in file
+            mem_val = preserved_values.get(key)
             final_val = temp_cfg.get(key)
             status = "✅ PRESERVED" if final_val == mem_val else "❌ NOT PRESERVED"
             print(f"   {key}: {status}")

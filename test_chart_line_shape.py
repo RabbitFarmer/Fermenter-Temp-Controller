@@ -46,7 +46,7 @@ def test_chart_line_shapes():
         all_linear = False
     
     # Verify we have the expected number of line shape configurations
-    expected_count = 3  # Temperature (temp control), Temperature (regular), Gravity
+    expected_count = 5  # Temperature (temp control), Temperature (regular), Gravity, Heating Control, Cooling Control
     if len(matches) == expected_count:
         print(f"✓ Found expected {expected_count} line shape configurations")
     else:
