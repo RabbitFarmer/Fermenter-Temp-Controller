@@ -2377,12 +2377,40 @@ def _should_send_kasa_command(url, action):
         elif temp_cfg.get("cooler_pending"):
             return False
     
-    # Removed state-based redundancy check (heater_on/cooler_on) because it can
-    # prevent necessary commands when state gets out of sync with physical plug.
-    # For example, if plug is physically ON but heater_on=False (due to failed
-    # command or restart), we must still allow OFF commands to be sent.
-    # Rate limiting below provides sufficient protection against excessive commands.
+    # Check for redundant commands based on current state
+    # This prevents sending ON when already ON, or OFF when already OFF
+    # Exception: Allow resending after a timeout period to recover from out-of-sync state
+    if url == temp_cfg.get("heating_plug"):
+        heater_on = temp_cfg.get("heater_on", False)
+        # Don't send ON if heater is already ON (unless enough time has passed for recovery)
+        if action == "on" and heater_on:
+            last = _last_kasa_command.get(url)
+            # Allow re-sending ON after rate limit period (for state recovery)
+            if not (last and last.get("action") == "on" and (time.time() - last.get("ts", 0.0)) >= _KASA_RATE_LIMIT_SECONDS):
+                return False
+        # Don't send OFF if heater is already OFF (unless enough time has passed for recovery)
+        if action == "off" and not heater_on:
+            last = _last_kasa_command.get(url)
+            # Allow re-sending OFF after rate limit period (for state recovery)
+            if not (last and last.get("action") == "off" and (time.time() - last.get("ts", 0.0)) >= _KASA_RATE_LIMIT_SECONDS):
+                return False
     
+    if url == temp_cfg.get("cooling_plug"):
+        cooler_on = temp_cfg.get("cooler_on", False)
+        # Don't send ON if cooler is already ON (unless enough time has passed for recovery)
+        if action == "on" and cooler_on:
+            last = _last_kasa_command.get(url)
+            # Allow re-sending ON after rate limit period (for state recovery)
+            if not (last and last.get("action") == "on" and (time.time() - last.get("ts", 0.0)) >= _KASA_RATE_LIMIT_SECONDS):
+                return False
+        # Don't send OFF if cooler is already OFF (unless enough time has passed for recovery)
+        if action == "off" and not cooler_on:
+            last = _last_kasa_command.get(url)
+            # Allow re-sending OFF after rate limit period (for state recovery)
+            if not (last and last.get("action") == "off" and (time.time() - last.get("ts", 0.0)) >= _KASA_RATE_LIMIT_SECONDS):
+                return False
+    
+    # Rate limiting: prevent the same command from being sent too frequently
     last = _last_kasa_command.get(url)
     if last and last.get("action") == action:
         if (time.time() - last.get("ts", 0.0)) < _KASA_RATE_LIMIT_SECONDS:
