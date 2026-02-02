@@ -2304,6 +2304,29 @@ _last_kasa_command = {}
 _KASA_RATE_LIMIT_SECONDS = int(system_cfg.get("kasa_rate_limit_seconds", 10) or 10)
 _KASA_PENDING_TIMEOUT_SECONDS = int(system_cfg.get("kasa_pending_timeout_seconds", 30) or 30)
 
+def _is_redundant_command(url, action, current_state):
+    """
+    Check if sending this command would be redundant based on current state.
+    
+    Returns True if command is redundant (should be skipped).
+    Exception: Returns False if enough time has passed for state recovery.
+    """
+    # If trying to send ON when already ON (or OFF when already OFF), it's redundant
+    command_matches_state = (action == "on" and current_state) or (action == "off" and not current_state)
+    if not command_matches_state:
+        return False  # Not redundant - state needs to change
+    
+    # Command matches current state, but allow recovery after timeout
+    last = _last_kasa_command.get(url)
+    if last and last.get("action") == action:
+        time_since_last = time.time() - last.get("ts", 0.0)
+        if time_since_last >= _KASA_RATE_LIMIT_SECONDS:
+            # Enough time has passed - allow resending for state recovery
+            return False
+    
+    # Command is redundant - skip it
+    return True
+
 def _should_send_kasa_command(url, action):
     if not url:
         return False
@@ -2377,12 +2400,20 @@ def _should_send_kasa_command(url, action):
         elif temp_cfg.get("cooler_pending"):
             return False
     
-    # Removed state-based redundancy check (heater_on/cooler_on) because it can
-    # prevent necessary commands when state gets out of sync with physical plug.
-    # For example, if plug is physically ON but heater_on=False (due to failed
-    # command or restart), we must still allow OFF commands to be sent.
-    # Rate limiting below provides sufficient protection against excessive commands.
+    # Check for redundant commands based on current state
+    # This prevents sending ON when already ON, or OFF when already OFF
+    # Exception: Allow resending after timeout period to recover from out-of-sync state
+    if url == temp_cfg.get("heating_plug"):
+        heater_on = temp_cfg.get("heater_on", False)
+        if _is_redundant_command(url, action, heater_on):
+            return False
     
+    if url == temp_cfg.get("cooling_plug"):
+        cooler_on = temp_cfg.get("cooler_on", False)
+        if _is_redundant_command(url, action, cooler_on):
+            return False
+    
+    # Rate limiting: prevent the same command from being sent too frequently
     last = _last_kasa_command.get(url)
     if last and last.get("action") == action:
         if (time.time() - last.get("ts", 0.0)) < _KASA_RATE_LIMIT_SECONDS:
@@ -2728,7 +2759,7 @@ def temperature_control_logic():
                 temp_cfg["below_limit_trigger_armed"] = False
                 # Arm the above_limit trigger for when temp rises to high limit
                 temp_cfg["above_limit_trigger_armed"] = True
-        elif high is not None and temp >= high:
+        elif temp >= high:
             # Temperature at or above high limit - turn heating OFF
             control_heating("off")
             # Arm the below_limit trigger for when temp drops to low limit again
@@ -2755,7 +2786,7 @@ def temperature_control_logic():
                 temp_cfg["above_limit_trigger_armed"] = False
                 # Arm the below_limit trigger for when temp drops to low limit
                 temp_cfg["below_limit_trigger_armed"] = True
-        elif low is not None and temp <= low:
+        elif temp <= low:
             # Temperature at or below low limit - turn cooling OFF
             control_cooling("off")
             # Arm the above_limit trigger for when temp rises to high limit again
