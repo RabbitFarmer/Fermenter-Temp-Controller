@@ -267,61 +267,65 @@
         let layout;
         
         if (isTempControl) {
-          // For temperature control, add heating/cooling markers instead of gravity
+          // For temperature control, add heating/cooling state lines instead of gravity
           
-          // Filter events for markers - use all data points, not just active tilt
+          // Filter events for state tracking - use all data points, not just active tilt
           const heatingOnEvents = allDataPoints.filter(p => p.event === 'HEATING-PLUG TURNED ON');
           const heatingOffEvents = allDataPoints.filter(p => p.event === 'HEATING-PLUG TURNED OFF');
           const coolingOnEvents = allDataPoints.filter(p => p.event === 'COOLING-PLUG TURNED ON');
           const coolingOffEvents = allDataPoints.filter(p => p.event === 'COOLING-PLUG TURNED OFF');
           
-          // Always show all 4 heating/cooling indicators in legend
-          // Users can see from the chart which ones are actually in use
-          // To ensure all traces appear in legend even with no data, we add a dummy null point
-          
-          // Heating ON markers (red triangles pointing up)
-          traces.push({
-            x: heatingOnEvents.length > 0 ? heatingOnEvents.map(p => p.timestamp) : [null],
-            y: heatingOnEvents.length > 0 ? heatingOnEvents.map(p => p.temp_f) : [null],
-            mode: 'markers',
-            name: 'Heating ON',
-            marker: { color: 'red', size: 10, symbol: 'triangle-up' },
-            yaxis: 'y1',
-            showlegend: true,
+          // Combine heating events and sort by timestamp for line chart
+          const heatingEvents = [...heatingOnEvents, ...heatingOffEvents].sort((a, b) => {
+            const aTime = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
+            const bTime = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+            return aTime - bTime;
           });
           
-          // Heating OFF markers (pink triangles pointing down)
-          traces.push({
-            x: heatingOffEvents.length > 0 ? heatingOffEvents.map(p => p.timestamp) : [null],
-            y: heatingOffEvents.length > 0 ? heatingOffEvents.map(p => p.temp_f) : [null],
-            mode: 'markers',
-            name: 'Heating OFF',
-            marker: { color: 'pink', size: 10, symbol: 'triangle-down' },
-            yaxis: 'y1',
-            showlegend: true,
+          // Combine cooling events and sort by timestamp for line chart
+          const coolingEvents = [...coolingOnEvents, ...coolingOffEvents].sort((a, b) => {
+            const aTime = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
+            const bTime = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+            return aTime - bTime;
           });
           
-          // Cooling ON markers (blue squares)
-          traces.push({
-            x: coolingOnEvents.length > 0 ? coolingOnEvents.map(p => p.timestamp) : [null],
-            y: coolingOnEvents.length > 0 ? coolingOnEvents.map(p => p.temp_f) : [null],
-            mode: 'markers',
-            name: 'Cooling ON',
-            marker: { color: 'blue', size: 10, symbol: 'square' },
-            yaxis: 'y1',
-            showlegend: true,
-          });
+          // Create heating state line trace (connects all heating state changes)
+          if (heatingEvents.length > 0) {
+            traces.push({
+              x: heatingEvents.map(p => p.timestamp),
+              y: heatingEvents.map(p => p.temp_f),
+              mode: 'lines+markers',
+              name: 'Heating Control',
+              line: { color: 'red', width: 2, shape: 'linear' },
+              marker: { 
+                color: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'red' : 'pink'),
+                size: 8,
+                symbol: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'triangle-up' : 'triangle-down')
+              },
+              yaxis: 'y1',
+              showlegend: true,
+              connectgaps: false,
+            });
+          }
           
-          // Cooling OFF markers (light blue squares)
-          traces.push({
-            x: coolingOffEvents.length > 0 ? coolingOffEvents.map(p => p.timestamp) : [null],
-            y: coolingOffEvents.length > 0 ? coolingOffEvents.map(p => p.temp_f) : [null],
-            mode: 'markers',
-            name: 'Cooling OFF',
-            marker: { color: 'lightblue', size: 10, symbol: 'square' },
-            yaxis: 'y1',
-            showlegend: true,
-          });
+          // Create cooling state line trace (connects all cooling state changes)
+          if (coolingEvents.length > 0) {
+            traces.push({
+              x: coolingEvents.map(p => p.timestamp),
+              y: coolingEvents.map(p => p.temp_f),
+              mode: 'lines+markers',
+              name: 'Cooling Control',
+              line: { color: 'blue', width: 2, shape: 'linear' },
+              marker: { 
+                color: coolingEvents.map(p => p.event === 'COOLING-PLUG TURNED ON' ? 'blue' : 'lightblue'),
+                size: 8,
+                symbol: 'square'
+              },
+              yaxis: 'y1',
+              showlegend: true,
+              connectgaps: false,
+            });
+          }
           
           // Add horizontal lines for low and high temperature limits
           // Extract limit values from data points (use most recent values)
@@ -375,8 +379,8 @@
           
           // Layout without gravity axis
           // Determine what controls are in use
-          const heatingInUse = heatingOnEvents.length > 0 || heatingOffEvents.length > 0;
-          const coolingInUse = coolingOnEvents.length > 0 || coolingOffEvents.length > 0;
+          const heatingInUse = heatingEvents.length > 0;
+          const coolingInUse = coolingEvents.length > 0;
           let controlsInUse = '';
           if (heatingInUse && coolingInUse) {
             controlsInUse = 'Heating and Cooling In Use';
