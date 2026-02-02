@@ -168,11 +168,12 @@
             const validPoints = displayData.filter(p => p.temp_f != null && !isNaN(p.temp_f));
             if (validPoints.length > 0) {
               traces.push({
+                type: 'scatter',  // Explicitly set type to scatter for line chart
                 x: displayData.map(p => p.timestamp),
                 y: displayData.map(p => p.temp_f),
                 mode: 'lines',
                 name: displayLabel,
-                line: { color: displayColor, shape: 'linear', width: 1.5 },  // Reduced from 3 to 1.5
+                line: { color: displayColor, shape: 'linear', width: 1.5 },
                 yaxis: 'y1',
                 connectgaps: false,
               });
@@ -184,11 +185,12 @@
         } else {
           // Original single temperature trace for regular tilt data
           const tempTrace = {
+            type: 'scatter',  // Explicitly set type to scatter for line chart
             x: dataPoints.map((p) => p.timestamp),
             y: dataPoints.map((p) => p.temp_f),
             mode: 'lines',
             name: 'Temperature (°F)',
-            line: { color: 'blue', shape: 'linear', width: 1.5 },  // Reduced from 3 to 1.5
+            line: { color: 'blue', shape: 'linear', width: 1.5 },
             yaxis: 'y1',
             connectgaps: false,
           };
@@ -292,15 +294,16 @@
           // Create heating state markers (show events without connecting lines for clarity)
           if (heatingEvents.length > 0) {
             traces.push({
+              type: 'scatter',
               x: heatingEvents.map(p => p.timestamp),
               y: heatingEvents.map(p => p.temp_f),
-              mode: 'markers',  // Changed from 'lines+markers' to just 'markers' for clarity
+              mode: 'markers',
               name: 'Heating Control',
               marker: { 
                 color: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'red' : 'pink'),
-                size: 12,  // Increased from 10 to 12 for better visibility
+                size: 12,
                 symbol: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'triangle-up' : 'triangle-down'),
-                line: { color: 'darkred', width: 1 }  // Add border for better visibility
+                line: { color: 'darkred', width: 1 }
               },
               yaxis: 'y1',
               showlegend: true,
@@ -312,15 +315,16 @@
           // Create cooling state markers (show events without connecting lines for clarity)
           if (coolingEvents.length > 0) {
             traces.push({
+              type: 'scatter',
               x: coolingEvents.map(p => p.timestamp),
               y: coolingEvents.map(p => p.temp_f),
-              mode: 'markers',  // Changed from 'lines+markers' to just 'markers' for clarity
+              mode: 'markers',
               name: 'Cooling Control',
               marker: { 
                 color: coolingEvents.map(p => p.event === 'COOLING-PLUG TURNED ON' ? 'blue' : 'lightblue'),
-                size: 12,  // Increased from 10 to 12 for better visibility
+                size: 12,
                 symbol: 'square',
-                line: { color: 'darkblue', width: 1 }  // Add border for better visibility
+                line: { color: 'darkblue', width: 1 }
               },
               yaxis: 'y1',
               showlegend: true,
@@ -354,6 +358,7 @@
           // Add low limit line (thin red horizontal line)
           if (lowLimit !== null && xAxisRange) {
             traces.push({
+              type: 'scatter',
               x: [xAxisRange[0], xAxisRange[1]],
               y: [lowLimit, lowLimit],
               mode: 'lines',
@@ -368,6 +373,7 @@
           // Add high limit line (thin red horizontal line)
           if (highLimit !== null && xAxisRange) {
             traces.push({
+              type: 'scatter',
               x: [xAxisRange[0], xAxisRange[1]],
               y: [highLimit, highLimit],
               mode: 'lines',
@@ -434,11 +440,12 @@
         } else {
           // For regular tilt data, include gravity
           const gravityTrace = {
+            type: 'scatter',
             x: dataPoints.map((p) => p.timestamp),
-            y: dataPoints.map((p) => parseFloat(p.gravity)), // Gravity as numeric values
+            y: dataPoints.map((p) => parseFloat(p.gravity)),
             mode: 'lines',
             name: 'Gravity',
-            line: { color: '#E69D00', shape: 'linear', width: 3 }, // Darker, bolder yellow
+            line: { color: '#E69D00', shape: 'linear', width: 3 },
             yaxis: 'y2',
             connectgaps: false,
           };
