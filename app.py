@@ -358,7 +358,7 @@ def log_periodic_temp_reading():
     - Main display (via temp_cfg['current_temp'])
     - CSV export if users want granular detail
     
-    The readings are logged at the configured update_interval (default 1-2 minutes),
+    The readings are logged at the configured update_interval (default 2 minutes),
     which is separate from Tilt readings that are logged at tilt_logging_interval_minutes
     (default 15 minutes) for fermentation monitoring.
     
@@ -2346,7 +2346,14 @@ def _should_send_kasa_command(url, action):
             temp_cfg["heater_pending"] = False
             temp_cfg["heater_pending_since"] = None
             temp_cfg["heater_pending_action"] = None
-        elif pending_since and (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
+        elif pending_since is None:
+            # Corrupted state: pending is True but timestamp is None
+            # This can happen if pending_since is cleared but pending flag isn't
+            # Clear all pending state to recover
+            print(f"[TEMP_CONTROL] Clearing corrupted heater_pending state (no timestamp)")
+            temp_cfg["heater_pending"] = False
+            temp_cfg["heater_pending_action"] = None
+        elif (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
             elapsed = time.time() - pending_since
             print(f"[TEMP_CONTROL] Clearing stuck heater_pending flag (pending for {elapsed:.1f}s)")
             temp_cfg["heater_pending"] = False
@@ -2365,6 +2372,7 @@ def _should_send_kasa_command(url, action):
                 "high_limit": temp_cfg.get("high_limit")
             })
         elif temp_cfg.get("heater_pending"):
+            # Still pending and within timeout - block command
             return False
     
     if url == temp_cfg.get("cooling_plug") and temp_cfg.get("cooler_pending"):
@@ -2379,7 +2387,13 @@ def _should_send_kasa_command(url, action):
             temp_cfg["cooler_pending"] = False
             temp_cfg["cooler_pending_since"] = None
             temp_cfg["cooler_pending_action"] = None
-        elif pending_since and (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
+        elif pending_since is None:
+            # Corrupted state: pending is True but timestamp is None
+            # Clear all pending state to recover
+            print(f"[TEMP_CONTROL] Clearing corrupted cooler_pending state (no timestamp)")
+            temp_cfg["cooler_pending"] = False
+            temp_cfg["cooler_pending_action"] = None
+        elif (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
             elapsed = time.time() - pending_since
             print(f"[TEMP_CONTROL] Clearing stuck cooler_pending flag (pending for {elapsed:.1f}s)")
             temp_cfg["cooler_pending"] = False
@@ -2398,6 +2412,7 @@ def _should_send_kasa_command(url, action):
                 "high_limit": temp_cfg.get("high_limit")
             })
         elif temp_cfg.get("cooler_pending"):
+            # Still pending and within timeout - block command
             return False
     
     # Check for redundant commands based on current state
@@ -2646,6 +2661,8 @@ def temperature_control_logic():
             try:
                 temp = float(temp_from_tilt)
                 temp_cfg['current_temp'] = round(temp, 1)
+                # Update timestamp when temperature is read
+                temp_cfg['last_reading_time'] = datetime.utcnow().isoformat() + "Z"
             except Exception:
                 temp = None
 
@@ -3164,9 +3181,11 @@ def periodic_temp_control():
             print("[LOG] Exception in periodic_temp_control:", e)
 
         try:
-            interval_minutes = int(system_cfg.get("update_interval", 1))
+            # Use system_cfg update_interval for temperature control loop frequency
+            # This is separate from tilt_logging_interval_minutes which controls fermentation logging
+            interval_minutes = int(system_cfg.get("update_interval", 2))
         except Exception:
-            interval_minutes = 1
+            interval_minutes = 2  # Default to 2 minutes for responsive temperature control
         interval_seconds = max(1, interval_minutes * 60)
         time.sleep(interval_seconds)
 
@@ -3237,6 +3256,8 @@ def ble_loop():
                 temp = get_current_temp_for_control_tilt()
                 if temp is not None:
                     temp_cfg['current_temp'] = round(float(temp), 1)
+                    # Update timestamp when temperature is read
+                    temp_cfg['last_reading_time'] = datetime.utcnow().isoformat() + "Z"
             except Exception as e:
                 print(f"[LOG] Error in ble_loop run_scanner: {e}")
     try:

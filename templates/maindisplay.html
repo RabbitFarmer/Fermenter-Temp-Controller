@@ -358,7 +358,9 @@
               <label for="temp_control_toggle" class="toggle-label">MONITOR</label>
             </div>
 
-            <div class="footer-left" id="temp_control_last">{{ temp_control.notification_last_sent or '' }}</div>
+            <div class="footer-left" id="temp_control_last" style="font-size:0.85em;">
+              Last Reading: <span id="temp_control_timestamp">{% if temp_control.last_reading_time %}{{ temp_control.last_reading_time | localtime }}{% else %}--{% endif %}</span>
+            </div>
 
             <a class="chart-pill" href="/chart_plotly/Fermenter?brew=">CHART</a>
           </div>

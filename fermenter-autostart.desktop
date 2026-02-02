@@ -37,3 +37,7 @@ Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
 StartupNotify=false
+# Add delay to ensure desktop is fully loaded before starting
+X-GNOME-Autostart-Delay=10
+# Priority - start after other desktop components
+X-KDE-autostart-after=panel
