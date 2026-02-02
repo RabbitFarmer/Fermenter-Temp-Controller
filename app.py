@@ -2346,7 +2346,14 @@ def _should_send_kasa_command(url, action):
             temp_cfg["heater_pending"] = False
             temp_cfg["heater_pending_since"] = None
             temp_cfg["heater_pending_action"] = None
-        elif pending_since and (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
+        elif pending_since is None:
+            # Corrupted state: pending is True but timestamp is None
+            # This can happen if pending_since is cleared but pending flag isn't
+            # Clear all pending state to recover
+            print(f"[TEMP_CONTROL] Clearing corrupted heater_pending state (no timestamp)")
+            temp_cfg["heater_pending"] = False
+            temp_cfg["heater_pending_action"] = None
+        elif (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
             elapsed = time.time() - pending_since
             print(f"[TEMP_CONTROL] Clearing stuck heater_pending flag (pending for {elapsed:.1f}s)")
             temp_cfg["heater_pending"] = False
@@ -2365,6 +2372,7 @@ def _should_send_kasa_command(url, action):
                 "high_limit": temp_cfg.get("high_limit")
             })
         elif temp_cfg.get("heater_pending"):
+            # Still pending and within timeout - block command
             return False
     
     if url == temp_cfg.get("cooling_plug") and temp_cfg.get("cooler_pending"):
@@ -2379,7 +2387,13 @@ def _should_send_kasa_command(url, action):
             temp_cfg["cooler_pending"] = False
             temp_cfg["cooler_pending_since"] = None
             temp_cfg["cooler_pending_action"] = None
-        elif pending_since and (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
+        elif pending_since is None:
+            # Corrupted state: pending is True but timestamp is None
+            # Clear all pending state to recover
+            print(f"[TEMP_CONTROL] Clearing corrupted cooler_pending state (no timestamp)")
+            temp_cfg["cooler_pending"] = False
+            temp_cfg["cooler_pending_action"] = None
+        elif (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
             elapsed = time.time() - pending_since
             print(f"[TEMP_CONTROL] Clearing stuck cooler_pending flag (pending for {elapsed:.1f}s)")
             temp_cfg["cooler_pending"] = False
@@ -2398,6 +2412,7 @@ def _should_send_kasa_command(url, action):
                 "high_limit": temp_cfg.get("high_limit")
             })
         elif temp_cfg.get("cooler_pending"):
+            # Still pending and within timeout - block command
             return False
     
     # Check for redundant commands based on current state
