@@ -2304,6 +2304,29 @@ _last_kasa_command = {}
 _KASA_RATE_LIMIT_SECONDS = int(system_cfg.get("kasa_rate_limit_seconds", 10) or 10)
 _KASA_PENDING_TIMEOUT_SECONDS = int(system_cfg.get("kasa_pending_timeout_seconds", 30) or 30)
 
+def _is_redundant_command(url, action, current_state):
+    """
+    Check if sending this command would be redundant based on current state.
+    
+    Returns True if command is redundant (should be skipped).
+    Exception: Returns False if enough time has passed for state recovery.
+    """
+    # If trying to send ON when already ON (or OFF when already OFF), it's redundant
+    command_matches_state = (action == "on" and current_state) or (action == "off" and not current_state)
+    if not command_matches_state:
+        return False  # Not redundant - state needs to change
+    
+    # Command matches current state, but allow recovery after timeout
+    last = _last_kasa_command.get(url)
+    if last and last.get("action") == action:
+        time_since_last = time.time() - last.get("ts", 0.0)
+        if time_since_last >= _KASA_RATE_LIMIT_SECONDS:
+            # Enough time has passed - allow resending for state recovery
+            return False
+    
+    # Command is redundant - skip it
+    return True
+
 def _should_send_kasa_command(url, action):
     if not url:
         return False
@@ -2379,36 +2402,16 @@ def _should_send_kasa_command(url, action):
     
     # Check for redundant commands based on current state
     # This prevents sending ON when already ON, or OFF when already OFF
-    # Exception: Allow resending after a timeout period to recover from out-of-sync state
+    # Exception: Allow resending after timeout period to recover from out-of-sync state
     if url == temp_cfg.get("heating_plug"):
         heater_on = temp_cfg.get("heater_on", False)
-        # Don't send ON if heater is already ON (unless enough time has passed for recovery)
-        if action == "on" and heater_on:
-            last = _last_kasa_command.get(url)
-            # Allow re-sending ON after rate limit period (for state recovery)
-            if not (last and last.get("action") == "on" and (time.time() - last.get("ts", 0.0)) >= _KASA_RATE_LIMIT_SECONDS):
-                return False
-        # Don't send OFF if heater is already OFF (unless enough time has passed for recovery)
-        if action == "off" and not heater_on:
-            last = _last_kasa_command.get(url)
-            # Allow re-sending OFF after rate limit period (for state recovery)
-            if not (last and last.get("action") == "off" and (time.time() - last.get("ts", 0.0)) >= _KASA_RATE_LIMIT_SECONDS):
-                return False
+        if _is_redundant_command(url, action, heater_on):
+            return False
     
     if url == temp_cfg.get("cooling_plug"):
         cooler_on = temp_cfg.get("cooler_on", False)
-        # Don't send ON if cooler is already ON (unless enough time has passed for recovery)
-        if action == "on" and cooler_on:
-            last = _last_kasa_command.get(url)
-            # Allow re-sending ON after rate limit period (for state recovery)
-            if not (last and last.get("action") == "on" and (time.time() - last.get("ts", 0.0)) >= _KASA_RATE_LIMIT_SECONDS):
-                return False
-        # Don't send OFF if cooler is already OFF (unless enough time has passed for recovery)
-        if action == "off" and not cooler_on:
-            last = _last_kasa_command.get(url)
-            # Allow re-sending OFF after rate limit period (for state recovery)
-            if not (last and last.get("action") == "off" and (time.time() - last.get("ts", 0.0)) >= _KASA_RATE_LIMIT_SECONDS):
-                return False
+        if _is_redundant_command(url, action, cooler_on):
+            return False
     
     # Rate limiting: prevent the same command from being sent too frequently
     last = _last_kasa_command.get(url)
