@@ -3185,8 +3185,7 @@ def periodic_temp_control():
         # Hardcoded 2-minute interval for temperature control loop and chart logging
         # This ensures smooth temperature curves in the chart with consistent 2-minute data points
         # This is separate from tilt_logging_interval_minutes which controls fermentation logging
-        interval_minutes = 2
-        interval_seconds = interval_minutes * 60
+        interval_seconds = 120  # 2 minutes
         time.sleep(interval_seconds)
 
 # NOTE: periodic_temp_control thread is started in if __name__ == '__main__' block
