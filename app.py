@@ -2898,6 +2898,9 @@ def kasa_result_listener():
                         print(f"[KASA_RESULT] ✓ Heating plug {action.upper()} confirmed - no state change (already {previous_state})")
                     # Record successful command for rate limiting
                     _record_kasa_command(url, action)
+                    # Save temp_cfg to disk to persist state and temperature ranges
+                    # This prevents loss of configuration if system crashes or restarts
+                    save_json(TEMP_CFG_FILE, temp_cfg)
                 else:
                     # When plug command fails, DO NOT change heater_on state
                     # The physical plug is still in its previous state since the command didn't reach it
@@ -2935,6 +2938,9 @@ def kasa_result_listener():
                         print(f"[KASA_RESULT] ✓ Cooling plug {action.upper()} confirmed - no state change (already {previous_state})")
                     # Record successful command for rate limiting
                     _record_kasa_command(url, action)
+                    # Save temp_cfg to disk to persist state and temperature ranges
+                    # This prevents loss of configuration if system crashes or restarts
+                    save_json(TEMP_CFG_FILE, temp_cfg)
                 else:
                     # When plug command fails, DO NOT change cooler_on state
                     # The physical plug is still in its previous state since the command didn't reach it
@@ -3145,6 +3151,18 @@ def periodic_temp_control():
             file_cfg = load_json(TEMP_CFG_FILE, {})
             if 'current_temp' in file_cfg and file_cfg['current_temp'] is None and temp_cfg.get('current_temp') is not None:
                 file_cfg.pop('current_temp')
+            
+            # Protect against invalid temperature ranges from corrupted config file
+            # If file has null/0 values for temp limits but memory has valid values, keep memory values
+            if temp_cfg.get('low_limit') and temp_cfg.get('high_limit'):
+                # We have valid limits in memory
+                file_low = file_cfg.get('low_limit')
+                file_high = file_cfg.get('high_limit')
+                # If file has invalid/missing limits (None, 0, or 0.0), don't overwrite good memory values
+                if not file_low or not file_high or file_low == 0 or file_high == 0:
+                    print(f"[TEMP_CONTROL] WARNING: Config file has invalid temp limits (low={file_low}, high={file_high}), keeping in-memory values (low={temp_cfg.get('low_limit')}, high={temp_cfg.get('high_limit')})")
+                    file_cfg.pop('low_limit', None)
+                    file_cfg.pop('high_limit', None)
             
             # Exclude runtime state variables from file reload to prevent state reset
             # These variables track the current operational state and should not be
