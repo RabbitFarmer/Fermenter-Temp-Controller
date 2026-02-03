@@ -4993,10 +4993,12 @@ def _format_file_size(size_bytes):
 
 @app.route('/view_log')
 def view_log():
-    """Display the content of a log file."""
+    """Display the content of a log file with pagination."""
     try:
         log_file = request.args.get('file')
         log_type = request.args.get('type', 'app')  # 'app' or 'temp'
+        page = request.args.get('page', 1, type=int)
+        lines_per_page = 50  # Show 50 lines per page
         
         if not log_file:
             return "No log file specified", 400
@@ -5016,22 +5018,44 @@ def view_log():
         if not os.path.exists(filepath):
             return f"Log file not found: {log_file}", 404
         
-        # Read the last 1000 lines efficiently using deque
-        lines = deque(maxlen=1000)
+        # Read all lines from the file
+        all_lines = []
         try:
             with open(filepath, 'r') as f:
                 for line in f:
-                    lines.append(line)
+                    all_lines.append(line)
         except Exception as e:
             return f"Error reading log file: {str(e)}", 500
         
-        content = ''.join(lines)
+        total_lines = len(all_lines)
+        total_pages = max(1, (total_lines + lines_per_page - 1) // lines_per_page)
+        
+        # Validate page number
+        if page < 1:
+            page = 1
+        elif page > total_pages:
+            page = total_pages
+        
+        # Calculate pagination indices (show most recent first, so reverse indexing)
+        # Most recent lines are at the end of the file
+        start_idx = total_lines - (page * lines_per_page)
+        end_idx = total_lines - ((page - 1) * lines_per_page)
+        
+        if start_idx < 0:
+            start_idx = 0
+        
+        # Get the lines for this page (reversed to show most recent first)
+        page_lines = list(reversed(all_lines[start_idx:end_idx]))
+        content = ''.join(page_lines)
         
         return render_template('view_log.html',
                              log_file=log_file,
                              log_type=log_type,
                              content=content,
-                             line_count=len(lines))
+                             line_count=len(page_lines),
+                             current_page=page,
+                             total_pages=total_pages,
+                             total_lines=total_lines)
     except Exception as e:
         print(f"[LOG] Error viewing log: {e}")
         return f"Error viewing log: {str(e)}", 500

@@ -10,8 +10,13 @@
     .log-header { margin-bottom:20px; padding-bottom:12px; border-bottom:2px solid #1a6; }
     .log-title { font-weight:700; font-size:1.5em; color:#1a6; margin-bottom:8px; }
     .log-info { color:#666; font-size:0.9em; margin:4px 0; }
-    .log-content { background:#f5f5f5; border:1px solid #ddd; border-radius:6px; padding:16px; font-family:monospace; font-size:12px; line-height:1.4; overflow-x:auto; max-height:70vh; overflow-y:auto; white-space:pre-wrap; word-wrap:break-word; }
-    .btn-back { padding:10px 20px; background-color:#8B4513; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; text-decoration:none; display:inline-block; margin-top:20px; }
+    .log-content { background:#f5f5f5; border:1px solid #ddd; border-radius:6px; padding:16px; font-family:monospace; font-size:12px; line-height:1.4; overflow-x:auto; max-height:60vh; overflow-y:auto; white-space:pre-wrap; word-wrap:break-word; }
+    .pagination-container { margin:20px 0; display:flex; justify-content:center; align-items:center; gap:15px; flex-wrap:wrap; }
+    .pagination-info { color:#666; font-size:0.95em; font-weight:600; }
+    .btn-page { padding:10px 20px; background-color:#2196F3; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; text-decoration:none; display:inline-block; }
+    .btn-page:hover:not(.disabled) { background-color:#1976D2; }
+    .btn-page.disabled { background-color:#ccc; cursor:not-allowed; opacity:0.6; pointer-events:none; }
+    .btn-back { padding:10px 20px; background-color:#8B4513; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; text-decoration:none; display:inline-block; margin-top:10px; }
     .btn-back:hover { opacity:0.9; }
   </style>
 </head>
@@ -24,13 +29,47 @@
     <div class="log-container">
       <div class="log-header">
         <div class="log-title">{{ log_file }}</div>
-        <div class="log-info">Showing last {{ line_count }} lines</div>
+        <div class="log-info">Showing {{ line_count }} lines (Page {{ current_page }} of {{ total_pages }}) | Total: {{ total_lines }} lines</div>
+      </div>
+
+      <!-- Pagination Controls (Top) -->
+      <div class="pagination-container">
+        {% if current_page > 1 %}
+          <a href="/view_log?file={{ log_file }}&type={{ log_type }}&page={{ current_page - 1 }}" class="btn-page">[Page Down] ▼</a>
+        {% else %}
+          <span class="btn-page disabled">[Page Down] ▼</span>
+        {% endif %}
+        
+        <span class="pagination-info">Page {{ current_page }} of {{ total_pages }}</span>
+        
+        {% if current_page < total_pages %}
+          <a href="/view_log?file={{ log_file }}&type={{ log_type }}&page={{ current_page + 1 }}" class="btn-page">[Page Up] ▲</a>
+        {% else %}
+          <span class="btn-page disabled">[Page Up] ▲</span>
+        {% endif %}
       </div>
 
       <div class="log-content">{{ content | e }}</div>
 
+      <!-- Pagination Controls (Bottom) -->
+      <div class="pagination-container">
+        {% if current_page > 1 %}
+          <a href="/view_log?file={{ log_file }}&type={{ log_type }}&page={{ current_page - 1 }}" class="btn-page">[Page Down] ▼</a>
+        {% else %}
+          <span class="btn-page disabled">[Page Down] ▼</span>
+        {% endif %}
+        
+        <span class="pagination-info">Page {{ current_page }} of {{ total_pages }}</span>
+        
+        {% if current_page < total_pages %}
+          <a href="/view_log?file={{ log_file }}&type={{ log_type }}&page={{ current_page + 1 }}" class="btn-page">[Page Up] ▲</a>
+        {% else %}
+          <span class="btn-page disabled">[Page Up] ▲</span>
+        {% endif %}
+      </div>
+
       <div style="text-align:center;">
-        <a href="/log_management" class="btn-back">← Back to Log Management</a>
+        <a href="/log_management" class="btn-back">[Return] ← Back to Log Management</a>
       </div>
     </div>
   </div>
