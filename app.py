@@ -3152,18 +3152,6 @@ def periodic_temp_control():
             if 'current_temp' in file_cfg and file_cfg['current_temp'] is None and temp_cfg.get('current_temp') is not None:
                 file_cfg.pop('current_temp')
             
-            # Protect against invalid temperature ranges from corrupted config file
-            # If file has null/0 values for temp limits but memory has valid values, keep memory values
-            if temp_cfg.get('low_limit') and temp_cfg.get('high_limit'):
-                # We have valid limits in memory
-                file_low = file_cfg.get('low_limit')
-                file_high = file_cfg.get('high_limit')
-                # If file has invalid/missing limits (None, 0, or 0.0), don't overwrite good memory values
-                if not file_low or not file_high or file_low == 0 or file_high == 0:
-                    print(f"[TEMP_CONTROL] WARNING: Config file has invalid temp limits (low={file_low}, high={file_high}), keeping in-memory values (low={temp_cfg.get('low_limit')}, high={temp_cfg.get('high_limit')})")
-                    file_cfg.pop('low_limit', None)
-                    file_cfg.pop('high_limit', None)
-            
             # Exclude runtime state variables from file reload to prevent state reset
             # These variables track the current operational state and should not be
             # overwritten by potentially stale values from the config file
@@ -3182,7 +3170,10 @@ def periodic_temp_control():
                 'below_limit_trigger_armed', 'above_limit_trigger_armed',  # Temperature limit triggers
                 'in_range_trigger_armed',  # Range trigger
                 'safety_shutdown_logged',  # Safety shutdown flag
-                'status'  # Current status message
+                'status',  # Current status message
+                # Temperature limits are updated only via web UI /update_temp_config
+                # Excluding them from file reload prevents corruption from stale/invalid file values
+                'low_limit', 'high_limit'
             ]
             for var in runtime_state_vars:
                 file_cfg.pop(var, None)
