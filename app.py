@@ -16,6 +16,7 @@ This file provides the full Flask app used in the conversation:
 
 import asyncio
 import hashlib
+import itertools
 import json
 import os
 import queue
@@ -5042,21 +5043,20 @@ def view_log():
         if start_idx < 0:
             start_idx = 0
         
-        # Read only the lines we need using deque with appropriate size
-        # This is memory-efficient for large files
+        # Read only the lines we need using itertools.islice for efficiency
+        # This is memory-efficient for large files - skips directly to start_idx
         try:
             lines_to_read = end_idx - start_idx
-            lines_buffer = deque(maxlen=lines_to_read)
-            with open(filepath, 'r') as f:
-                for i, line in enumerate(f):
-                    if i >= end_idx:
-                        break
-                    if i >= start_idx:
-                        lines_buffer.append(line)
             
-            # Reverse to show most recent first
-            page_lines = list(reversed(lines_buffer))
-            content = ''.join(page_lines)
+            # Handle edge case where there are no lines to read
+            if lines_to_read <= 0:
+                content = ""
+                page_lines = []
+            else:
+                with open(filepath, 'r') as f:
+                    # Use islice to skip directly to start_idx and read only needed lines
+                    page_lines = list(reversed(list(itertools.islice(f, start_idx, end_idx))))
+                content = ''.join(page_lines)
         except Exception as e:
             return f"Error reading log file: {str(e)}", 500
         

@@ -35,7 +35,7 @@
       <!-- Pagination Controls (Top) -->
       <div class="pagination-container">
         {% if current_page < total_pages %}
-          <a href="/view_log?file={{ log_file }}&type={{ log_type }}&page={{ current_page + 1 }}" class="btn-page">← Older Entries</a>
+          <a href="/view_log?file={{ log_file|urlencode }}&type={{ log_type|urlencode }}&page={{ current_page + 1 }}" class="btn-page">← Older Entries</a>
         {% else %}
           <span class="btn-page disabled">← Older Entries</span>
         {% endif %}
@@ -43,7 +43,7 @@
         <span class="pagination-info">Page {{ current_page }} of {{ total_pages }}</span>
         
         {% if current_page > 1 %}
-          <a href="/view_log?file={{ log_file }}&type={{ log_type }}&page={{ current_page - 1 }}" class="btn-page">Newer Entries →</a>
+          <a href="/view_log?file={{ log_file|urlencode }}&type={{ log_type|urlencode }}&page={{ current_page - 1 }}" class="btn-page">Newer Entries →</a>
         {% else %}
           <span class="btn-page disabled">Newer Entries →</span>
         {% endif %}
@@ -54,7 +54,7 @@
       <!-- Pagination Controls (Bottom) -->
       <div class="pagination-container">
         {% if current_page < total_pages %}
-          <a href="/view_log?file={{ log_file }}&type={{ log_type }}&page={{ current_page + 1 }}" class="btn-page">← Older Entries</a>
+          <a href="/view_log?file={{ log_file|urlencode }}&type={{ log_type|urlencode }}&page={{ current_page + 1 }}" class="btn-page">← Older Entries</a>
         {% else %}
           <span class="btn-page disabled">← Older Entries</span>
         {% endif %}
@@ -62,14 +62,14 @@
         <span class="pagination-info">Page {{ current_page }} of {{ total_pages }}</span>
         
         {% if current_page > 1 %}
-          <a href="/view_log?file={{ log_file }}&type={{ log_type }}&page={{ current_page - 1 }}" class="btn-page">Newer Entries →</a>
+          <a href="/view_log?file={{ log_file|urlencode }}&type={{ log_type|urlencode }}&page={{ current_page - 1 }}" class="btn-page">Newer Entries →</a>
         {% else %}
           <span class="btn-page disabled">Newer Entries →</span>
         {% endif %}
       </div>
 
       <div style="text-align:center;">
-        <a href="/log_management" class="btn-back">[Return] ← Back to Log Management</a>
+        <a href="/log_management" class="btn-back">← Back to Log Management</a>
       </div>
     </div>
   </div>
