@@ -16,6 +16,7 @@ This file provides the full Flask app used in the conversation:
 
 import asyncio
 import hashlib
+import itertools
 import json
 import os
 import queue
@@ -4993,10 +4994,12 @@ def _format_file_size(size_bytes):
 
 @app.route('/view_log')
 def view_log():
-    """Display the content of a log file."""
+    """Display the content of a log file with pagination."""
     try:
         log_file = request.args.get('file')
         log_type = request.args.get('type', 'app')  # 'app' or 'temp'
+        page = request.args.get('page', 1, type=int)
+        lines_per_page = 50  # Show 50 lines per page
         
         if not log_file:
             return "No log file specified", 400
@@ -5016,22 +5019,55 @@ def view_log():
         if not os.path.exists(filepath):
             return f"Log file not found: {log_file}", 404
         
-        # Read the last 1000 lines efficiently using deque
-        lines = deque(maxlen=1000)
+        # For large files, use a memory-efficient approach
+        # First, count total lines efficiently
         try:
-            with open(filepath, 'r') as f:
-                for line in f:
-                    lines.append(line)
+            with open(filepath, 'rb') as f:
+                total_lines = sum(1 for _ in f)
         except Exception as e:
             return f"Error reading log file: {str(e)}", 500
         
-        content = ''.join(lines)
+        total_pages = max(1, (total_lines + lines_per_page - 1) // lines_per_page)
+        
+        # Validate page number
+        if page < 1:
+            page = 1
+        elif page > total_pages:
+            page = total_pages
+        
+        # Calculate pagination indices (show most recent first, so reverse indexing)
+        # Most recent lines are at the end of the file
+        start_idx = total_lines - (page * lines_per_page)
+        end_idx = total_lines - ((page - 1) * lines_per_page)
+        
+        if start_idx < 0:
+            start_idx = 0
+        
+        # Read only the lines we need using itertools.islice for efficiency
+        # This is memory-efficient for large files - skips directly to start_idx
+        page_lines = []  # Initialize to ensure it's always defined
+        content = ""
+        
+        try:
+            lines_to_read = end_idx - start_idx
+            
+            # Handle edge case where there are no lines to read
+            if lines_to_read > 0:
+                with open(filepath, 'r') as f:
+                    # Use islice to skip directly to start_idx and read only needed lines
+                    page_lines = list(reversed(list(itertools.islice(f, start_idx, end_idx))))
+                content = ''.join(page_lines)
+        except Exception as e:
+            return f"Error reading log file: {str(e)}", 500
         
         return render_template('view_log.html',
                              log_file=log_file,
                              log_type=log_type,
                              content=content,
-                             line_count=len(lines))
+                             line_count=len(page_lines),
+                             current_page=page,
+                             total_pages=total_pages,
+                             total_lines=total_lines)
     except Exception as e:
         print(f"[LOG] Error viewing log: {e}")
         return f"Error viewing log: {str(e)}", 500
