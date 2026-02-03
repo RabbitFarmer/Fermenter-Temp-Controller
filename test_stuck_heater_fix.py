@@ -16,6 +16,7 @@ This test validates the scenario described in the problem statement:
 import sys
 import os
 import time
+import traceback
 
 # Add parent directory to path to import app
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -277,6 +278,5 @@ if __name__ == '__main__':
             
     except Exception as e:
         print(f"\n❌ Error during test: {e}")
-        import traceback
         traceback.print_exc()
         sys.exit(1)
