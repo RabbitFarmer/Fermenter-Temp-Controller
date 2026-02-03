@@ -136,54 +136,26 @@ if ! curl -s http://127.0.0.1:5000 > /dev/null 2>&1; then
 fi
 
 # Try to open browser if display is available
-# This section only runs if we have a desktop environment
-BROWSER_OPENED=false
-
+# Simplified approach: wait 10 seconds for desktop to be ready, then open browser
 if [ -n "$DISPLAY" ]; then
-    echo "Display detected ($DISPLAY), attempting to open browser..."
+    echo "Display detected ($DISPLAY), will open browser after 10 second delay..."
     
-    # Wait for X server to be ready (up to 60 seconds)
-    echo "Waiting for X server to be ready..."
-    for i in $(seq 1 60); do
-        if xset q &>/dev/null 2>&1; then
-            echo "✓ X server is ready"
-            break
-        fi
-        if [ $((i % 10)) -eq 0 ]; then
-            echo "  Still waiting for X server... ($i/60 seconds)"
-        fi
-        sleep 1
-    done
+    # Wait 10 seconds for desktop environment to fully initialize at boot
+    sleep 10
     
-    # Additional delay for window manager
-    echo "Waiting for window manager..."
-    sleep 3
-    
-    # Try to open browser
+    # Open browser in background using nohup
     if command -v xdg-open > /dev/null 2>&1; then
         echo "Opening browser with xdg-open..."
-        if xdg-open http://127.0.0.1:5000 &>/dev/null &; then
-            echo "✓ Browser command executed"
-            BROWSER_OPENED=true
-            show_notification "Fermenter Ready" "Browser opened successfully!" "normal"
-            
-            # Try to set fullscreen if xdotool is available
-            if command -v xdotool > /dev/null 2>&1; then
-                sleep 3  # Give browser time to open
-                xdotool search --class --sync "chromium|firefox|chrome" windowactivate --sync key F11 &>/dev/null || true
-            fi
-        fi
+        nohup xdg-open http://127.0.0.1:5000 >/dev/null 2>&1 &
+        echo "✓ Browser command executed"
+        show_notification "Fermenter Ready" "Dashboard opening in browser" "normal"
     elif command -v open > /dev/null 2>&1; then
         echo "Opening browser with open (macOS)..."
-        if open http://127.0.0.1:5000 2>/dev/null; then
-            echo "✓ Browser command executed"
-            BROWSER_OPENED=true
-            show_notification "Fermenter Ready" "Browser opened successfully!" "normal"
-        fi
-    fi
-    
-    if [ "$BROWSER_OPENED" = false ]; then
-        echo "⚠️  Could not open browser automatically"
+        nohup open http://127.0.0.1:5000 >/dev/null 2>&1 &
+        echo "✓ Browser command executed"
+        show_notification "Fermenter Ready" "Dashboard opening in browser" "normal"
+    else
+        echo "⚠️  No browser opener found (xdg-open/open)"
     fi
 else
     echo "No display detected - running in headless mode"
@@ -195,9 +167,7 @@ echo "======================================================================="
 echo "  Application PID: $APP_PID"
 echo "  Access dashboard: http://127.0.0.1:5000"
 echo "  Application log: app.log"
-if [ "$BROWSER_OPENED" = false ]; then
-    echo ""
-    echo "  Browser did not open automatically."
-    echo "  Please open http://127.0.0.1:5000 manually in your browser."
-fi
+echo ""
+echo "  If browser doesn't open automatically, access manually at:"
+echo "  http://127.0.0.1:5000"
 echo "======================================================================="
