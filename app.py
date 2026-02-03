@@ -485,6 +485,14 @@ def ensure_temp_defaults():
     temp_cfg.setdefault("in_range_trigger_armed", True)
     temp_cfg.setdefault("above_limit_trigger_armed", True)
     temp_cfg.setdefault("below_limit_trigger_armed", True)
+    # Swapped plug detection:
+    temp_cfg.setdefault("heater_baseline_temp", None)
+    temp_cfg.setdefault("heater_baseline_time", None)
+    temp_cfg.setdefault("cooler_baseline_temp", None)
+    temp_cfg.setdefault("cooler_baseline_time", None)
+    temp_cfg.setdefault("swapped_plugs_detected", False)
+    temp_cfg.setdefault("swapped_plugs_notified", False)
+    temp_cfg.setdefault("swapped_plug_type", "")  # "heating" or "cooling"
 
 ensure_temp_defaults()
 
@@ -2883,6 +2891,168 @@ def temperature_control_logic():
     else:
         temp_cfg["status"] = "Idle"
 
+# --- Swapped plug detection ------------------------------------------------
+def check_for_swapped_plugs():
+    """
+    Detect if heating and cooling plugs are swapped by monitoring temperature
+    trends after a plug is activated.
+    
+    Logic:
+    - When heating turns ON, temperature should rise (or stabilize if at setpoint)
+    - When cooling turns ON, temperature should drop (or stabilize if at setpoint)
+    - If the opposite happens consistently, plugs are likely swapped
+    
+    Detection thresholds:
+    - Monitor for at least 10 minutes after plug activation
+    - Require temperature to move 1.5°F in wrong direction
+    - Clear detection when plugs turn OFF or swap is acknowledged
+    """
+    current_temp = temp_cfg.get("current_temp")
+    if current_temp is None:
+        return
+    
+    # Only check if temp control is active
+    if not temp_cfg.get("temp_control_active", False):
+        return
+    
+    # Check heating plug (should cause temperature to RISE)
+    if temp_cfg.get("heater_on"):
+        baseline_temp = temp_cfg.get("heater_baseline_temp")
+        baseline_time = temp_cfg.get("heater_baseline_time")
+        
+        if baseline_temp is not None and baseline_time is not None:
+            # Check if enough time has passed (10 minutes = 600 seconds)
+            time_elapsed = time.time() - baseline_time
+            if time_elapsed >= 600:  # 10 minutes
+                # Temperature should have risen or stayed stable
+                # If it dropped significantly, heating plug may be swapped with cooling
+                temp_change = current_temp - baseline_temp
+                
+                if temp_change < -1.5:  # Temperature dropped 1.5°F or more
+                    # Heating is ON but temperature is dropping - likely swapped!
+                    if not temp_cfg.get("swapped_plugs_detected") or temp_cfg.get("swapped_plug_type") != "heating":
+                        temp_cfg["swapped_plugs_detected"] = True
+                        temp_cfg["swapped_plug_type"] = "heating"
+                        temp_cfg["swapped_plugs_notified"] = False  # Allow new notification
+                        print(f"[SWAPPED_PLUG] ⚠️  DETECTED: Heating ON but temp dropped {abs(temp_change):.1f}°F")
+                        print(f"[SWAPPED_PLUG] Baseline: {baseline_temp:.1f}°F, Current: {current_temp:.1f}°F")
+                        print(f"[SWAPPED_PLUG] Possible cause: Heating plug may be connected to cooling device")
+                        
+                        # Log the event
+                        append_control_log("swapped_plugs_detected", {
+                            "plug_type": "heating",
+                            "expected_behavior": "temperature rise",
+                            "actual_behavior": "temperature drop",
+                            "temp_change": round(temp_change, 1),
+                            "baseline_temp": round(baseline_temp, 1),
+                            "current_temp": round(current_temp, 1),
+                            "time_elapsed_minutes": round(time_elapsed / 60, 1),
+                            "low_limit": temp_cfg.get("low_limit"),
+                            "high_limit": temp_cfg.get("high_limit"),
+                            "tilt_color": temp_cfg.get("tilt_color", "")
+                        })
+                        
+                        # Send notification
+                        send_swapped_plug_notification("heating", baseline_temp, current_temp, temp_change, time_elapsed)
+    
+    # Check cooling plug (should cause temperature to DROP)
+    if temp_cfg.get("cooler_on"):
+        baseline_temp = temp_cfg.get("cooler_baseline_temp")
+        baseline_time = temp_cfg.get("cooler_baseline_time")
+        
+        if baseline_temp is not None and baseline_time is not None:
+            # Check if enough time has passed (10 minutes = 600 seconds)
+            time_elapsed = time.time() - baseline_time
+            if time_elapsed >= 600:  # 10 minutes
+                # Temperature should have dropped or stayed stable
+                # If it rose significantly, cooling plug may be swapped with heating
+                temp_change = current_temp - baseline_temp
+                
+                if temp_change > 1.5:  # Temperature rose 1.5°F or more
+                    # Cooling is ON but temperature is rising - likely swapped!
+                    if not temp_cfg.get("swapped_plugs_detected") or temp_cfg.get("swapped_plug_type") != "cooling":
+                        temp_cfg["swapped_plugs_detected"] = True
+                        temp_cfg["swapped_plug_type"] = "cooling"
+                        temp_cfg["swapped_plugs_notified"] = False  # Allow new notification
+                        print(f"[SWAPPED_PLUG] ⚠️  DETECTED: Cooling ON but temp rose {temp_change:.1f}°F")
+                        print(f"[SWAPPED_PLUG] Baseline: {baseline_temp:.1f}°F, Current: {current_temp:.1f}°F")
+                        print(f"[SWAPPED_PLUG] Possible cause: Cooling plug may be connected to heating device")
+                        
+                        # Log the event
+                        append_control_log("swapped_plugs_detected", {
+                            "plug_type": "cooling",
+                            "expected_behavior": "temperature drop",
+                            "actual_behavior": "temperature rise",
+                            "temp_change": round(temp_change, 1),
+                            "baseline_temp": round(baseline_temp, 1),
+                            "current_temp": round(current_temp, 1),
+                            "time_elapsed_minutes": round(time_elapsed / 60, 1),
+                            "low_limit": temp_cfg.get("low_limit"),
+                            "high_limit": temp_cfg.get("high_limit"),
+                            "tilt_color": temp_cfg.get("tilt_color", "")
+                        })
+                        
+                        # Send notification
+                        send_swapped_plug_notification("cooling", baseline_temp, current_temp, temp_change, time_elapsed)
+
+def send_swapped_plug_notification(plug_type, baseline_temp, current_temp, temp_change, time_elapsed):
+    """
+    Send notification when swapped plugs are detected.
+    Only sends once per detection period to avoid spam.
+    """
+    # Check if already notified for this detection
+    if temp_cfg.get("swapped_plugs_notified"):
+        return
+    
+    # Mark as notified
+    temp_cfg["swapped_plugs_notified"] = True
+    
+    # Build notification message
+    if plug_type == "heating":
+        subject = "⚠️ Swapped Plug Detected: Heating Plug"
+        body = (
+            f"WARNING: Heating plug may be connected to a COOLING device!\n\n"
+            f"The heating plug was turned ON, but temperature DROPPED instead of rising.\n\n"
+            f"Temperature Change:\n"
+            f"  • Started at: {baseline_temp:.1f}°F\n"
+            f"  • Now at: {current_temp:.1f}°F\n"
+            f"  • Change: {temp_change:.1f}°F (DROPPED)\n"
+            f"  • Time elapsed: {int(time_elapsed / 60)} minutes\n\n"
+            f"ACTION REQUIRED:\n"
+            f"1. Turn OFF temperature control immediately\n"
+            f"2. Verify heating plug is connected to heating device (not cooler)\n"
+            f"3. Check cooling plug is connected to cooling device (not heater)\n"
+            f"4. Fix connections and restart temperature control\n\n"
+            f"This usually happens when the heater and cooler are accidentally swapped."
+        )
+    else:  # cooling
+        subject = "⚠️ Swapped Plug Detected: Cooling Plug"
+        body = (
+            f"WARNING: Cooling plug may be connected to a HEATING device!\n\n"
+            f"The cooling plug was turned ON, but temperature ROSE instead of dropping.\n\n"
+            f"Temperature Change:\n"
+            f"  • Started at: {baseline_temp:.1f}°F\n"
+            f"  • Now at: {current_temp:.1f}°F\n"
+            f"  • Change: +{temp_change:.1f}°F (ROSE)\n"
+            f"  • Time elapsed: {int(time_elapsed / 60)} minutes\n\n"
+            f"ACTION REQUIRED:\n"
+            f"1. Turn OFF temperature control immediately\n"
+            f"2. Verify cooling plug is connected to cooling device (not heater)\n"
+            f"3. Check heating plug is connected to heating device (not cooler)\n"
+            f"4. Fix connections and restart temperature control\n\n"
+            f"This usually happens when the heater and cooler are accidentally swapped."
+        )
+    
+    tilt_color = temp_cfg.get("tilt_color", "")
+    
+    # Use the pending notification queue to send alert
+    attempt_send_notifications(
+        subject=subject,
+        body=body,
+        brewid=tilt_color,
+        color=tilt_color
+    )
+
 # --- kasa result listener (log confirmed ON/OFF events) --------------------
 def kasa_result_listener():
     while True:
@@ -2909,6 +3079,21 @@ def kasa_result_listener():
                     temp_cfg["heating_error_msg"] = ""
                     # Reset the notified flag when plug starts working again
                     temp_cfg["heating_error_notified"] = False
+                    
+                    # Track baseline temperature when heating turns ON
+                    if new_state and not previous_state:
+                        # Heating just turned ON - record baseline for swapped plug detection
+                        temp_cfg["heater_baseline_temp"] = temp_cfg.get("current_temp")
+                        temp_cfg["heater_baseline_time"] = time.time()
+                        print(f"[SWAPPED_PLUG] Heating activated - baseline temp: {temp_cfg.get('current_temp')}°F")
+                    elif not new_state:
+                        # Heating turned OFF - clear baseline and detection
+                        temp_cfg["heater_baseline_temp"] = None
+                        temp_cfg["heater_baseline_time"] = None
+                        if temp_cfg.get("swapped_plug_type") == "heating":
+                            temp_cfg["swapped_plugs_detected"] = False
+                            temp_cfg["swapped_plugs_notified"] = False
+                            temp_cfg["swapped_plug_type"] = ""
                     
                     # Only log and notify if state actually changed
                     if new_state != previous_state:
@@ -2949,6 +3134,21 @@ def kasa_result_listener():
                     temp_cfg["cooling_error_msg"] = ""
                     # Reset the notified flag when plug starts working again
                     temp_cfg["cooling_error_notified"] = False
+                    
+                    # Track baseline temperature when cooling turns ON
+                    if new_state and not previous_state:
+                        # Cooling just turned ON - record baseline for swapped plug detection
+                        temp_cfg["cooler_baseline_temp"] = temp_cfg.get("current_temp")
+                        temp_cfg["cooler_baseline_time"] = time.time()
+                        print(f"[SWAPPED_PLUG] Cooling activated - baseline temp: {temp_cfg.get('current_temp')}°F")
+                    elif not new_state:
+                        # Cooling turned OFF - clear baseline and detection
+                        temp_cfg["cooler_baseline_temp"] = None
+                        temp_cfg["cooler_baseline_time"] = None
+                        if temp_cfg.get("swapped_plug_type") == "cooling":
+                            temp_cfg["swapped_plugs_detected"] = False
+                            temp_cfg["swapped_plugs_notified"] = False
+                            temp_cfg["swapped_plug_type"] = ""
                     
                     # Only log and notify if state actually changed
                     if new_state != previous_state:
@@ -3186,6 +3386,10 @@ def periodic_temp_control():
                 'heating_error', 'cooling_error',    # Error states
                 'heating_error_msg', 'cooling_error_msg',  # Error messages
                 'heating_error_notified', 'cooling_error_notified',  # Notification flags
+                # Swapped plug detection runtime state
+                'heater_baseline_temp', 'heater_baseline_time',
+                'cooler_baseline_temp', 'cooler_baseline_time',
+                'swapped_plugs_detected', 'swapped_plugs_notified', 'swapped_plug_type',
                 # ALL 7 notification triggers (temperature + safety)
                 'heating_blocked_trigger', 'cooling_blocked_trigger',  # Safety triggers - heating/cooling blocked
                 'heating_safety_off_trigger', 'cooling_safety_off_trigger',  # Safety triggers - turned off for safety
@@ -3204,6 +3408,9 @@ def periodic_temp_control():
             temp_cfg.update(file_cfg)
             
             temperature_control_logic()
+            
+            # Check for swapped plugs after temperature control logic runs
+            check_for_swapped_plugs()
             
             # Log periodic temperature reading at update_interval frequency
             # This is separate from Tilt readings (logged at tilt_logging_interval_minutes)
