@@ -5018,16 +5018,14 @@ def view_log():
         if not os.path.exists(filepath):
             return f"Log file not found: {log_file}", 404
         
-        # Read all lines from the file
-        all_lines = []
+        # For large files, use a memory-efficient approach
+        # First, count total lines efficiently
         try:
-            with open(filepath, 'r') as f:
-                for line in f:
-                    all_lines.append(line)
+            with open(filepath, 'rb') as f:
+                total_lines = sum(1 for _ in f)
         except Exception as e:
             return f"Error reading log file: {str(e)}", 500
         
-        total_lines = len(all_lines)
         total_pages = max(1, (total_lines + lines_per_page - 1) // lines_per_page)
         
         # Validate page number
@@ -5044,9 +5042,23 @@ def view_log():
         if start_idx < 0:
             start_idx = 0
         
-        # Get the lines for this page (reversed to show most recent first)
-        page_lines = list(reversed(all_lines[start_idx:end_idx]))
-        content = ''.join(page_lines)
+        # Read only the lines we need using deque with appropriate size
+        # This is memory-efficient for large files
+        try:
+            lines_to_read = end_idx - start_idx
+            lines_buffer = deque(maxlen=lines_to_read)
+            with open(filepath, 'r') as f:
+                for i, line in enumerate(f):
+                    if i >= end_idx:
+                        break
+                    if i >= start_idx:
+                        lines_buffer.append(line)
+            
+            # Reverse to show most recent first
+            page_lines = list(reversed(lines_buffer))
+            content = ''.join(page_lines)
+        except Exception as e:
+            return f"Error reading log file: {str(e)}", 500
         
         return render_template('view_log.html',
                              log_file=log_file,
