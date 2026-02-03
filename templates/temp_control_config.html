@@ -169,7 +169,7 @@
               <label style="display:inline-block; width:auto;"><input type="checkbox" name="enable_heating" {% if temp_control.enable_heating %}checked{% endif %}> Enable Heating</label>
               <label style="display:inline-block; width:auto; margin-left:12px;"><input type="checkbox" name="enable_cooling" {% if temp_control.enable_cooling %}checked{% endif %}> Enable Cooling</label>
             </div>
-            <span class="small">Note: Temperature control update interval is configured in System Settings (default: 2 minutes). Tilt logging interval is separate (default: 15 minutes).</span>
+            <span class="small">Note: Temperature control update interval is hardcoded to 2 minutes for smooth chart visualization. Tilt logging interval is separate (default: 15 minutes).</span>
           </div>
 
           <div class="form-row">

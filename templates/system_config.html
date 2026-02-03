@@ -143,7 +143,7 @@
           <tr>
             <td>
               <label for="update_interval"><b>Update Interval (minutes)</b></label>
-              <div style="font-size:0.85em;color:#666;margin-top:4px;">Frequency of control loop checks for temperature adjustments and readings</div>
+              <div style="font-size:0.85em;color:#666;margin-top:4px;">Note: Temperature control loop now runs at a hardcoded 2-minute interval for optimal chart visualization. This setting is kept for compatibility.</div>
             </td>
             <td><input type="number" name="update_interval" id="update_interval" value="{{ system_settings.get('update_interval','1') }}"></td>
           </tr>

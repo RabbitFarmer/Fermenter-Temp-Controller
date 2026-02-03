@@ -98,7 +98,7 @@ MAX_ALL_LIMIT = 10000
 MAX_FILENAME_LENGTH = 50
 
 # In-memory buffer for temperature control readings
-# Stores recent readings at update_interval frequency without logging to file
+# Stores recent readings at hardcoded 2-minute intervals without logging to file
 # Max 1440 entries = 2 days at 2-minute intervals (prevents memory bloat)
 TEMP_READING_BUFFER_SIZE = 1440
 temp_reading_buffer = deque(maxlen=TEMP_READING_BUFFER_SIZE)
@@ -344,7 +344,7 @@ def append_control_log(event_type, payload):
 
 def log_periodic_temp_reading():
     """
-    Record a periodic temperature control reading in memory at update_interval frequency.
+    Record a periodic temperature control reading in memory at 2-minute intervals.
     
     This function is called by periodic_temp_control() after each control loop
     iteration to record temperature readings for the temperature control chart.
@@ -358,7 +358,7 @@ def log_periodic_temp_reading():
     - Main display (via temp_cfg['current_temp'])
     - CSV export if users want granular detail
     
-    The readings are logged at the configured update_interval (default 2 minutes),
+    The readings are logged at a hardcoded 2-minute interval for smooth chart curves,
     which is separate from Tilt readings that are logged at tilt_logging_interval_minutes
     (default 15 minutes) for fermentation monitoring.
     
@@ -674,7 +674,7 @@ def is_control_tilt_active():
     Check if the Tilt being used for temperature control is currently active.
     
     For temperature control safety, uses a shorter timeout than general Tilt monitoring:
-    - Temperature control timeout: 2 × update_interval (default: 2 × 2 min = 4 minutes)
+    - Temperature control timeout: 2 × 2-minute interval = 4 minutes
     - This ensures KASA plugs turn off quickly if Tilt signal is lost
     - Much shorter than the general 30-minute inactivity timeout used for display/notifications
     
@@ -722,15 +722,8 @@ def is_control_tilt_active():
             # If we can't parse the assignment time, continue with normal checks
     
     # For temperature control, use a much shorter timeout than general monitoring
-    # Timeout = 2 × update_interval (2 missed readings)
-    # Example: 2 min update interval → 4 min timeout
-    try:
-        update_interval_minutes = int(system_cfg.get("update_interval", 2))
-    except Exception:
-        update_interval_minutes = 2
-    
-    # Temperature control timeout: 2 missed readings
-    temp_control_timeout_minutes = update_interval_minutes * 2
+    # Hardcoded timeout = 2 × 2-minute interval = 4 minutes (2 missed readings)
+    temp_control_timeout_minutes = 4
     
     # Check if the control Tilt has sent data within the temp control timeout
     if control_color not in live_tilts:
@@ -3182,20 +3175,18 @@ def periodic_temp_control():
             
             temperature_control_logic()
             
-            # Log periodic temperature reading at update_interval frequency
+            # Log periodic temperature reading at hardcoded 2-minute interval
             # This is separate from Tilt readings (logged at tilt_logging_interval_minutes)
             log_periodic_temp_reading()
         except Exception as e:
             append_control_log("temp_control_mode_changed", {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
             print("[LOG] Exception in periodic_temp_control:", e)
 
-        try:
-            # Use system_cfg update_interval for temperature control loop frequency
-            # This is separate from tilt_logging_interval_minutes which controls fermentation logging
-            interval_minutes = int(system_cfg.get("update_interval", 2))
-        except Exception:
-            interval_minutes = 2  # Default to 2 minutes for responsive temperature control
-        interval_seconds = max(1, interval_minutes * 60)
+        # Hardcoded 2-minute interval for temperature control loop and chart logging
+        # This ensures smooth temperature curves in the chart with consistent 2-minute data points
+        # This is separate from tilt_logging_interval_minutes which controls fermentation logging
+        interval_minutes = 2
+        interval_seconds = interval_minutes * 60
         time.sleep(interval_seconds)
 
 # NOTE: periodic_temp_control thread is started in if __name__ == '__main__' block
