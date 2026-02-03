@@ -91,7 +91,7 @@ def kasa_worker(cmd_queue, result_queue):
     Creates a persistent event loop to avoid network binding issues that occur when
     asyncio.run() creates a new event loop for each command in multiprocessing workers.
     """
-    print(f"[kasa_worker] started (HAS_IOT={HAS_IOT})")
+    # Worker started - minimal diagnostic output
     if PlugClass is None:
         err = "kasa library not available"
         log_error(err)
@@ -116,7 +116,6 @@ def kasa_worker(cmd_queue, result_queue):
     # This avoids network binding issues that occur when creating new loops for each command
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    print(f"[kasa_worker] Created persistent event loop for worker process")
 
     try:
         while True:
@@ -127,8 +126,6 @@ def kasa_worker(cmd_queue, result_queue):
                 mode = command.get('mode', 'unknown')
                 url = command.get('url', '')
                 action = command.get('action', 'off')
-
-                print(f"[kasa_worker] Received command: mode={mode}, action={action}, url={url}")
                 
                 if not url:
                     error = "No URL provided"
@@ -145,7 +142,6 @@ def kasa_worker(cmd_queue, result_queue):
 
                 success = (error is None)
                 result = {'mode': mode, 'action': action, 'success': success, 'url': url, 'error': error}
-                print(f"[kasa_worker] Sending result: mode={mode}, action={action}, success={success}, error={error}")
                 result_queue.put(result)
 
             except Exception as e:
@@ -160,9 +156,8 @@ def kasa_worker(cmd_queue, result_queue):
         # Clean up event loop when worker exits
         try:
             loop.close()
-            print(f"[kasa_worker] Event loop closed on worker shutdown")
         except Exception as e:
-            print(f"[kasa_worker] Error closing event loop: {e}")
+            log_error(f"Error closing event loop: {e}")
 
 async def kasa_query_state(url):
     """
@@ -181,7 +176,6 @@ async def kasa_query_state(url):
         is_on = getattr(plug, "is_on", None)
         if is_on is None:
             return None, "Unable to determine plug state"
-        print(f"[kasa_worker] queried state at {url}: {'ON' if is_on else 'OFF'}")
         return is_on, None
     except Exception as e:
         err = f"Failed to query plug at {url}: {e}"
@@ -212,34 +206,16 @@ async def kasa_control(url, action, mode):
     for attempt in range(max_retries):
         if attempt > 0:
             delay = retry_delays[min(attempt, len(retry_delays) - 1)]
-            print(f"[kasa_worker] Retry attempt {attempt + 1}/{max_retries} after {delay}s delay")
             await asyncio.sleep(delay)
-        
-        # Log the command being sent
-        if attempt == 0:
-            print(f"[kasa_worker] Sending {action.upper()} command to {mode} plug at {url}")
         
         try:
             plug = PlugClass(url)
             # Initial update to refresh device state - critical for reliability
             await asyncio.wait_for(plug.update(), timeout=6)
             
-            # Log initial state before command
-            initial_state = getattr(plug, "is_on", None)
-            # Handle None case explicitly for clarity
-            if initial_state is None:
-                state_str = 'UNKNOWN'
-            elif initial_state:
-                state_str = 'ON'
-            else:
-                state_str = 'OFF'
-            if attempt == 0:
-                print(f"[kasa_worker] Initial state before {action}: {state_str} (is_on={initial_state})")
-            
         except Exception as e:
             last_error = f"Failed to contact plug at {url}: {e}"
             if attempt < max_retries - 1:
-                print(f"[kasa_worker] Connection failed (attempt {attempt + 1}), will retry: {e}")
                 continue
             else:
                 log_error(last_error)
@@ -252,65 +228,44 @@ async def kasa_control(url, action, mode):
             
             # Send the command
             if action == 'on':
-                if attempt == 0:
-                    print(f"[kasa_worker] Executing turn_on() for {mode} plug at {url}")
                 await plug.turn_on()
             else:
-                if attempt == 0:
-                    print(f"[kasa_worker] Executing turn_off() for {mode} plug at {url}")
                 await plug.turn_off()
 
             # Brief pause to let state change propagate - important for reliability
             await asyncio.sleep(0.5)
 
             # Refresh state to verify command succeeded
-            verification_success = True
             try:
                 await asyncio.wait_for(plug.update(), timeout=5)
             except Exception as e:
                 # non-fatal: we'll still attempt to read is_on if available
-                print(f"[kasa_worker] WARNING: State verification update failed: {e}")
-                verification_success = False
+                log_error(f"WARNING: State verification update failed for {mode} plug at {url}: {e}")
 
             is_on = getattr(plug, "is_on", None)
             if is_on is None:
                 last_error = "Unable to determine plug state after command"
                 if attempt < max_retries - 1:
-                    print(f"[kasa_worker] Unable to verify state (attempt {attempt + 1}), will retry")
                     continue
                 else:
                     log_error(f"{mode.upper()} plug at {url}: {last_error}")
                     return last_error
-
-            # Log the verified state
-            state_str = 'ON' if is_on else 'OFF'
-            # Log on first attempt and any retry attempts for diagnostics
-            if attempt == 0:
-                print(f"[kasa_worker] Verified state after {action}: {state_str} (is_on={is_on}, verification_update={'success' if verification_success else 'failed'})")
-            elif attempt > 0:
-                print(f"[kasa_worker] Retry {attempt + 1}: Verified state after {action}: {state_str} (is_on={is_on})")
             
             # Verify state matches expected result
             if (action == 'on' and is_on) or (action == 'off' and not is_on):
-                if attempt > 0:
-                    print(f"[kasa_worker] ✓ SUCCESS on retry {attempt + 1}: {mode} {action} confirmed at {url}")
-                else:
-                    print(f"[kasa_worker] ✓ SUCCESS: {mode} {action} confirmed at {url} - plug state matches expected")
+                # Success - state matches expected, return without logging
                 return None
             else:
                 last_error = f"State mismatch after {action}: expected is_on={action == 'on'}, actual is_on={is_on}"
                 if attempt < max_retries - 1:
-                    print(f"[kasa_worker] State mismatch (attempt {attempt + 1}), will retry")
                     continue
                 else:
                     log_error(f"{mode.upper()} plug at {url}: {last_error}")
-                    print(f"[kasa_worker] ✗ FAILURE: State verification failed for {mode} plug at {url} after {max_retries} attempts")
                     return last_error
 
         except Exception as e:
             last_error = str(e)
             if attempt < max_retries - 1:
-                print(f"[kasa_worker] Command execution failed (attempt {attempt + 1}), will retry: {e}")
                 continue
             else:
                 log_error(f"{mode.upper()} plug at {url} error during command execution: {last_error}")
