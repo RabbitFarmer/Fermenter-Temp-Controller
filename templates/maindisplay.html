@@ -99,6 +99,7 @@
     
     .tc-notification-item.heating { color: var(--status-red); }
     .tc-notification-item.cooling { color: var(--now-cool-blue); }
+    .tc-notification-item.swapped-plug { color: #FF0000; background: #FFD700; font-size: 14px; padding: 4px 8px; border-radius: 4px; }
     .tc-notification-item.kasa-error { color: var(--kasa-yellow); }
     .tc-notification-item.push-error { color: var(--error-orange); }
     .tc-notification-item.email-error { color: var(--error-orange); }
@@ -111,6 +112,7 @@
     
     .tc-notification-item.heating { animation: blink 1.0s ease-in-out infinite; }
     .tc-notification-item.cooling { animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.swapped-plug { animation: blink 0.5s ease-in-out infinite; }
     .tc-notification-item.kasa-error { animation: blink 1.0s ease-in-out infinite; }
     .tc-notification-item.push-error { animation: blink 1.0s ease-in-out infinite; }
     .tc-notification-item.email-error { animation: blink 1.0s ease-in-out infinite; }
@@ -119,6 +121,7 @@
     @media (prefers-reduced-motion: reduce) {
       .tc-notification-item.heating,
       .tc-notification-item.cooling,
+      .tc-notification-item.swapped-plug,
       .tc-notification-item.kasa-error,
       .tc-notification-item.push-error,
       .tc-notification-item.email-error {
@@ -267,6 +270,7 @@
     .tc-notification-item { -webkit-animation: none; animation: none; }
     .tc-notification-item.heating { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
     .tc-notification-item.cooling { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
+    .tc-notification-item.swapped-plug { -webkit-animation: blink 0.5s ease-in-out infinite; animation: blink 0.5s ease-in-out infinite; }
     .tc-notification-item.kasa-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
     .tc-notification-item.push-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
     .tc-notification-item.email-error { -webkit-animation: blink 1.0s ease-in-out infinite; animation: blink 1.0s ease-in-out infinite; }
@@ -723,6 +727,14 @@
           }
           if (tc.cooler_on) {
             notifications.push('<div class="tc-notification-item cooling">Cooling ON</div>');
+          }
+          // CRITICAL: Swapped plug warning takes priority
+          if (tc.swapped_plugs_detected) {
+            const plugType = tc.swapped_plug_type || 'unknown';
+            const warningMsg = plugType === 'heating' 
+              ? 'WARNING: Heating Plug May Be Swapped!' 
+              : 'WARNING: Cooling Plug May Be Swapped!';
+            notifications.push('<div class="tc-notification-item swapped-plug">' + warningMsg + '</div>');
           }
           if (tc.heating_error || tc.cooling_error) {
             notifications.push('<div class="tc-notification-item kasa-error">Kasa Connection Lost</div>');
