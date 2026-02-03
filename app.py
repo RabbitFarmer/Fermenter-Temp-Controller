@@ -267,10 +267,14 @@ ALLOWED_EVENTS = {
 ALLOWED_EVENT_VALUES = set(ALLOWED_EVENTS.values())
 
 def _format_control_log_entry(event_type, payload):
-    ts = datetime.utcnow()
-    iso_ts = ts.replace(microsecond=0).isoformat() + "Z"
-    date = ts.strftime("%Y-%m-%d")
-    time_str = ts.strftime("%H:%M:%S")
+    # Use UTC for the ISO timestamp (with Z suffix) for consistency and compatibility
+    ts_utc = datetime.utcnow()
+    iso_ts = ts_utc.replace(microsecond=0).isoformat() + "Z"
+    
+    # Use local time for date and time fields so they're readable in the user's timezone
+    ts_local = datetime.now()
+    date = ts_local.strftime("%Y-%m-%d")
+    time_str = ts_local.strftime("%H:%M:%S")
 
     tilt_color = ""
     try:
@@ -2357,6 +2361,15 @@ def _should_send_kasa_command(url, action):
         elif (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
             elapsed = time.time() - pending_since
             print(f"[TEMP_CONTROL] Clearing stuck heater_pending flag (pending for {elapsed:.1f}s)")
+            # CRITICAL FIX: Update heater_on state to match the pending action
+            # When pending times out, assume the command succeeded (plug likely responded but we missed it)
+            # This prevents the state from becoming permanently out of sync
+            if pending_action == "on":
+                temp_cfg["heater_on"] = True
+                print(f"[TEMP_CONTROL] Assuming heater ON command succeeded after timeout")
+            elif pending_action == "off":
+                temp_cfg["heater_on"] = False
+                print(f"[TEMP_CONTROL] Assuming heater OFF command succeeded after timeout")
             temp_cfg["heater_pending"] = False
             temp_cfg["heater_pending_since"] = None
             temp_cfg["heater_pending_action"] = None
@@ -2397,6 +2410,15 @@ def _should_send_kasa_command(url, action):
         elif (time.time() - pending_since) > _KASA_PENDING_TIMEOUT_SECONDS:
             elapsed = time.time() - pending_since
             print(f"[TEMP_CONTROL] Clearing stuck cooler_pending flag (pending for {elapsed:.1f}s)")
+            # CRITICAL FIX: Update cooler_on state to match the pending action
+            # When pending times out, assume the command succeeded (plug likely responded but we missed it)
+            # This prevents the state from becoming permanently out of sync
+            if pending_action == "on":
+                temp_cfg["cooler_on"] = True
+                print(f"[TEMP_CONTROL] Assuming cooler ON command succeeded after timeout")
+            elif pending_action == "off":
+                temp_cfg["cooler_on"] = False
+                print(f"[TEMP_CONTROL] Assuming cooler OFF command succeeded after timeout")
             temp_cfg["cooler_pending"] = False
             temp_cfg["cooler_pending_since"] = None
             temp_cfg["cooler_pending_action"] = None
