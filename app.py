@@ -4719,6 +4719,10 @@ def chart_data_for(tilt_color):
                         # We'll use in-memory readings instead
                         if event == "TEMP CONTROL READING":
                             continue
+                        # Skip SAMPLE (tilt_reading) events - they're logged at tilt_logging_interval_minutes (15 min)
+                        # We only want periodic readings from temp_reading_buffer (logged at update_interval)
+                        if event == "SAMPLE":
+                            continue
                         
                         matched += 1
                         ts = obj.get('timestamp')
