@@ -2898,6 +2898,9 @@ def kasa_result_listener():
                         print(f"[KASA_RESULT] ✓ Heating plug {action.upper()} confirmed - no state change (already {previous_state})")
                     # Record successful command for rate limiting
                     _record_kasa_command(url, action)
+                    # Save temp_cfg to disk to persist state and temperature ranges
+                    # This prevents loss of configuration if system crashes or restarts
+                    save_json(TEMP_CFG_FILE, temp_cfg)
                 else:
                     # When plug command fails, DO NOT change heater_on state
                     # The physical plug is still in its previous state since the command didn't reach it
@@ -2935,6 +2938,9 @@ def kasa_result_listener():
                         print(f"[KASA_RESULT] ✓ Cooling plug {action.upper()} confirmed - no state change (already {previous_state})")
                     # Record successful command for rate limiting
                     _record_kasa_command(url, action)
+                    # Save temp_cfg to disk to persist state and temperature ranges
+                    # This prevents loss of configuration if system crashes or restarts
+                    save_json(TEMP_CFG_FILE, temp_cfg)
                 else:
                     # When plug command fails, DO NOT change cooler_on state
                     # The physical plug is still in its previous state since the command didn't reach it
@@ -3164,7 +3170,10 @@ def periodic_temp_control():
                 'below_limit_trigger_armed', 'above_limit_trigger_armed',  # Temperature limit triggers
                 'in_range_trigger_armed',  # Range trigger
                 'safety_shutdown_logged',  # Safety shutdown flag
-                'status'  # Current status message
+                'status',  # Current status message
+                # Temperature limits should only change via web UI /update_temp_config
+                # Exclude from periodic reload to prevent corruption from stale/invalid file values
+                'low_limit', 'high_limit'
             ]
             for var in runtime_state_vars:
                 file_cfg.pop(var, None)
