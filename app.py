@@ -5045,14 +5045,14 @@ def view_log():
         
         # Read only the lines we need using itertools.islice for efficiency
         # This is memory-efficient for large files - skips directly to start_idx
+        page_lines = []  # Initialize to ensure it's always defined
+        content = ""
+        
         try:
             lines_to_read = end_idx - start_idx
             
             # Handle edge case where there are no lines to read
-            if lines_to_read <= 0:
-                content = ""
-                page_lines = []
-            else:
+            if lines_to_read > 0:
                 with open(filepath, 'r') as f:
                     # Use islice to skip directly to start_idx and read only needed lines
                     page_lines = list(reversed(list(itertools.islice(f, start_idx, end_idx))))
