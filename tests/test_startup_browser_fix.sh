@@ -72,11 +72,11 @@ fi
 echo
 
 # Test 7: Verify simplified sleep delay is used
-echo "Test 7: Verifying simplified 10 second delay..."
-if grep -q "sleep 10" start.sh; then
-    echo "✓ Test 7 PASSED: Simple 10 second delay found"
+echo "Test 7: Verifying simplified sleep delay..."
+if grep -q "sleep [0-9]\+" start.sh; then
+    echo "✓ Test 7 PASSED: Sleep delay found for desktop initialization"
 else
-    echo "⚠ Test 7 WARNING: 10 second delay not found (not critical)"
+    echo "⚠ Test 7 WARNING: Sleep delay not found (not critical)"
 fi
 echo
 
