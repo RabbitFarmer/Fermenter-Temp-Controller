@@ -32,6 +32,8 @@ from math import ceil
 from multiprocessing import Process, Queue
 import multiprocessing  # Needed for set_start_method and get_all_start_methods
 from urllib.parse import urlparse
+import urllib.request
+import urllib.error
 import subprocess
 import signal
 import webbrowser
@@ -6414,15 +6416,22 @@ def open_browser():
     # Additional delay if running at boot time (helps ensure desktop is ready)
     # Check if we've been running for less than 2 minutes (likely boot scenario)
     try:
-        import psutil
-        process = psutil.Process(os.getpid())
-        uptime = time.time() - process.create_time()
-        if uptime < 120:  # Process created less than 2 minutes ago
-            print("[LOG] Detected recent boot - waiting additional 10 seconds for desktop environment")
-            time.sleep(10)
-    except Exception:
-        # If psutil not available or check fails, add a small delay anyway
+        if psutil is not None:
+            process = psutil.Process(os.getpid())
+            uptime = time.time() - process.create_time()
+            if uptime < 120:  # Process created less than 2 minutes ago
+                print("[LOG] Detected recent boot - waiting additional 10 seconds for desktop environment")
+                time.sleep(10)
+            else:
+                # Manual start - shorter delay
+                time.sleep(3)
+        else:
+            # psutil not available - add a reasonable delay for safety
+            time.sleep(3)
+    except (ImportError, AttributeError, OSError) as e:
+        # If check fails, add a small delay anyway
         # This helps with boot scenarios without breaking manual starts
+        print(f"[LOG] Could not determine process uptime: {e}")
         time.sleep(3)
     
     url = 'http://127.0.0.1:5000'
@@ -6431,11 +6440,10 @@ def open_browser():
     max_attempts = 30
     for attempt in range(max_attempts):
         try:
-            import urllib.request
             urllib.request.urlopen(url, timeout=1)
             print(f"[LOG] Flask is responding, opening browser...")
             break
-        except Exception:
+        except (urllib.error.URLError, OSError) as e:
             if attempt < max_attempts - 1:
                 time.sleep(1)
             else:
