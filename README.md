@@ -15,23 +15,6 @@ This project is a Raspberry Pi-based fermentation monitor and temperature contro
   - See [NOTIFICATIONS.md](NOTIFICATIONS.md) for detailed configuration guide
   - See [Notification Types](#notification-types) section below for complete list of 11 notification types
 
-## Demo Data
-
-This repository includes demo fermentation data for the **Black tilt** to showcase the charting capabilities:
-
-- **Beer**: 803 Blonde Ale Clone of 805
-- **Duration**: 15 days of fermentation data
-- **Data Points**: 30 samples showing gravity drop from 1.049 to 1.004
-
-To set up the demo data:
-```bash
-./utils/setup_demo.sh
-```
-
-Then start the app and navigate to `http://localhost:5000/chart_plotly/Black` to view the demo chart.
-
-For more information on importing custom data, see [utils/README.md](utils/README.md).
-
 ## Getting Started
 
 ### Prerequisites
