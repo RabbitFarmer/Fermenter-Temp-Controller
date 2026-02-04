@@ -5841,7 +5841,8 @@ def cleanup_batch_duplicates():
             
             # Group batches by brewid, keeping only the last occurrence
             # Note: Later occurrences intentionally overwrite earlier ones in the dict
-            # to keep the most recent version of each batch (handles edits)
+            # to keep the most recent version of each batch (handles edits).
+            # This assumes batches are in chronological order in the list (append-only history).
             unique_batches = {}
             for batch in batches:
                 brewid = batch.get('brewid')

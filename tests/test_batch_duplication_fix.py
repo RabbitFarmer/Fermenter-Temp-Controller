@@ -118,9 +118,11 @@ def test_close_batch_handles_duplicates():
     batch_history_file = os.path.join(batches_dir, "batch_history_Blue.json")
     
     # Create a file with duplicate entries (simulating old bug)
+    # Using 6 duplicates to match the real-world scenario reported in the issue
+    NUM_DUPLICATES = 6
     brewid = "dup123"
     duplicates = []
-    for i in range(6):
+    for i in range(NUM_DUPLICATES):
         duplicates.append({
             "brewid": brewid,
             "beer_name": f"Duplicate {i+1}",
@@ -131,7 +133,7 @@ def test_close_batch_handles_duplicates():
     with open(batch_history_file, 'w') as f:
         json.dump(duplicates, f, indent=2)
     
-    print(f"✓ Created 6 duplicate entries with brewid={brewid}")
+    print(f"✓ Created {NUM_DUPLICATES} duplicate entries with brewid={brewid}")
     
     try:
         # Simulate close_batch logic
@@ -159,7 +161,7 @@ def test_close_batch_handles_duplicates():
         
         print(f"✓ After close: {active_count} active, {closed_count} closed")
         assert active_count == 0, f"Expected 0 active batches, got {active_count}"
-        assert closed_count == 6, f"Expected 6 closed batches, got {closed_count}"
+        assert closed_count == NUM_DUPLICATES, f"Expected {NUM_DUPLICATES} closed batches, got {closed_count}"
         
         print("\n✅ Close batch correctly handles all duplicates!")
         return True
