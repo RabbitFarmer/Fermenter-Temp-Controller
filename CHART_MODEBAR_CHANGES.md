@@ -1,7 +1,7 @@
 # Chart Modebar Changes
 
 ## Summary
-This change enables Plotly's built-in modebar (chart tools legend) on all charts and removes redundant custom zoom control buttons and code.
+This change enables Plotly's built-in modebar (chart tools toolbar) on all charts and removes redundant custom zoom control buttons and code.
 
 ## What Changed
 
@@ -20,11 +20,12 @@ Plus extensive JavaScript code (~160 lines) to manage these controls.
 Charts now display Plotly's built-in modebar in the top-right corner of the chart, which provides:
 - 📷 Download plot as PNG
 - 🔍 Zoom (box select)
-- 🔎 Pan
+- 🔎 Pan (move around the chart)
 - ↔️ Zoom in/out
-- 🔄 Autoscale
-- ↺ Reset axes
-- 🏠 Home (reset to original view)
+- 🔄 Autoscale (fit data to view)
+- ↺ Reset axes (return to original view)
+- Toggle spike lines
+- Show closest data on hover / Compare data on hover
 - And more advanced features
 
 ## Benefits
@@ -67,12 +68,12 @@ Plotly.newPlot('tempChart', traces, layout, config);
 
 The modebar appears when you hover over the chart in the top-right corner. It includes buttons for:
 - Camera icon: Download as PNG
-- Zoom icon: Box zoom tool
-- Pan icon: Pan/move the chart
-- Zoom +/-: Zoom in and out
-- Autoscale: Auto-fit the data
-- Reset: Reset to original view
-- Show closest data on hover
-- Compare data on hover
+- Box zoom: Click and drag to zoom into a specific area
+- Pan: Click and drag to move around the chart
+- Zoom in/out: Click to zoom in or out centered on the chart
+- Autoscale: Automatically fit all data in the view
+- Reset axes: Return to the original view
+- Toggle spike lines: Show crosshairs when hovering
+- Hover mode toggles: Show closest data point or compare multiple points
 
 Users can now interact with charts more naturally using standard Plotly tools instead of custom buttons.
