@@ -57,7 +57,7 @@ This PR addresses two critical issues in the temperature control system:
 - No audit trail of system operations
 
 ### Solution
-Implemented comprehensive logging to `logs/kasa_error_log.jsonl`:
+Implemented comprehensive logging to `logs/kasa_activity_monitoring.jsonl`:
 - Log when commands are sent (heating/cooling ON/OFF)
 - Log when responses are received (success/failure)
 - Use JSONL format for easy analysis
@@ -68,7 +68,7 @@ Implemented comprehensive logging to `logs/kasa_error_log.jsonl`:
 **`logger.py`** (36 lines added):
 ```python
 def log_kasa_command(mode, url, action, success=None, error=None):
-    """Log Kasa plug commands and responses to kasa_error_log.jsonl."""
+    """Log Kasa plug commands and responses to kasa_activity_monitoring.jsonl."""
 ```
 
 **`app.py`** (4 strategic insertions):
@@ -186,18 +186,18 @@ tail -f /path/to/app.log | grep "Blocking"
 ### Analyze Kasa Command Log
 ```bash
 # View all commands
-cat logs/kasa_error_log.jsonl | jq '.'
+cat logs/kasa_activity_monitoring.jsonl | jq '.'
 
 # Find failures
-cat logs/kasa_error_log.jsonl | jq 'select(.success == false)'
+cat logs/kasa_activity_monitoring.jsonl | jq 'select(.success == false)'
 
 # Calculate success rate
-total=$(cat logs/kasa_error_log.jsonl | jq 'select(.success != null)' | wc -l)
-success=$(cat logs/kasa_error_log.jsonl | jq 'select(.success == true)' | wc -l)
+total=$(cat logs/kasa_activity_monitoring.jsonl | jq 'select(.success != null)' | wc -l)
+success=$(cat logs/kasa_activity_monitoring.jsonl | jq 'select(.success == true)' | wc -l)
 echo "Success rate: $((success * 100 / total))%"
 
 # Show timeline
-cat logs/kasa_error_log.jsonl | jq -r '[.timestamp, .mode, .action, .success // "sent"] | @tsv'
+cat logs/kasa_activity_monitoring.jsonl | jq -r '[.timestamp, .mode, .action, .success // "sent"] | @tsv'
 ```
 
 ---
@@ -215,8 +215,8 @@ cat logs/kasa_error_log.jsonl | jq -r '[.timestamp, .mode, .action, .success // 
 3. Restart the application
 4. Verify logs are being created:
    ```bash
-   ls -lh logs/kasa_error_log.jsonl
-   tail -f logs/kasa_error_log.jsonl
+   ls -lh logs/kasa_activity_monitoring.jsonl
+   tail -f logs/kasa_activity_monitoring.jsonl
    ```
 
 ### Rollback Plan
@@ -261,7 +261,7 @@ All requirements met ✅
 3. **Monitor** logs for first 24 hours
 
 ### Future Enhancements
-1. **Log Rotation**: Implement automatic rotation of `kasa_error_log.jsonl`
+1. **Log Rotation**: Implement automatic rotation of `kasa_activity_monitoring.jsonl`
 2. **Web UI**: Add viewer for Kasa command logs
 3. **Metrics Dashboard**: Display reliability metrics
 4. **Alerting**: Notify when error rate exceeds threshold

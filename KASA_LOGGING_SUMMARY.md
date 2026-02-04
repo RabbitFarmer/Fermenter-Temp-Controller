@@ -6,7 +6,7 @@
 
 ## Requirements
 
-**Original Issue**: "Post heater and/or cooling switch (on/off) commands and Kasa plug response to kasa_error_log.jsonl"
+**Original Issue**: "Post heater and/or cooling switch (on/off) commands and Kasa plug response to kasa_activity_monitoring.jsonl"
 
 **Interpretation**: Log all temperature control commands sent to Kasa smart plugs and their responses to a dedicated JSONL log file for audit trail and debugging purposes.
 
@@ -16,7 +16,7 @@
 
 1. **Logging Function** (`logger.py`)
    - Created `log_kasa_command()` function
-   - Logs to `logs/kasa_error_log.jsonl` in JSONL format
+   - Logs to `logs/kasa_activity_monitoring.jsonl` in JSONL format
    - Handles commands, success responses, and failure responses
    - Includes timestamps, mode, URL, action, success status, and error messages
 
@@ -84,7 +84,7 @@
 ```python
 def log_kasa_command(mode, url, action, success=None, error=None):
     """
-    Log Kasa plug commands and responses to kasa_error_log.jsonl.
+    Log Kasa plug commands and responses to kasa_activity_monitoring.jsonl.
     
     Args:
         mode (str): 'heating' or 'cooling'
@@ -176,24 +176,24 @@ log_kasa_command(mode, url, action, success=success, error=error if not success 
 
 ### View Recent Commands
 ```bash
-tail -f logs/kasa_error_log.jsonl | jq '.'
+tail -f logs/kasa_activity_monitoring.jsonl | jq '.'
 ```
 
 ### Find Failed Commands
 ```bash
-cat logs/kasa_error_log.jsonl | jq 'select(.success == false)'
+cat logs/kasa_activity_monitoring.jsonl | jq 'select(.success == false)'
 ```
 
 ### Calculate Success Rate
 ```bash
-total=$(cat logs/kasa_error_log.jsonl | jq 'select(.success != null)' | wc -l)
-success=$(cat logs/kasa_error_log.jsonl | jq 'select(.success == true)' | wc -l)
+total=$(cat logs/kasa_activity_monitoring.jsonl | jq 'select(.success != null)' | wc -l)
+success=$(cat logs/kasa_activity_monitoring.jsonl | jq 'select(.success == true)' | wc -l)
 echo "Success rate: $success/$total"
 ```
 
 ### Show Timeline
 ```bash
-cat logs/kasa_error_log.jsonl | jq -r '[.timestamp, .mode, .action, .success // "sent"] | @tsv'
+cat logs/kasa_activity_monitoring.jsonl | jq -r '[.timestamp, .mode, .action, .success // "sent"] | @tsv'
 ```
 
 ## Files Changed
@@ -257,17 +257,17 @@ After deployment, verify logging is working:
 
 1. **Check log file exists**:
    ```bash
-   ls -lh logs/kasa_error_log.jsonl
+   ls -lh logs/kasa_activity_monitoring.jsonl
    ```
 
 2. **Verify entries are being added**:
    ```bash
-   tail -f logs/kasa_error_log.jsonl
+   tail -f logs/kasa_activity_monitoring.jsonl
    ```
 
 3. **Validate JSONL format**:
    ```bash
-   cat logs/kasa_error_log.jsonl | jq '.' > /dev/null && echo "Valid JSONL"
+   cat logs/kasa_activity_monitoring.jsonl | jq '.' > /dev/null && echo "Valid JSONL"
    ```
 
 ### Maintenance

@@ -23,7 +23,7 @@ def test_integration_kasa_logging():
     print("\nSimulating a complete temperature control cycle:")
     print("  1. Heater turns ON when temp drops")
     print("  2. Heater turns OFF when temp rises")
-    print("  3. Commands and responses logged to kasa_error_log.jsonl")
+    print("  3. Commands and responses logged to kasa_activity_monitoring.jsonl")
     print("=" * 80)
     
     # Create a temporary logs directory
@@ -41,7 +41,7 @@ def test_integration_kasa_logging():
         
         from logger import log_kasa_command
         
-        log_file = os.path.join(temp_logs_dir, 'kasa_error_log.jsonl')
+        log_file = os.path.join(temp_logs_dir, 'kasa_activity_monitoring.jsonl')
         
         # Simulate a complete heating cycle
         print("\n" + "-" * 80)

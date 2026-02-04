@@ -1,0 +1,109 @@
+================================================================================
+EXAMPLE: kasa_activity_monitoring.jsonl Output
+================================================================================
+
+This shows what the log file looks like during a typical temperature control
+cycle with heating and cooling operations.
+
+File: logs/kasa_activity_monitoring.jsonl
+Format: JSONL (one JSON object per line)
+
+--------------------------------------------------------------------------------
+SCENARIO 1: Temperature drops - heating turns ON
+--------------------------------------------------------------------------------
+
+{"timestamp": "2026-02-04T10:15:23.456789Z", "mode": "heating", "url": "192.168.1.100", "action": "on"}
+{"timestamp": "2026-02-04T10:15:23.567890Z", "mode": "heating", "url": "192.168.1.100", "action": "on", "success": true}
+
+EXPLANATION:
+- Line 1: Command sent to turn heater ON
+- Line 2: Kasa plug confirmed heater is now ON
+
+--------------------------------------------------------------------------------
+SCENARIO 2: Temperature rises - heating turns OFF
+--------------------------------------------------------------------------------
+
+{"timestamp": "2026-02-04T10:25:45.678901Z", "mode": "heating", "url": "192.168.1.100", "action": "off"}
+{"timestamp": "2026-02-04T10:25:45.789012Z", "mode": "heating", "url": "192.168.1.100", "action": "off", "success": true}
+
+EXPLANATION:
+- Line 1: Command sent to turn heater OFF
+- Line 2: Kasa plug confirmed heater is now OFF
+
+--------------------------------------------------------------------------------
+SCENARIO 3: Temperature rises too high - cooling turns ON (with retry)
+--------------------------------------------------------------------------------
+
+{"timestamp": "2026-02-04T10:35:12.890123Z", "mode": "cooling", "url": "192.168.1.101", "action": "on"}
+{"timestamp": "2026-02-04T10:35:15.901234Z", "mode": "cooling", "url": "192.168.1.101", "action": "on", "success": false, "error": "Connection timeout"}
+{"timestamp": "2026-02-04T10:35:26.012345Z", "mode": "cooling", "url": "192.168.1.101", "action": "on"}
+{"timestamp": "2026-02-04T10:35:26.123456Z", "mode": "cooling", "url": "192.168.1.101", "action": "on", "success": true}
+
+EXPLANATION:
+- Line 1: Command sent to turn cooler ON
+- Line 2: Kasa plug failed to respond (timeout)
+- Line 3: Retry - command sent again
+- Line 4: Kasa plug confirmed cooler is now ON
+
+--------------------------------------------------------------------------------
+SCENARIO 4: Temperature drops - cooling turns OFF
+--------------------------------------------------------------------------------
+
+{"timestamp": "2026-02-04T10:45:34.234567Z", "mode": "cooling", "url": "192.168.1.101", "action": "off"}
+{"timestamp": "2026-02-04T10:45:34.345678Z", "mode": "cooling", "url": "192.168.1.101", "action": "off", "success": true}
+
+EXPLANATION:
+- Line 1: Command sent to turn cooler OFF
+- Line 2: Kasa plug confirmed cooler is now OFF
+
+================================================================================
+ANALYSIS EXAMPLES
+================================================================================
+
+1. VIEW ALL ENTRIES (formatted):
+   $ cat logs/kasa_activity_monitoring.jsonl | jq '.'
+
+2. FIND ALL FAILURES:
+   $ cat logs/kasa_activity_monitoring.jsonl | jq 'select(.success == false)'
+   
+   Output:
+   {
+     "timestamp": "2026-02-04T10:35:15.901234Z",
+     "mode": "cooling",
+     "url": "192.168.1.101",
+     "action": "on",
+     "success": false,
+     "error": "Connection timeout"
+   }
+
+3. COUNT COMMANDS BY MODE:
+   $ cat logs/kasa_activity_monitoring.jsonl | jq -r '.mode' | sort | uniq -c
+   
+   Output:
+   4 cooling
+   4 heating
+
+4. CALCULATE SUCCESS RATE:
+   $ total=$(cat logs/kasa_activity_monitoring.jsonl | jq 'select(.success != null)' | wc -l)
+   $ success=$(cat logs/kasa_activity_monitoring.jsonl | jq 'select(.success == true)' | wc -l)
+   $ echo "Success rate: $success/$total = $((success * 100 / total))%"
+   
+   Output:
+   Success rate: 3/4 = 75%
+
+5. SHOW TIMELINE (compact view):
+   $ cat logs/kasa_activity_monitoring.jsonl | jq -r '[.timestamp[11:19], .mode[0:4], .action, .success // "sent"] | @tsv'
+   
+   Output:
+   10:15:23    heat    on      sent
+   10:15:23    heat    on      true
+   10:25:45    heat    off     sent
+   10:25:45    heat    off     true
+   10:35:12    cool    on      sent
+   10:35:15    cool    on      false
+   10:35:26    cool    on      sent
+   10:35:26    cool    on      true
+   10:45:34    cool    off     sent
+   10:45:34    cool    off     true
+
+================================================================================

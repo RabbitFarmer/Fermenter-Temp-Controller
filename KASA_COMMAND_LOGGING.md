@@ -1,7 +1,7 @@
 # Kasa Command and Response Logging
 
 **Date**: February 4, 2026  
-**Feature**: Log all Kasa plug commands and responses to `kasa_error_log.jsonl`  
+**Feature**: Log all Kasa plug commands and responses to `kasa_activity_monitoring.jsonl`  
 **Branch**: copilot/redesign-temperature-control-system
 
 ## Overview
@@ -23,9 +23,9 @@ This made it difficult to:
 
 ## Solution Implemented
 
-### New Log File: `logs/kasa_error_log.jsonl`
+### New Log File: `logs/kasa_activity_monitoring.jsonl`
 
-All Kasa plug commands and responses are now logged to `logs/kasa_error_log.jsonl` in JSONL (JSON Lines) format.
+All Kasa plug commands and responses are now logged to `logs/kasa_activity_monitoring.jsonl` in JSONL (JSON Lines) format.
 
 ### What Gets Logged
 
@@ -71,7 +71,7 @@ Added to `logger.py`:
 ```python
 def log_kasa_command(mode, url, action, success=None, error=None):
     """
-    Log Kasa plug commands and responses to kasa_error_log.jsonl.
+    Log Kasa plug commands and responses to kasa_activity_monitoring.jsonl.
     
     Args:
         mode: 'heating' or 'cooling'
@@ -122,36 +122,36 @@ The log file uses **JSONL (JSON Lines)** format:
 
 **Display all entries:**
 ```bash
-cat logs/kasa_error_log.jsonl | jq '.'
+cat logs/kasa_activity_monitoring.jsonl | jq '.'
 ```
 
 **Show only failed commands:**
 ```bash
-cat logs/kasa_error_log.jsonl | jq 'select(.success == false)'
+cat logs/kasa_activity_monitoring.jsonl | jq 'select(.success == false)'
 ```
 
 **Count commands by mode:**
 ```bash
-cat logs/kasa_error_log.jsonl | jq -r '.mode' | sort | uniq -c
+cat logs/kasa_activity_monitoring.jsonl | jq -r '.mode' | sort | uniq -c
 ```
 
 **Show timeline of heating commands:**
 ```bash
-cat logs/kasa_error_log.jsonl | jq 'select(.mode == "heating") | {timestamp, action, success}'
+cat logs/kasa_activity_monitoring.jsonl | jq 'select(.mode == "heating") | {timestamp, action, success}'
 ```
 
 ### Analyzing Patterns
 
 **Find all timeouts:**
 ```bash
-grep "timeout" logs/kasa_error_log.jsonl | jq '.'
+grep "timeout" logs/kasa_activity_monitoring.jsonl | jq '.'
 ```
 
 **Calculate command success rate:**
 ```python
 import json
 
-with open('logs/kasa_error_log.jsonl') as f:
+with open('logs/kasa_activity_monitoring.jsonl') as f:
     entries = [json.loads(line) for line in f if 'success' in json.loads(line)]
     
 successes = sum(1 for e in entries if e['success'])
@@ -209,7 +209,7 @@ Two comprehensive test suites validate the feature:
 
 1. **logger.py**
    - Added `log_kasa_command()` function
-   - Implements JSONL logging to `logs/kasa_error_log.jsonl`
+   - Implements JSONL logging to `logs/kasa_activity_monitoring.jsonl`
 
 2. **app.py**
    - Imported `log_kasa_command` function
@@ -235,13 +235,13 @@ Two comprehensive test suites validate the feature:
 ```
 Fermenter-Temp-Controller/
 ├── logs/
-│   ├── kasa_error_log.jsonl    ← NEW: Commands and responses
+│   ├── kasa_activity_monitoring.jsonl    ← NEW: Commands and responses
 │   ├── kasa_errors.log         ← OLD: Legacy error-only log
 │   ├── error.log
 │   └── warning.log
 ```
 
-**Note:** The old `kasa_errors.log` file is still maintained for backward compatibility. It receives only error messages via the `log_error()` function, while `kasa_error_log.jsonl` receives all commands and responses.
+**Note:** The old `kasa_errors.log` file is still maintained for backward compatibility. It receives only error messages via the `log_error()` function, while `kasa_activity_monitoring.jsonl` receives all commands and responses.
 
 ## Backward Compatibility
 
@@ -255,7 +255,7 @@ Fermenter-Temp-Controller/
 
 Potential improvements for future versions:
 
-1. **Log Rotation**: Implement automatic rotation of `kasa_error_log.jsonl` when it reaches a certain size
+1. **Log Rotation**: Implement automatic rotation of `kasa_activity_monitoring.jsonl` when it reaches a certain size
 2. **Web UI Viewer**: Add a web page to view/filter Kasa command logs
 3. **Metrics Dashboard**: Calculate and display plug reliability metrics
 4. **Alerting**: Send notifications when error rate exceeds threshold

@@ -3096,7 +3096,7 @@ def kasa_result_listener():
             
             print(f"[KASA_RESULT] Received result: mode={mode}, action={action}, success={success}, url={url}, error={error}")
             
-            # Log the response to kasa_error_log.jsonl
+            # Log the response to kasa_activity_monitoring.jsonl
             log_kasa_command(mode, url, action, success=success, error=error if not success else None)
             
             if mode == 'heating':

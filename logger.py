@@ -20,7 +20,7 @@ def log_error(msg):
 
 def log_kasa_command(mode, url, action, success=None, error=None):
     """
-    Log Kasa plug commands and responses to kasa_error_log.jsonl.
+    Log Kasa plug commands and responses to kasa_activity_monitoring.jsonl.
     
     Args:
         mode (str): Mode of operation. Expected values: 'heating' or 'cooling'
@@ -49,7 +49,7 @@ def log_kasa_command(mode, url, action, success=None, error=None):
     """
     try:
         ensure_log_dir()
-        log_file = os.path.join(LOG_DIR, 'kasa_error_log.jsonl')
+        log_file = os.path.join(LOG_DIR, 'kasa_activity_monitoring.jsonl')
         
         entry = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -67,7 +67,7 @@ def log_kasa_command(mode, url, action, success=None, error=None):
         with open(log_file, 'a') as f:
             f.write(json.dumps(entry) + "\n")
     except Exception as e:
-        print(f"[LOG] Failed to log to kasa_error_log.jsonl: {e}")
+        print(f"[LOG] Failed to log to kasa_activity_monitoring.jsonl: {e}")
 
 # --- General event logging and notifications ---
 LOG_DIR = "logs"

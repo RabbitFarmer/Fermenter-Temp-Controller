@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test for Kasa command and response logging to kasa_error_log.jsonl.
+Test for Kasa command and response logging to kasa_activity_monitoring.jsonl.
 
 This test validates that:
 1. Commands sent to Kasa plugs are logged
@@ -17,7 +17,7 @@ import shutil
 from datetime import datetime
 
 def test_kasa_command_logging():
-    """Test that Kasa commands and responses are logged to kasa_error_log.jsonl."""
+    """Test that Kasa commands and responses are logged to kasa_activity_monitoring.jsonl."""
     print("=" * 80)
     print("TEST: KASA COMMAND AND RESPONSE LOGGING")
     print("=" * 80)
@@ -37,7 +37,7 @@ def test_kasa_command_logging():
         
         from logger import log_kasa_command
         
-        log_file = os.path.join(temp_logs_dir, 'kasa_error_log.jsonl')
+        log_file = os.path.join(temp_logs_dir, 'kasa_activity_monitoring.jsonl')
         
         print("\n" + "-" * 80)
         print("Test 1: Log heating command sent")
