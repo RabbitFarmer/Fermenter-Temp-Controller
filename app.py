@@ -2767,6 +2767,22 @@ def temperature_control_logic():
     low = temp_cfg.get("low_limit")
     high = temp_cfg.get("high_limit")
     
+    # CRITICAL FIX: Ensure limits are numeric types to prevent comparison failures
+    # If limits are None or non-numeric, comparisons will raise TypeError which gets
+    # caught by exception handler, preventing control commands from being sent.
+    # This caused heating to continue even when temp >= high_limit.
+    try:
+        if low is not None:
+            low = float(low)
+    except (ValueError, TypeError):
+        low = None
+    
+    try:
+        if high is not None:
+            high = float(high)
+    except (ValueError, TypeError):
+        high = None
+    
     # Check if temp control monitoring is active
     is_monitoring_active = bool(temp_cfg.get("temp_control_active"))
 
@@ -2861,7 +2877,7 @@ def temperature_control_logic():
     # - Turn ON when temp <= low_limit
     # - Turn OFF when temp >= high_limit
     if enable_heat:
-        if temp <= low:
+        if low is not None and temp <= low:
             # Temperature at or below low limit - turn heating ON
             control_heating("on")
             current_action = "Heating"
@@ -2875,7 +2891,7 @@ def temperature_control_logic():
                 temp_cfg["below_limit_trigger_armed"] = False
                 # Arm the above_limit trigger for when temp rises to high limit
                 temp_cfg["above_limit_trigger_armed"] = True
-        elif temp >= high:
+        elif high is not None and temp >= high:
             # Temperature at or above high limit - turn heating OFF
             control_heating("off")
             # Arm the below_limit trigger for when temp drops to low limit again
@@ -2889,7 +2905,7 @@ def temperature_control_logic():
     # - Turn ON when temp >= high_limit
     # - Turn OFF when temp <= low_limit
     if enable_cool:
-        if temp >= high:
+        if high is not None and temp >= high:
             # Temperature at or above high limit - turn cooling ON
             control_cooling("on")
             current_action = "Cooling"
@@ -2903,7 +2919,7 @@ def temperature_control_logic():
                 temp_cfg["above_limit_trigger_armed"] = False
                 # Arm the below_limit trigger for when temp drops to low limit
                 temp_cfg["below_limit_trigger_armed"] = True
-        elif temp <= low:
+        elif low is not None and temp <= low:
             # Temperature at or below low limit - turn cooling OFF
             control_cooling("off")
             # Arm the above_limit trigger for when temp rises to high limit again
@@ -4169,10 +4185,39 @@ def update_temp_config():
         old_tilt_color = temp_cfg.get("tilt_color", "")
         new_tilt_color = data.get('tilt_color', '')
         
+        # Parse and validate temperature limits
+        # Preserve existing values if form fields are empty or invalid
+        low_limit_value = data.get('low_limit', '').strip()
+        high_limit_value = data.get('high_limit', '').strip()
+        
+        # Only update low_limit if a valid value is provided
+        if low_limit_value:
+            try:
+                low_limit = float(low_limit_value)
+            except (ValueError, TypeError):
+                # Invalid value - keep existing
+                low_limit = temp_cfg.get("low_limit", 0.0)
+                print(f"[LOG] Invalid low_limit value '{low_limit_value}', keeping existing value {low_limit}")
+        else:
+            # Empty field - keep existing value
+            low_limit = temp_cfg.get("low_limit", 0.0)
+        
+        # Only update high_limit if a valid value is provided
+        if high_limit_value:
+            try:
+                high_limit = float(high_limit_value)
+            except (ValueError, TypeError):
+                # Invalid value - keep existing
+                high_limit = temp_cfg.get("high_limit", 100.0)
+                print(f"[LOG] Invalid high_limit value '{high_limit_value}', keeping existing value {high_limit}")
+        else:
+            # Empty field - keep existing value
+            high_limit = temp_cfg.get("high_limit", 100.0)
+        
         temp_cfg.update({
             "tilt_color": new_tilt_color,
-            "low_limit": float(data.get('low_limit', 0)),
-            "high_limit": float(data.get('high_limit', 100)),
+            "low_limit": low_limit,
+            "high_limit": high_limit,
             "enable_heating": 'enable_heating' in data,
             "enable_cooling": 'enable_cooling' in data,
             "heating_plug": data.get("heating_plug", ""),
