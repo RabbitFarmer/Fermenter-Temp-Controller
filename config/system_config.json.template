@@ -6,7 +6,5 @@
   "push_provider": "pushover",
   "pushover_user_key": "",
   "pushover_api_token": "",
-  "tilt_inactivity_timeout_minutes": 30,
-  "chart_temp_margin": 1.0,
-  "chart_gravity_margin": 0.005
+  "tilt_inactivity_timeout_minutes": 30
 }

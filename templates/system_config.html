@@ -145,7 +145,7 @@
               <label for="update_interval"><b>Update Interval (minutes)</b></label>
               <div style="font-size:0.85em;color:#666;margin-top:4px;">Frequency of control loop checks for temperature adjustments and readings</div>
             </td>
-            <td><input type="number" name="update_interval" id="update_interval" value="{{ system_settings.get('update_interval','1') }}"></td>
+            <td><input type="number" name="update_interval" id="update_interval" value="{{ system_settings.get('update_interval','2') }}"></td>
           </tr>
           <tr>
             <td><label for="tilt_logging_interval_minutes"><b>Tilt Reading Logging Interval (minutes)</b></label></td>
@@ -163,21 +163,6 @@
             </td>
             <td><input type="number" name="kasa_rate_limit_seconds" id="kasa_rate_limit_seconds" value="{{ system_settings.get('kasa_rate_limit_seconds', 10) }}"></td>
           </tr>
-          
-          <tr>
-            <td>
-              <label for="chart_temp_margin"><b>Chart Temperature Margin (°F)</b></label>
-              <div style="font-size:0.85em;color:#666;margin-top:4px;">Degrees to add above/below min/max temperature on charts (default: 1.0)</div>
-            </td>
-            <td><input type="number" name="chart_temp_margin" id="chart_temp_margin" step="0.1" min="0" value="{{ system_settings.get('chart_temp_margin', 1.0) }}"></td>
-          </tr>
-          
-          <tr>
-            <td>
-              <label for="chart_gravity_margin"><b>Chart Gravity Margin (SG)</b></label>
-              <div style="font-size:0.85em;color:#666;margin-top:4px;">Specific gravity units to add above/below min/max on gravity charts (default: 0.005)</div>
-            </td>
-            <td><input type="number" name="chart_gravity_margin" id="chart_gravity_margin" step="0.001" min="0" value="{{ system_settings.get('chart_gravity_margin', 0.005) }}"></td>
           </tr>
         </table>
 
