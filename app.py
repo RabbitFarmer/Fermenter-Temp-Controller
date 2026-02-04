@@ -105,8 +105,9 @@ MAX_ALL_LIMIT = 10000
 MAX_FILENAME_LENGTH = 50
 
 # In-memory buffer for temperature control readings
-# Stores recent readings at update_interval frequency without logging to file
+# Stores recent readings in memory (not immediately written to file)
 # Max 1440 entries = 2 days at 2-minute intervals (prevents memory bloat)
+# Readings can be exported to CSV if needed
 TEMP_READING_BUFFER_SIZE = 1440
 temp_reading_buffer = deque(maxlen=TEMP_READING_BUFFER_SIZE)
 
@@ -361,8 +362,8 @@ def log_periodic_temp_reading():
     iteration to record temperature readings for the temperature control chart.
     
     The readings are stored in memory (not logged to file) to avoid creating
-    excessive log entries (720/day at 2-min intervals). The in-memory buffer
-    is limited to TEMP_READING_BUFFER_SIZE entries (default 1440 = 2 days).
+    excessive log entries. The in-memory buffer is limited to TEMP_READING_BUFFER_SIZE 
+    entries (default 1440 = 2 days at 2-minute intervals, prevents memory bloat).
     
     The readings are used for:
     - Chart visualization (/chart_data/Fermenter endpoint)
@@ -370,8 +371,9 @@ def log_periodic_temp_reading():
     - CSV export if users want granular detail
     
     The readings are logged at the configured update_interval (default 2 minutes),
-    which is separate from Tilt readings that are logged at tilt_logging_interval_minutes
-    (default 15 minutes) for fermentation monitoring.
+    which is the same interval at which the temperature control loop runs.
+    This is separate from Tilt readings for fermentation monitoring which are 
+    logged at tilt_logging_interval_minutes (default 15 minutes).
     
     Unlike file-based event logging, this bypasses the enable_heating/enable_cooling
     gate to ensure readings are recorded whenever temperature control monitoring
@@ -831,7 +833,7 @@ def log_tilt_reading(color, gravity, temp_f, rssi):
     
     if is_control_tilt:
         # Use system_cfg['update_interval'] for temperature control tilt
-        # This is the "Temperature Control Logging Interval" setting in System Settings
+        # This keeps control tilt logging synchronized with the temperature control loop
         try:
             interval_minutes = int(system_cfg.get('update_interval', 2))
         except (ValueError, TypeError):
@@ -3797,7 +3799,6 @@ def update_system_config():
         "timestamp_format": data.get("timestamp_format", ""),
         "display_mode": data.get("display_mode", "4"),
         "update_interval": data.get("update_interval", "2"),
-        "temp_logging_interval": data.get("temp_logging_interval", system_cfg.get('temp_logging_interval', 10)),
         "external_refresh_rate": data.get("external_refresh_rate", system_cfg.get("external_refresh_rate", "15")),
         "external_urls": external_urls,  # New format
         "warning_mode": data.get("warning_mode", "NONE"),

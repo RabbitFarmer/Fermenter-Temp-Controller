@@ -7,8 +7,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
     /* small spacing tweaks to match your UI */
-    .config-table input[type="text"], .config-table input[type="email"], .config-table input[type="number"], .config-table input[type="password"], .config-table select, .config-table textarea {
+    .config-table input[type="text"], .config-table input[type="email"], .config-table input[type="password"], .config-table select, .config-table textarea {
       width: 100%;
+      box-sizing: border-box;
+      padding: 6px;
+    }
+    .config-table input[type="number"] {
+      width: 100px;  /* Smaller width for number fields */
       box-sizing: border-box;
       padding: 6px;
     }
@@ -143,17 +148,16 @@
           <tr>
             <td>
               <label for="update_interval"><b>Update Interval (minutes)</b></label>
-              <div style="font-size:0.85em;color:#666;margin-top:4px;">Frequency of control loop checks for temperature adjustments and readings</div>
+              <div style="font-size:0.85em;color:#666;margin-top:4px;">How often to run temperature control checks and log readings (controls both loop frequency and logging)</div>
             </td>
             <td><input type="number" name="update_interval" id="update_interval" value="{{ system_settings.get('update_interval','2') }}"></td>
           </tr>
           <tr>
-            <td><label for="tilt_logging_interval_minutes"><b>Tilt Reading Logging Interval (minutes)</b></label></td>
+            <td>
+              <label for="tilt_logging_interval_minutes"><b>Tilt Reading Logging Interval (minutes)</b></label>
+              <div style="font-size:0.85em;color:#666;margin-top:4px;">How often to log Tilt hydrometer readings for fermentation tracking (gravity, temperature, etc.)</div>
+            </td>
             <td><input type="number" name="tilt_logging_interval_minutes" id="tilt_logging_interval_minutes" value="{{ system_settings.get('tilt_logging_interval_minutes','15') }}"></td>
-          </tr>
-          <tr>
-            <td><label for="temp_logging_interval"><b>Temperature Control Logging Interval (minutes)</b></label></td>
-            <td><input type="number" name="temp_logging_interval" id="temp_logging_interval" value="{{ system_settings.get('temp_logging_interval','') }}"></td>
           </tr>
 
           <tr>
