@@ -2436,7 +2436,7 @@ Change since yesterday: {change_since_yesterday:.3f}"""
         
         # Update last_daily_report timestamp after successful logging
         state['last_daily_report'] = datetime.utcnow().isoformat()
-            save_notification_state_to_config(color, brewid)
+        save_notification_state_to_config(color, brewid)
 
 # --- Kasa command dedupe & rate limit -------------------------------------
 _last_kasa_command = {}
