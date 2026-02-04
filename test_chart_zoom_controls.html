@@ -26,7 +26,7 @@
     <strong>New Features:</strong><br>
     1. Curving lines (spline shape)<br>
     2. Limit lines start at first data point (no line from left border)<br>
-    3. Zoom In/Out/Reset controls<br>
+    3. Zoom In/Out/Reset controls - <strong>ZOOM CENTERS ON LAST DATA POINT</strong><br>
     4. Time range filters (1 Day, 1 Week, All Data)
   </div>
   <div class="zoom-controls">
@@ -201,18 +201,20 @@
       currentViewMode = activeMode;
     }
     
-    // Zoom in function
+    // Zoom in function - centers on the last data point
     document.getElementById('zoom-in').addEventListener('click', () => {
       const chart = document.getElementById('tempChart');
       const currentRange = chart.layout.xaxis.range;
-      if (currentRange && currentRange.length === 2) {
+      if (currentRange && currentRange.length === 2 && defaultXRange) {
         const start = new Date(currentRange[0]);
         const end = new Date(currentRange[1]);
         const duration = end - start;
         const newDuration = duration * 0.5;  // Zoom in by 50%
-        const center = new Date((start.getTime() + end.getTime()) / 2);
-        const newStart = new Date(center.getTime() - newDuration / 2);
-        const newEnd = new Date(center.getTime() + newDuration / 2);
+        
+        // Center on the last data point (most recent data)
+        const lastDataPoint = new Date(defaultXRange[1]);
+        const newStart = new Date(lastDataPoint.getTime() - newDuration);
+        const newEnd = lastDataPoint;
         
         Plotly.relayout('tempChart', {
           'xaxis.range': [newStart, newEnd]
@@ -220,25 +222,28 @@
       }
     });
     
-    // Zoom out function
+    // Zoom out function - centers on the last data point
     document.getElementById('zoom-out').addEventListener('click', () => {
       const chart = document.getElementById('tempChart');
       const currentRange = chart.layout.xaxis.range;
-      if (currentRange && currentRange.length === 2) {
+      if (currentRange && currentRange.length === 2 && defaultXRange) {
         const start = new Date(currentRange[0]);
         const end = new Date(currentRange[1]);
         const duration = end - start;
         const newDuration = duration * 2;  // Zoom out by 100%
-        const center = new Date((start.getTime() + end.getTime()) / 2);
-        let newStart = new Date(center.getTime() - newDuration / 2);
-        let newEnd = new Date(center.getTime() + newDuration / 2);
+        
+        // Center on the last data point (most recent data)
+        const lastDataPoint = new Date(defaultXRange[1]);
+        let newStart = new Date(lastDataPoint.getTime() - newDuration);
+        let newEnd = lastDataPoint;
         
         // Don't zoom out beyond the default range
-        if (defaultXRange) {
-          const defaultStart = new Date(defaultXRange[0]);
-          const defaultEnd = new Date(defaultXRange[1]);
-          if (newStart < defaultStart) newStart.setTime(defaultStart.getTime());
-          if (newEnd > defaultEnd) newEnd.setTime(defaultEnd.getTime());
+        const defaultStart = new Date(defaultXRange[0]);
+        const defaultEnd = new Date(defaultXRange[1]);
+        if (newStart < defaultStart) {
+          newStart = defaultStart;
+          // Keep the end at the last data point unless it goes beyond default
+          if (newEnd > defaultEnd) newEnd = defaultEnd;
         }
         
         Plotly.relayout('tempChart', {
