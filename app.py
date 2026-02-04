@@ -71,7 +71,7 @@ except Exception:
 
 # Import log_error and log_kasa_command for kasa logging
 try:
-    from logger import log_error, log_kasa_command, log_notification
+    from logger import log_error, log_kasa_command, log_notification, log_event
 except Exception:
     def log_error(msg):
         # Fallback if logger is not available
@@ -80,6 +80,9 @@ except Exception:
         # Fallback if logger is not available
         pass
     def log_notification(notification_type, subject, body, success, tilt_color=None, error=None):
+        # Fallback if logger is not available
+        pass
+    def log_event(event_type, message, tilt_color=None):
         # Fallback if logger is not available
         pass
 
@@ -2028,6 +2031,9 @@ Gravity now: {current_gravity:.3f}"""
         # Users can check logs/UI to see if notifications failed
         save_notification_state_to_config(color, brewid)
         
+        # Log the event to batch JSONL and send notification
+        log_event('fermentation_starting', body, tilt_color=color)
+        
         # Queue notification with 10-second delay for deduplication
         queue_pending_notification(
             notification_type='fermentation_start',
@@ -2123,6 +2129,9 @@ Gravity has been stable for 24 hours: {current_gravity:.3f}"""
     # This prevents duplicate notifications even if retry fails
     # Users can check logs/UI to see if notifications failed
     save_notification_state_to_config(color, brewid)
+    
+    # Log the event to batch JSONL and send notification
+    log_event('fermentation_completion', body, tilt_color=color)
     
     # Queue notification with 10-second delay for deduplication
     queue_pending_notification(
@@ -2422,9 +2431,12 @@ Last Gravity: {current_gravity:.3f}
 Net Change: {net_change:.3f}
 Change since yesterday: {change_since_yesterday:.3f}"""
         
-        if attempt_send_notifications(subject, body):
-            state['last_daily_report'] = datetime.utcnow().isoformat()
-            save_notification_state_to_config(color, brewid)
+        # Log the event to batch JSONL and send notification
+        log_event('daily_report', body, tilt_color=color)
+        
+        # Update last_daily_report timestamp to prevent duplicate reports
+        state['last_daily_report'] = datetime.utcnow().isoformat()
+        save_notification_state_to_config(color, brewid)
 
 # --- Kasa command dedupe & rate limit -------------------------------------
 _last_kasa_command = {}
