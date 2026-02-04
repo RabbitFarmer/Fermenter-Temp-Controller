@@ -2746,6 +2746,22 @@ def temperature_control_logic():
     low = temp_cfg.get("low_limit")
     high = temp_cfg.get("high_limit")
     
+    # CRITICAL FIX: Ensure limits are numeric types to prevent comparison failures
+    # If limits are None or non-numeric, comparisons will raise TypeError which gets
+    # caught by exception handler, preventing control commands from being sent.
+    # This caused heating to continue even when temp >= high_limit.
+    try:
+        if low is not None:
+            low = float(low)
+    except (ValueError, TypeError):
+        low = None
+    
+    try:
+        if high is not None:
+            high = float(high)
+    except (ValueError, TypeError):
+        high = None
+    
     # Check if temp control monitoring is active
     is_monitoring_active = bool(temp_cfg.get("temp_control_active"))
 
@@ -2840,7 +2856,7 @@ def temperature_control_logic():
     # - Turn ON when temp <= low_limit
     # - Turn OFF when temp >= high_limit
     if enable_heat:
-        if temp <= low:
+        if low is not None and temp <= low:
             # Temperature at or below low limit - turn heating ON
             control_heating("on")
             current_action = "Heating"
@@ -2854,7 +2870,7 @@ def temperature_control_logic():
                 temp_cfg["below_limit_trigger_armed"] = False
                 # Arm the above_limit trigger for when temp rises to high limit
                 temp_cfg["above_limit_trigger_armed"] = True
-        elif temp >= high:
+        elif high is not None and temp >= high:
             # Temperature at or above high limit - turn heating OFF
             control_heating("off")
             # Arm the below_limit trigger for when temp drops to low limit again
@@ -2868,7 +2884,7 @@ def temperature_control_logic():
     # - Turn ON when temp >= high_limit
     # - Turn OFF when temp <= low_limit
     if enable_cool:
-        if temp >= high:
+        if high is not None and temp >= high:
             # Temperature at or above high limit - turn cooling ON
             control_cooling("on")
             current_action = "Cooling"
@@ -2882,7 +2898,7 @@ def temperature_control_logic():
                 temp_cfg["above_limit_trigger_armed"] = False
                 # Arm the below_limit trigger for when temp drops to low limit
                 temp_cfg["below_limit_trigger_armed"] = True
-        elif temp <= low:
+        elif low is not None and temp <= low:
             # Temperature at or below low limit - turn cooling OFF
             control_cooling("off")
             # Arm the above_limit trigger for when temp rises to high limit again
