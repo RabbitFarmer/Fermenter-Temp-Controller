@@ -64,8 +64,8 @@ class TestChartDynamicRanges(unittest.TestCase):
         self.assertIn('tempMin - margin', html)
         self.assertIn('tempMax + margin', html)
 
-    def test_chart_calculates_gravity_range(self):
-        """Test that chart JavaScript includes gravity range calculation with hardcoded margin."""
+    def test_chart_calculates_gravity_range_with_hardcoded_margin(self):
+        """Test that chart JavaScript includes gravity range calculation with hardcoded 0.002 margin."""
         response = self.client.get('/chart_plotly/Fermenter')
         self.assertEqual(response.status_code, 200)
         html = response.data.decode('utf-8')
