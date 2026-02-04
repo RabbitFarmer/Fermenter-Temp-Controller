@@ -30,6 +30,7 @@
   "in_range_trigger_armed": true,
   "above_limit_trigger_armed": true,
   "below_limit_trigger_armed": true,
+  "log_temp_control_tilt": true,
   "mode": "Heating Selected",
   "status": "Device Offline"
 }

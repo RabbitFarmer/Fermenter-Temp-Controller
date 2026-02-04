@@ -173,6 +173,14 @@
           </div>
 
           <div class="form-row">
+            <label>Logging Options:</label>
+            <div>
+              <label style="display:inline-block; width:auto;"><input type="checkbox" name="log_temp_control_tilt" {% if temp_control.log_temp_control_tilt %}checked{% endif %}> Log Assigned Tilt to temp_control_tilt.jsonl</label>
+            </div>
+            <span class="small">Enable/disable logging of the assigned Tilt's readings to temp_control_tilt.jsonl file.</span>
+          </div>
+
+          <div class="form-row">
             <label for="heating_plug">Heating Plug URL/ID:</label>
             <input id="heating_plug" name="heating_plug" type="text" value="{{ temp_control.heating_plug|default('') }}" placeholder="kasa device host or id">
           </div>

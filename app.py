@@ -558,7 +558,6 @@ live_tilts = {}
 tilt_status = {}
 
 last_tilt_log_ts = {}
-last_temp_control_log_ts = None  # Track last temperature control tilt reading log time
 batch_notification_state = {}  # Track notification state per tilt/brewid
 
 # Notification timing constants
@@ -2726,43 +2725,26 @@ def temperature_control_logic():
                 temp_cfg['current_temp'] = round(temp, 1)
                 # Update timestamp when temperature is read
                 temp_cfg['last_reading_time'] = datetime.utcnow().isoformat() + "Z"
+                
+                # Log temp control tilt reading - ONLY if explicitly assigned AND logging is enabled
+                # Don't log fallback tilts, only log when tilt_color is explicitly set
+                # Check log_temp_control_tilt setting (default True for backward compatibility)
+                tilt_logging_enabled = temp_cfg.get("log_temp_control_tilt", True)
+                assigned_tilt_color = temp_cfg.get("tilt_color")
+                if tilt_logging_enabled and assigned_tilt_color and assigned_tilt_color in live_tilts:
+                    tilt_data = live_tilts[assigned_tilt_color]
+                    gravity = tilt_data.get("gravity")
+                    brewid = tilt_cfg.get(assigned_tilt_color, {}).get("brewid")
+                    beer_name = tilt_cfg.get(assigned_tilt_color, {}).get("beer_name")
+                    log_temp_control_tilt_reading(
+                        tilt_color=assigned_tilt_color,
+                        temperature=temp,
+                        gravity=gravity,
+                        brewid=brewid,
+                        beer_name=beer_name
+                    )
             except Exception:
                 temp = None
-    
-    # Log temp control tilt reading at update_interval rate (separate from fermentation tracking)
-    # This logs at the Temperature Control Logging Interval (default 2 min), not the Tilt Reading
-    # Logging Interval (default 15 min) which is used for fermentation tracking
-    global last_temp_control_log_ts
-    try:
-        control_tilt_color = get_control_tilt_color()
-        if control_tilt_color and control_tilt_color in live_tilts and temp is not None:
-            # Rate limiting based on update_interval (temperature control interval)
-            interval_minutes = int(system_cfg.get('update_interval', 2))
-            now = datetime.utcnow()
-            
-            should_log = False
-            if last_temp_control_log_ts is None:
-                should_log = True
-            else:
-                elapsed = (now - last_temp_control_log_ts).total_seconds() / 60.0
-                if elapsed >= interval_minutes:
-                    should_log = True
-            
-            if should_log:
-                tilt_data = live_tilts[control_tilt_color]
-                gravity = tilt_data.get("gravity")
-                brewid = tilt_cfg.get(control_tilt_color, {}).get("brewid")
-                beer_name = tilt_cfg.get(control_tilt_color, {}).get("beer_name")
-                log_temp_control_tilt_reading(
-                    tilt_color=control_tilt_color,
-                    temperature=temp,
-                    gravity=gravity,
-                    brewid=brewid,
-                    beer_name=beer_name
-                )
-                last_temp_control_log_ts = now
-    except Exception as e:
-        print(f"[LOG] Failed to log temp control tilt reading: {e}")
 
     low = temp_cfg.get("low_limit")
     high = temp_cfg.get("high_limit")
@@ -4220,6 +4202,7 @@ def update_temp_config():
             "high_limit": high_limit,
             "enable_heating": 'enable_heating' in data,
             "enable_cooling": 'enable_cooling' in data,
+            "log_temp_control_tilt": 'log_temp_control_tilt' in data,
             "heating_plug": data.get("heating_plug", ""),
             "cooling_plug": data.get("cooling_plug", ""),
             "mode": data.get("mode", temp_cfg.get('mode','')),
