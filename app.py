@@ -2744,15 +2744,16 @@ def temperature_control_logic():
                 # Update timestamp when temperature is read
                 temp_cfg['last_reading_time'] = datetime.utcnow().isoformat() + "Z"
                 
-                # Log temp control tilt reading
-                control_tilt_color = get_control_tilt_color()
-                if control_tilt_color and control_tilt_color in live_tilts:
-                    tilt_data = live_tilts[control_tilt_color]
+                # Log temp control tilt reading - ONLY if explicitly assigned
+                # Don't log fallback tilts, only log when tilt_color is explicitly set
+                assigned_tilt_color = temp_cfg.get("tilt_color")
+                if assigned_tilt_color and assigned_tilt_color in live_tilts:
+                    tilt_data = live_tilts[assigned_tilt_color]
                     gravity = tilt_data.get("gravity")
-                    brewid = tilt_cfg.get(control_tilt_color, {}).get("brewid")
-                    beer_name = tilt_cfg.get(control_tilt_color, {}).get("beer_name")
+                    brewid = tilt_cfg.get(assigned_tilt_color, {}).get("brewid")
+                    beer_name = tilt_cfg.get(assigned_tilt_color, {}).get("beer_name")
                     log_temp_control_tilt_reading(
-                        tilt_color=control_tilt_color,
+                        tilt_color=assigned_tilt_color,
                         temperature=temp,
                         gravity=gravity,
                         brewid=brewid,
