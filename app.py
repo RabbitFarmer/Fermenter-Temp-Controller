@@ -2434,7 +2434,7 @@ Change since yesterday: {change_since_yesterday:.3f}"""
         # Log the event to batch JSONL and send notification
         log_event('daily_report', body, tilt_color=color)
         
-        # Update last_daily_report timestamp after successful logging
+        # Update last_daily_report timestamp to prevent duplicate reports
         state['last_daily_report'] = datetime.utcnow().isoformat()
         save_notification_state_to_config(color, brewid)
 

@@ -83,6 +83,13 @@ def test_fermentation_starting_calls_log_event():
         print(f"Function content snippet: {func_content[:500]}...")
         return False
     
+    # Verify message/body parameter is passed (should have both event_type and body/message)
+    if "log_event('fermentation_starting', body" in func_content or 'log_event("fermentation_starting", body' in func_content:
+        print("✓ message/body parameter is passed to log_event")
+    else:
+        print("✗ FAIL: message/body parameter is not passed to log_event")
+        return False
+    
     # Verify tilt_color parameter is passed
     if 'tilt_color=color' in func_content:
         print("✓ tilt_color parameter is passed to log_event")
@@ -127,6 +134,13 @@ def test_fermentation_completion_calls_log_event():
         print("✓ log_event('fermentation_completion', ...) is called in check_fermentation_completion")
     else:
         print("✗ FAIL: log_event('fermentation_completion') is not called in check_fermentation_completion")
+        return False
+    
+    # Verify message/body parameter is passed
+    if "log_event('fermentation_completion', body" in func_content or 'log_event("fermentation_completion", body' in func_content:
+        print("✓ message/body parameter is passed to log_event")
+    else:
+        print("✗ FAIL: message/body parameter is not passed to log_event")
         return False
     
     # Verify tilt_color parameter is passed
@@ -176,6 +190,13 @@ def test_daily_report_calls_log_event():
         print("✓ log_event('daily_report', ...) is called in send_daily_report")
     else:
         print("✗ FAIL: log_event('daily_report') is not called in send_daily_report")
+        return False
+    
+    # Verify message/body parameter is passed
+    if "log_event('daily_report', body" in func_content or 'log_event("daily_report", body' in func_content:
+        print("✓ message/body parameter is passed to log_event")
+    else:
+        print("✗ FAIL: message/body parameter is not passed to log_event")
         return False
     
     # Verify tilt_color parameter is passed
