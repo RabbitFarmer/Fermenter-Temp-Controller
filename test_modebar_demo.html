@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Plotly Modebar Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; background: #f6f6f6; }
+    #chart-container { max-width: 1200px; margin: auto; background: #ffffff; border-radius: 4px; padding: 16px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); }
+    #tempChart { height: 500px; }
+    .info { text-align: center; margin: 16px 0; padding: 12px; background: #e8f4f8; border-radius: 4px; }
+    h2 { text-align: center; }
+  </style>
+</head>
+<body>
+  <h2>Plotly Built-in Modebar (Chart Tools) Demo</h2>
+  <div class="info">
+    <strong>Look for the modebar in the top-right corner of the chart!</strong><br>
+    The modebar provides zoom, pan, autoscale, reset, and other tools.<br>
+    Custom zoom buttons have been removed in favor of Plotly's built-in tools.
+  </div>
+  <div id="chart-container">
+    <div id="tempChart"></div>
+  </div>
+
+  <script>
+    // Simulate temperature control data
+    const now = new Date();
+    const baseTime = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000); // 10 days ago
+    
+    // Create sample data points
+    const dataPoints = [];
+    
+    // Temperature readings every 30 minutes for 10 days
+    for (let i = 0; i < 480; i++) {
+      const timestamp = new Date(baseTime.getTime() + i * 30 * 60 * 1000);
+      
+      // Simulate temperature cycling between 64-68°F
+      let temp = 66 + 2 * Math.sin(i / 20) + (Math.random() - 0.5);
+      
+      dataPoints.push({
+        timestamp: timestamp,
+        temp_f: temp,
+        tilt_color: 'Blue',
+        low_limit: 64,
+        high_limit: 68
+      });
+    }
+    
+    // Add heating events
+    const heatingEvents = [];
+    for (let i = 0; i < 480; i += 20) {
+      heatingEvents.push({
+        timestamp: dataPoints[i].timestamp,
+        temp_f: dataPoints[i].temp_f,
+        event: 'HEATING-PLUG TURNED ON'
+      });
+      if (i + 5 < 480) {
+        heatingEvents.push({
+          timestamp: dataPoints[i + 5].timestamp,
+          temp_f: dataPoints[i + 5].temp_f,
+          event: 'HEATING-PLUG TURNED OFF'
+        });
+      }
+    }
+    
+    // Create traces
+    const traces = [];
+    
+    // Temperature trace
+    traces.push({
+      type: 'scatter',
+      x: dataPoints.map(p => p.timestamp),
+      y: dataPoints.map(p => p.temp_f),
+      mode: 'lines',
+      name: 'Blue Tilt',
+      line: { color: '#0000FF', shape: 'linear', width: 1.5 },
+      yaxis: 'y1',
+      connectgaps: false,
+    });
+    
+    // Heating markers
+    traces.push({
+      type: 'scatter',
+      x: heatingEvents.map(p => p.timestamp),
+      y: heatingEvents.map(p => p.temp_f),
+      mode: 'markers',
+      name: 'Heating Control',
+      marker: { 
+        color: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'red' : 'pink'),
+        size: 12,
+        symbol: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'triangle-up' : 'triangle-down'),
+        line: { color: 'darkred', width: 1 }
+      },
+      yaxis: 'y1',
+      showlegend: true,
+    });
+    
+    // Limit lines
+    const limitLineStart = dataPoints[0].timestamp;
+    const limitLineEnd = dataPoints[dataPoints.length - 1].timestamp;
+    
+    traces.push({
+      type: 'scatter',
+      x: [limitLineStart, limitLineEnd],
+      y: [64, 64],
+      mode: 'lines',
+      name: 'Low Limit',
+      line: { color: 'red', width: 1, dash: 'solid' },
+      yaxis: 'y1',
+      showlegend: true,
+      hoverinfo: 'y',
+    });
+    
+    traces.push({
+      type: 'scatter',
+      x: [limitLineStart, limitLineEnd],
+      y: [68, 68],
+      mode: 'lines',
+      name: 'High Limit',
+      line: { color: 'red', width: 1, dash: 'solid' },
+      yaxis: 'y1',
+      showlegend: true,
+      hoverinfo: 'y',
+    });
+    
+    // Calculate x-axis range
+    const xAxisRange = [dataPoints[0].timestamp, dataPoints[dataPoints.length - 1].timestamp];
+    
+    // Layout
+    const layout = {
+      title: {
+        text: '<b style="font-size: 24px;">TEMPERATURE CONTROL ACTIVITY</b>',
+        font: { size: 20 },
+      },
+      xaxis: {
+        title: 'Timestamp',
+        titlefont: { size: 12 },
+        gridcolor: '#eaf2f5',
+        range: xAxisRange,
+        autorange: false,
+        rangemode: 'normal',
+      },
+      yaxis: {
+        title: 'Temperature (°F)',
+        titlefont: { color: 'blue', size: 12 },
+        tickfont: { color: 'blue', size: 10 },
+        gridcolor: '#eaf2f5',
+        range: [62, 70],
+      },
+      showlegend: true,
+      legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
+      margin: { l: 50, r: 50, t: 70, b: 80 },
+    };
+    
+    // Plotly configuration to show the modebar (chart tools)
+    const config = {
+      displayModeBar: true,
+      modeBarButtonsToRemove: [],
+      displaylogo: false,
+      responsive: true
+    };
+    
+    Plotly.newPlot('tempChart', traces, layout, config);
+  </script>
+</body>
+</html>
