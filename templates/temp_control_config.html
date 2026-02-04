@@ -203,14 +203,6 @@
       </div>
 
       <div class="section">
-        <h2>Temperature Control Logs</h2>
-        <div style="margin-top:8px;">
-          <a href="/temp_report" class="btn secondary">View Logs</a>
-          <a href="/export_temp_csv" class="btn secondary" style="margin-left:8px;">Export Logs</a>
-        </div>
-      </div>
-
-      <div class="section">
         <h2>Runtime Status</h2>
         <div class="form-row"><label>Mode:</label> <strong>{{ temp_control.mode|default('Off') }}</strong></div>
         <div class="form-row"><label>Status:</label> <strong>{{ temp_control.status|default('Unknown') }}</strong></div>
