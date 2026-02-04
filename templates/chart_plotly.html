@@ -562,6 +562,10 @@
     // Add export functionality for temperature control
     {% if tilt_color == "Fermenter" %}
     
+    // Constants for time range calculations
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+    
     // Store the default x-axis range for reset functionality
     let defaultXRange = null;
     let currentViewMode = 'all';  // Track current view mode: 'all', '1day', '1week'
@@ -646,7 +650,7 @@
       const chart = document.getElementById('tempChart');
       if (defaultXRange && defaultXRange.length === 2) {
         const end = new Date(defaultXRange[1]);
-        const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);  // 1 day before end
+        const start = new Date(end.getTime() - MS_PER_DAY);
         
         // Don't go before the actual data start
         const defaultStart = new Date(defaultXRange[0]);
@@ -664,7 +668,7 @@
       const chart = document.getElementById('tempChart');
       if (defaultXRange && defaultXRange.length === 2) {
         const end = new Date(defaultXRange[1]);
-        const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);  // 7 days before end
+        const start = new Date(end.getTime() - MS_PER_WEEK);
         
         // Don't go before the actual data start
         const defaultStart = new Date(defaultXRange[0]);

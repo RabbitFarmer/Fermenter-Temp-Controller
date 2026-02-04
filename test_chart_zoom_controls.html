@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Temp Control Chart - Zoom Controls Test</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; background: #f6f6f6; }
+    #chart-container { max-width: 1200px; margin: auto; background: #ffffff; border-radius: 4px; padding: 16px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); }
+    #tempChart { height: 500px; }
+    .controls { text-align: center; margin: 12px 0; }
+    .controls button { padding: 6px 16px; margin: 0 4px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .controls button:hover { background-color: #45a049; }
+    .zoom-controls { text-align: center; margin: 12px 0; }
+    .zoom-controls button { padding: 6px 16px; margin: 0 4px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .zoom-controls button:hover { background-color: #0b7dda; }
+    .zoom-controls button.active { background-color: #0d47a1; }
+    h2 { text-align: center; }
+    .info { text-align: center; margin: 16px 0; padding: 12px; background: #e8f4f8; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h2>Temperature Control Chart - NEW Features Test</h2>
+  <div class="info">
+    <strong>New Features:</strong><br>
+    1. Curving lines (spline shape)<br>
+    2. Limit lines start at first data point (no line from left border)<br>
+    3. Zoom In/Out/Reset controls<br>
+    4. Time range filters (1 Day, 1 Week, All Data)
+  </div>
+  <div class="zoom-controls">
+    <button id="zoom-in">Zoom In</button>
+    <button id="zoom-out">Zoom Out</button>
+    <button id="reset-zoom">Reset Zoom</button>
+    <span style="margin: 0 12px;">|</span>
+    <button id="view-1day">1 Day</button>
+    <button id="view-1week">1 Week</button>
+    <button id="view-all" class="active">All Data</button>
+  </div>
+  <div id="chart-container">
+    <div id="tempChart"></div>
+  </div>
+
+  <script>
+    // Simulate temperature control data
+    const now = new Date();
+    const baseTime = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000); // 10 days ago
+    
+    // Create sample data points
+    const dataPoints = [];
+    
+    // Temperature readings every 30 minutes for 10 days
+    for (let i = 0; i < 480; i++) {
+      const timestamp = new Date(baseTime.getTime() + i * 30 * 60 * 1000);
+      
+      // Simulate temperature cycling between 64-68°F
+      let temp = 66 + 2 * Math.sin(i / 20) + (Math.random() - 0.5);
+      
+      dataPoints.push({
+        timestamp: timestamp,
+        temp_f: temp,
+        tilt_color: 'Blue',
+        low_limit: 64,
+        high_limit: 68
+      });
+    }
+    
+    // Add heating events
+    const heatingEvents = [];
+    for (let i = 0; i < 480; i += 20) {
+      heatingEvents.push({
+        timestamp: dataPoints[i].timestamp,
+        temp_f: dataPoints[i].temp_f,
+        event: 'HEATING-PLUG TURNED ON'
+      });
+      if (i + 5 < 480) {
+        heatingEvents.push({
+          timestamp: dataPoints[i + 5].timestamp,
+          temp_f: dataPoints[i + 5].temp_f,
+          event: 'HEATING-PLUG TURNED OFF'
+        });
+      }
+    }
+    
+    // Create traces
+    const traces = [];
+    
+    // Temperature trace with SPLINE shape
+    traces.push({
+      type: 'scatter',
+      x: dataPoints.map(p => p.timestamp),
+      y: dataPoints.map(p => p.temp_f),
+      mode: 'lines',
+      name: 'Blue Tilt',
+      line: { color: '#0000FF', shape: 'spline', width: 1.5 },
+      yaxis: 'y1',
+      connectgaps: false,
+    });
+    
+    // Heating markers
+    traces.push({
+      type: 'scatter',
+      x: heatingEvents.map(p => p.timestamp),
+      y: heatingEvents.map(p => p.temp_f),
+      mode: 'markers',
+      name: 'Heating Control',
+      marker: { 
+        color: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'red' : 'pink'),
+        size: 12,
+        symbol: heatingEvents.map(p => p.event === 'HEATING-PLUG TURNED ON' ? 'triangle-up' : 'triangle-down'),
+        line: { color: 'darkred', width: 1 }
+      },
+      yaxis: 'y1',
+      showlegend: true,
+    });
+    
+    // Limit lines - START AT FIRST DATA POINT (not axis border)
+    const limitLineStart = dataPoints[0].timestamp;
+    const limitLineEnd = dataPoints[dataPoints.length - 1].timestamp;
+    
+    traces.push({
+      type: 'scatter',
+      x: [limitLineStart, limitLineEnd],
+      y: [64, 64],
+      mode: 'lines',
+      name: 'Low Limit',
+      line: { color: 'red', width: 1, dash: 'solid' },
+      yaxis: 'y1',
+      showlegend: true,
+      hoverinfo: 'y',
+    });
+    
+    traces.push({
+      type: 'scatter',
+      x: [limitLineStart, limitLineEnd],
+      y: [68, 68],
+      mode: 'lines',
+      name: 'High Limit',
+      line: { color: 'red', width: 1, dash: 'solid' },
+      yaxis: 'y1',
+      showlegend: true,
+      hoverinfo: 'y',
+    });
+    
+    // Calculate x-axis range
+    const xAxisRange = [dataPoints[0].timestamp, dataPoints[dataPoints.length - 1].timestamp];
+    
+    // Layout
+    const layout = {
+      title: {
+        text: '<b style="font-size: 24px;">TEMPERATURE CONTROL ACTIVITY - TEST</b>',
+        font: { size: 20 },
+      },
+      xaxis: {
+        title: 'Timestamp',
+        titlefont: { size: 12 },
+        gridcolor: '#eaf2f5',
+        range: xAxisRange,
+        autorange: false,
+        rangemode: 'normal',
+      },
+      yaxis: {
+        title: 'Temperature (°F)',
+        titlefont: { color: 'blue', size: 12 },
+        tickfont: { color: 'blue', size: 10 },
+        gridcolor: '#eaf2f5',
+        range: [62, 70],
+      },
+      showlegend: true,
+      legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
+      margin: { l: 50, r: 50, t: 70, b: 80 },
+    };
+    
+    Plotly.newPlot('tempChart', traces, layout);
+    
+    // Constants for time range calculations
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+    
+    // Store default range
+    let defaultXRange = xAxisRange;
+    let currentViewMode = 'all';
+    
+    // Function to update button active states
+    function updateViewButtonStates(activeMode) {
+      const buttons = {
+        'all': document.getElementById('view-all'),
+        '1day': document.getElementById('view-1day'),
+        '1week': document.getElementById('view-1week')
+      };
+      
+      Object.keys(buttons).forEach(mode => {
+        if (mode === activeMode) {
+          buttons[mode].classList.add('active');
+        } else {
+          buttons[mode].classList.remove('active');
+        }
+      });
+      
+      currentViewMode = activeMode;
+    }
+    
+    // Zoom in function
+    document.getElementById('zoom-in').addEventListener('click', () => {
+      const chart = document.getElementById('tempChart');
+      const currentRange = chart.layout.xaxis.range;
+      if (currentRange && currentRange.length === 2) {
+        const start = new Date(currentRange[0]);
+        const end = new Date(currentRange[1]);
+        const duration = end - start;
+        const newDuration = duration * 0.5;  // Zoom in by 50%
+        const center = new Date((start.getTime() + end.getTime()) / 2);
+        const newStart = new Date(center.getTime() - newDuration / 2);
+        const newEnd = new Date(center.getTime() + newDuration / 2);
+        
+        Plotly.relayout('tempChart', {
+          'xaxis.range': [newStart, newEnd]
+        });
+      }
+    });
+    
+    // Zoom out function
+    document.getElementById('zoom-out').addEventListener('click', () => {
+      const chart = document.getElementById('tempChart');
+      const currentRange = chart.layout.xaxis.range;
+      if (currentRange && currentRange.length === 2) {
+        const start = new Date(currentRange[0]);
+        const end = new Date(currentRange[1]);
+        const duration = end - start;
+        const newDuration = duration * 2;  // Zoom out by 100%
+        const center = new Date((start.getTime() + end.getTime()) / 2);
+        let newStart = new Date(center.getTime() - newDuration / 2);
+        let newEnd = new Date(center.getTime() + newDuration / 2);
+        
+        // Don't zoom out beyond the default range
+        if (defaultXRange) {
+          const defaultStart = new Date(defaultXRange[0]);
+          const defaultEnd = new Date(defaultXRange[1]);
+          if (newStart < defaultStart) newStart.setTime(defaultStart.getTime());
+          if (newEnd > defaultEnd) newEnd.setTime(defaultEnd.getTime());
+        }
+        
+        Plotly.relayout('tempChart', {
+          'xaxis.range': [newStart, newEnd]
+        });
+      }
+    });
+    
+    // Reset zoom function
+    document.getElementById('reset-zoom').addEventListener('click', () => {
+      if (defaultXRange) {
+        Plotly.relayout('tempChart', {
+          'xaxis.range': defaultXRange
+        });
+      }
+      updateViewButtonStates(currentViewMode);
+    });
+    
+    // 1 Day view function
+    document.getElementById('view-1day').addEventListener('click', () => {
+      const chart = document.getElementById('tempChart');
+      if (defaultXRange && defaultXRange.length === 2) {
+        const end = new Date(defaultXRange[1]);
+        let start = new Date(end.getTime() - MS_PER_DAY);
+        
+        // Don't go before the actual data start
+        const defaultStart = new Date(defaultXRange[0]);
+        if (start < defaultStart) start.setTime(defaultStart.getTime());
+        
+        Plotly.relayout('tempChart', {
+          'xaxis.range': [start, end]
+        });
+        updateViewButtonStates('1day');
+      }
+    });
+    
+    // 1 Week view function
+    document.getElementById('view-1week').addEventListener('click', () => {
+      const chart = document.getElementById('tempChart');
+      if (defaultXRange && defaultXRange.length === 2) {
+        const end = new Date(defaultXRange[1]);
+        let start = new Date(end.getTime() - MS_PER_WEEK);
+        
+        // Don't go before the actual data start
+        const defaultStart = new Date(defaultXRange[0]);
+        if (start < defaultStart) start.setTime(defaultStart.getTime());
+        
+        Plotly.relayout('tempChart', {
+          'xaxis.range': [start, end]
+        });
+        updateViewButtonStates('1week');
+      }
+    });
+    
+    // All data view function
+    document.getElementById('view-all').addEventListener('click', () => {
+      if (defaultXRange) {
+        Plotly.relayout('tempChart', {
+          'xaxis.range': defaultXRange
+        });
+        updateViewButtonStates('all');
+      }
+    });
+  </script>
+</body>
+</html>
