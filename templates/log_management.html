@@ -90,23 +90,6 @@
         </div>
       </div>
 
-      <!-- Temperature Control Tilt Log Section -->
-      <div class="section">
-        <div class="section-title">Temperature Control Tilt Log</div>
-        <div class="file-row">
-          <div class="file-info">
-            <div class="file-name">temp_control_tilt.jsonl</div>
-            <div class="file-size">{{ temp_control_tilt_log_size }}</div>
-          </div>
-          <div class="file-actions">
-            <a href="/view_log?file=temp_control_tilt.jsonl&type=temp_tilt" class="btn btn-secondary">[VIEW]</a>
-            <form action="/archive_temp_tilt_log" method="POST" style="display:inline;" onsubmit="return confirm('Archive this log? A backup will be created and the log will be reset.');">
-              <button type="submit" class="btn btn-warning">Archive & Reset</button>
-            </form>
-          </div>
-        </div>
-      </div>
-
       <!-- Notifications Log Section -->
       <div class="section">
         <div class="section-title">Notifications Log</div>

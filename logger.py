@@ -74,7 +74,6 @@ def log_kasa_command(mode, url, action, success=None, error=None):
 LOG_DIR = "logs"
 BATCHES_DIR = "batches"
 TEMP_CONTROL_LOG = 'temp_control/temp_control_log.jsonl'
-TEMP_CONTROL_TILT_LOG = 'logs/temp_control_tilt.jsonl'
 
 # Temperature control event types (go to temp_control_log.jsonl)
 TEMP_CONTROL_EVENTS = {
@@ -232,44 +231,6 @@ def log_notification(notification_type, subject, body, success, tilt_color=None,
             f.write(json.dumps(entry) + "\n")
     except Exception as e:
         print(f"[LOG] Failed to log to notifications_log.jsonl: {e}")
-
-def log_temp_control_tilt_reading(tilt_color, temperature, gravity, brewid=None, beer_name=None):
-    """
-    Log tilt readings for the tilt assigned to temperature control to temp_control_tilt.jsonl.
-    
-    Args:
-        tilt_color (str): Color of the tilt being used for temp control
-        temperature (float): Temperature reading from the tilt
-        gravity (float): Specific gravity reading from the tilt
-        brewid (str|None): Brew ID if available
-        beer_name (str|None): Beer name if available
-    
-    Log Entry Format:
-        {"timestamp": "...", "local_time": "...", "tilt_color": "...", "temperature": ..., "gravity": ..., 
-         "brewid": "...", "beer_name": "..."}
-    """
-    try:
-        ensure_log_dir()
-        log_file = TEMP_CONTROL_TILT_LOG
-        
-        entry = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "local_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "tilt_color": tilt_color,
-            "temperature": temperature,
-            "gravity": gravity,
-        }
-        
-        if brewid:
-            entry["brewid"] = brewid
-        
-        if beer_name:
-            entry["beer_name"] = beer_name
-        
-        with open(log_file, 'a') as f:
-            f.write(json.dumps(entry) + "\n")
-    except Exception as e:
-        print(f"[LOG] Failed to log to temp_control_tilt.jsonl: {e}")
 
 def send_notification(event_type, message, tilt_color=None):
     """
