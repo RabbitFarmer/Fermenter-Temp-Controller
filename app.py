@@ -4166,10 +4166,39 @@ def update_temp_config():
         old_tilt_color = temp_cfg.get("tilt_color", "")
         new_tilt_color = data.get('tilt_color', '')
         
+        # Parse and validate temperature limits
+        # Preserve existing values if form fields are empty or invalid
+        low_limit_value = data.get('low_limit', '').strip()
+        high_limit_value = data.get('high_limit', '').strip()
+        
+        # Only update low_limit if a valid value is provided
+        if low_limit_value:
+            try:
+                low_limit = float(low_limit_value)
+            except (ValueError, TypeError):
+                # Invalid value - keep existing
+                low_limit = temp_cfg.get("low_limit", 0.0)
+                print(f"[LOG] Invalid low_limit value '{low_limit_value}', keeping existing value {low_limit}")
+        else:
+            # Empty field - keep existing value
+            low_limit = temp_cfg.get("low_limit", 0.0)
+        
+        # Only update high_limit if a valid value is provided
+        if high_limit_value:
+            try:
+                high_limit = float(high_limit_value)
+            except (ValueError, TypeError):
+                # Invalid value - keep existing
+                high_limit = temp_cfg.get("high_limit", 100.0)
+                print(f"[LOG] Invalid high_limit value '{high_limit_value}', keeping existing value {high_limit}")
+        else:
+            # Empty field - keep existing value
+            high_limit = temp_cfg.get("high_limit", 100.0)
+        
         temp_cfg.update({
             "tilt_color": new_tilt_color,
-            "low_limit": float(data.get('low_limit', 0)),
-            "high_limit": float(data.get('high_limit', 100)),
+            "low_limit": low_limit,
+            "high_limit": high_limit,
             "enable_heating": 'enable_heating' in data,
             "enable_cooling": 'enable_cooling' in data,
             "heating_plug": data.get("heating_plug", ""),
