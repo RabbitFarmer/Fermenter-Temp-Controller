@@ -73,6 +73,57 @@
         </div>
       </div>
 
+      <!-- Kasa Activity Log Section -->
+      <div class="section">
+        <div class="section-title">Kasa Activity Log</div>
+        <div class="file-row">
+          <div class="file-info">
+            <div class="file-name">kasa_activity_monitoring.jsonl</div>
+            <div class="file-size">{{ kasa_log_size }}</div>
+          </div>
+          <div class="file-actions">
+            <a href="/view_log?file=kasa_activity_monitoring.jsonl&type=kasa" class="btn btn-secondary">[VIEW]</a>
+            <form action="/archive_kasa_log" method="POST" style="display:inline;" onsubmit="return confirm('Archive this log? A backup will be created and the log will be reset.');">
+              <button type="submit" class="btn btn-warning">Archive & Reset</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Temperature Control Tilt Log Section -->
+      <div class="section">
+        <div class="section-title">Temperature Control Tilt Log</div>
+        <div class="file-row">
+          <div class="file-info">
+            <div class="file-name">temp_control_tilt.jsonl</div>
+            <div class="file-size">{{ temp_control_tilt_log_size }}</div>
+          </div>
+          <div class="file-actions">
+            <a href="/view_log?file=temp_control_tilt.jsonl&type=temp_tilt" class="btn btn-secondary">[VIEW]</a>
+            <form action="/archive_temp_tilt_log" method="POST" style="display:inline;" onsubmit="return confirm('Archive this log? A backup will be created and the log will be reset.');">
+              <button type="submit" class="btn btn-warning">Archive & Reset</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications Log Section -->
+      <div class="section">
+        <div class="section-title">Notifications Log</div>
+        <div class="file-row">
+          <div class="file-info">
+            <div class="file-name">notifications_log.jsonl</div>
+            <div class="file-size">{{ notifications_log_size }}</div>
+          </div>
+          <div class="file-actions">
+            <a href="/view_log?file=notifications_log.jsonl&type=notifications" class="btn btn-secondary">[VIEW]</a>
+            <form action="/archive_notifications_log" method="POST" style="display:inline;" onsubmit="return confirm('Archive this log? A backup will be created and the log will be reset.');">
+              <button type="submit" class="btn btn-warning">Archive & Reset</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
       <!-- Application Logs Section -->
       <div class="section">
         <div class="section-title">Application Logs</div>
