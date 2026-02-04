@@ -3704,7 +3704,7 @@ def update_system_config():
         "timezone": data.get("timezone", ""),
         "timestamp_format": data.get("timestamp_format", ""),
         "display_mode": data.get("display_mode", "4"),
-        "update_interval": data.get("update_interval", "1"),
+        "update_interval": data.get("update_interval", "2"),
         "temp_logging_interval": data.get("temp_logging_interval", system_cfg.get('temp_logging_interval', 10)),
         "external_refresh_rate": data.get("external_refresh_rate", system_cfg.get("external_refresh_rate", "15")),
         "external_urls": external_urls,  # New format
@@ -3715,8 +3715,6 @@ def update_system_config():
         "smtp_starttls": 'smtp_starttls' in data,
         "kasa_rate_limit_seconds": data.get("kasa_rate_limit_seconds", system_cfg.get('kasa_rate_limit_seconds', 10)),
         "tilt_logging_interval_minutes": int(data.get("tilt_logging_interval_minutes", system_cfg.get("tilt_logging_interval_minutes", 15))),
-        "chart_temp_margin": float(data.get("chart_temp_margin", system_cfg.get("chart_temp_margin", 1.0))),
-        "chart_gravity_margin": float(data.get("chart_gravity_margin", system_cfg.get("chart_gravity_margin", 0.005))),
         # Push notification provider settings
         "push_provider": data.get("push_provider", system_cfg.get("push_provider", "pushover")),
         "pushover_user_key": data.get("pushover_user_key", system_cfg.get("pushover_user_key", "")),

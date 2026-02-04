@@ -37,7 +37,6 @@
 
   <script>
     const tiltColor = "{{ tilt_color or '' }}";
-    const chartTempMargin = {{ system_settings.get('chart_temp_margin', 1.0) }};
     {% if tilt_color == "Fermenter" %}
     const beerName = "Temperature Control";
     const batchName = "N/A";
@@ -203,16 +202,11 @@
         let tempMax = Math.max(...temps);
         let tempRange = null;
         if (temps.length > 0 && isFinite(tempMin) && isFinite(tempMax)) {
-          if (isTempControl) {
-            // For temperature control, use data-driven range with 10% margin or minimum of 5°F margin
-            const dataRange = tempMax - tempMin;
-            const margin = Math.max(dataRange * 0.1, 5);  // 10% of range or 5°F minimum
-            tempMin = tempMin - margin;
-            tempMax = tempMax + margin;
-          } else {
-            tempMin = tempMin - chartTempMargin;
-            tempMax = tempMax + chartTempMargin;
-          }
+          // Use data-driven range with 10% margin or minimum of 5°F margin for all charts
+          const dataRange = tempMax - tempMin;
+          const margin = Math.max(dataRange * 0.1, 5);  // 10% of range or 5°F minimum
+          tempMin = tempMin - margin;
+          tempMax = tempMax + margin;
           tempRange = [tempMin, tempMax];
         } else if (isTempControl) {
           // Default to a reasonable range if no data points for temp control
