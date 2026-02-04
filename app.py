@@ -841,6 +841,12 @@ def log_tilt_reading(color, gravity, temp_f, rssi):
         "og_confirmed": cfg.get("og_confirmed", False)
     }
     
+    # Include temperature control limits in the payload if this is the control tilt
+    # This ensures the control log has complete information for debugging and charting
+    if is_control_tilt:
+        payload["low_limit"] = temp_cfg.get("low_limit")
+        payload["high_limit"] = temp_cfg.get("high_limit")
+    
     # Log to control log
     append_control_log("tilt_reading", payload)
     
