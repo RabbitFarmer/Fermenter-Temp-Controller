@@ -456,8 +456,17 @@ system_cfg = load_json(SYSTEM_CFG_FILE, {})
 
 def ensure_temp_defaults():
     temp_cfg.setdefault("current_temp", None)
-    temp_cfg.setdefault("low_limit", 0.0)
-    temp_cfg.setdefault("high_limit", 0.0)
+    # CRITICAL FIX for issue #289: Handle None values from corrupted config files
+    # If limits are explicitly set to None in the config file, setdefault won't replace them
+    # because the key exists. We need to explicitly check for None and reset to defaults.
+    if temp_cfg.get("low_limit") is None:
+        temp_cfg["low_limit"] = 0.0
+    else:
+        temp_cfg.setdefault("low_limit", 0.0)
+    if temp_cfg.get("high_limit") is None:
+        temp_cfg["high_limit"] = 0.0
+    else:
+        temp_cfg.setdefault("high_limit", 0.0)
     temp_cfg.setdefault("enable_heating", False)
     temp_cfg.setdefault("enable_cooling", False)
     temp_cfg.setdefault("heating_plug", "")
@@ -3484,6 +3493,16 @@ def periodic_temp_control():
                 file_cfg.pop(var, None)
             
             temp_cfg.update(file_cfg)
+            
+            # CRITICAL FIX for issue #289: Ensure temperature limits are never None
+            # If limits are None (e.g., from corrupted config file or initialization issue),
+            # reset them to safe defaults to prevent control logic from failing
+            if temp_cfg.get("low_limit") is None:
+                print("[LOG] WARNING: low_limit is None, resetting to 0.0")
+                temp_cfg["low_limit"] = 0.0
+            if temp_cfg.get("high_limit") is None:
+                print("[LOG] WARNING: high_limit is None, resetting to 0.0")
+                temp_cfg["high_limit"] = 0.0
             
             temperature_control_logic()
             
