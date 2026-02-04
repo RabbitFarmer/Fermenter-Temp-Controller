@@ -74,7 +74,13 @@ echo "Starting the application..."
 # Get the full path to python3 in the venv to ensure it works after script exits
 PYTHON_PATH="$(which python3)"
 
-# Don't set SKIP_BROWSER_OPEN - let the script handle browser opening
+# Let app.py handle browser opening instead of start.sh for better reliability
+# (app.py uses subprocess.Popen with proper detachment which is more reliable)
+# Only set SKIP_BROWSER_OPEN when running via systemd service (headless mode)
+if [ -z "$DISPLAY" ]; then
+    # No display - headless mode, skip browser
+    export SKIP_BROWSER_OPEN=1
+fi
 nohup "$PYTHON_PATH" app.py > app.log 2>&1 &
 APP_PID=$!
 
@@ -135,28 +141,12 @@ if ! curl -s http://127.0.0.1:5000 > /dev/null 2>&1; then
     # Continue anyway - the app might still start
 fi
 
-# Try to open browser if display is available
-# Simplified approach: wait 10 seconds for desktop to be ready, then open browser
+# Browser opening is now handled by app.py for better reliability
+# app.py uses subprocess.Popen with proper detachment which works better
+# during desktop autostart when the desktop environment may not be fully ready
 if [ -n "$DISPLAY" ]; then
-    echo "Display detected ($DISPLAY), will open browser after 10 second delay..."
-    
-    # Wait 10 seconds for desktop environment to fully initialize at boot
-    sleep 10
-    
-    # Open browser in background using nohup
-    if command -v xdg-open > /dev/null 2>&1; then
-        echo "Opening browser with xdg-open..."
-        nohup xdg-open http://127.0.0.1:5000 >/dev/null 2>&1 &
-        echo "✓ Browser command executed"
-        show_notification "Fermenter Ready" "Dashboard opening in browser" "normal"
-    elif command -v open > /dev/null 2>&1; then
-        echo "Opening browser with open (macOS)..."
-        nohup open http://127.0.0.1:5000 >/dev/null 2>&1 &
-        echo "✓ Browser command executed"
-        show_notification "Fermenter Ready" "Dashboard opening in browser" "normal"
-    else
-        echo "⚠️  No browser opener found (xdg-open/open)"
-    fi
+    echo "Display detected ($DISPLAY) - app.py will open browser automatically"
+    show_notification "Fermenter Ready" "Dashboard will open in browser shortly" "normal"
 else
     echo "No display detected - running in headless mode"
 fi

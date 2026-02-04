@@ -6405,9 +6405,41 @@ def open_browser():
     This runs in a separate thread to avoid blocking the Flask startup.
     Uses system commands (xdg-open, open) for better compatibility with
     headless and Raspberry Pi environments.
+    
+    Includes extra delay at boot time to ensure desktop environment is ready.
     """
-    time.sleep(1.5)  # Wait for Flask to start
+    # Wait for Flask to start
+    time.sleep(1.5)
+    
+    # Additional delay if running at boot time (helps ensure desktop is ready)
+    # Check if we've been running for less than 2 minutes (likely boot scenario)
+    try:
+        import psutil
+        process = psutil.Process(os.getpid())
+        uptime = time.time() - process.create_time()
+        if uptime < 120:  # Process created less than 2 minutes ago
+            print("[LOG] Detected recent boot - waiting additional 10 seconds for desktop environment")
+            time.sleep(10)
+    except Exception:
+        # If psutil not available or check fails, add a small delay anyway
+        # This helps with boot scenarios without breaking manual starts
+        time.sleep(3)
+    
     url = 'http://127.0.0.1:5000'
+    
+    # Wait for Flask to actually be responding before trying to open browser
+    max_attempts = 30
+    for attempt in range(max_attempts):
+        try:
+            import urllib.request
+            urllib.request.urlopen(url, timeout=1)
+            print(f"[LOG] Flask is responding, opening browser...")
+            break
+        except Exception:
+            if attempt < max_attempts - 1:
+                time.sleep(1)
+            else:
+                print(f"[LOG] Flask not responding after {max_attempts} seconds, opening browser anyway")
     
     try:
         # Try using system commands first (more reliable on Raspberry Pi)
