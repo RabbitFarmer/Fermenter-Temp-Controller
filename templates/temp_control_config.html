@@ -189,7 +189,7 @@
                    value="{{ temp_control.low_limit if temp_control.low_limit is not none else '' }}" 
                    placeholder="e.g., 65.0"
                    min="32" max="212" required>
-            <span class="small">Required. Heating turns ON when temp drops to or below this value (32-212°F).</span>
+            <span class="small">Required</span>
           </div>
 
           <div class="form-row">
@@ -198,7 +198,7 @@
                    value="{{ temp_control.high_limit if temp_control.high_limit is not none else '' }}" 
                    placeholder="e.g., 68.0"
                    min="32" max="212" required>
-            <span class="small">Required. Heating turns OFF when temp rises to or above this value (32-212°F). Must be greater than Low Limit.</span>
+            <span class="small">Required and greater than Low Limit</span>
           </div>
 
           <div class="form-row">
@@ -207,7 +207,6 @@
               <label style="display:inline-block; width:auto;"><input type="checkbox" name="enable_heating" {% if temp_control.enable_heating %}checked{% endif %}> Enable Heating</label>
               <label style="display:inline-block; width:auto; margin-left:12px;"><input type="checkbox" name="enable_cooling" {% if temp_control.enable_cooling %}checked{% endif %}> Enable Cooling</label>
             </div>
-            <span class="small">Note: Temperature control update interval is configured in System Settings (default: 2 minutes). Tilt logging interval is separate (default: 15 minutes).</span>
           </div>
 
           <div class="form-row">
@@ -236,8 +235,37 @@
         <h2>Runtime Status</h2>
         <div class="form-row"><label>Mode:</label> <strong>{{ temp_control.mode|default('Off') }}</strong></div>
         <div class="form-row"><label>Status:</label> <strong>{{ temp_control.status|default('Unknown') }}</strong></div>
-        <div class="form-row"><label>Heater On:</label> <span>{{ 'Yes' if temp_control.heater_on else 'No' }}</span></div>
-        <div class="form-row"><label>Cooler On:</label> <span>{{ 'Yes' if temp_control.cooler_on else 'No' }}</span></div>
+        
+        <!-- Heating Status -->
+        <div class="form-row">
+          <label>Heating:</label>
+          <span>
+            {% if temp_control.enable_heating %}
+              <strong>Selected</strong>
+              {% if heating_last_activity %}
+                <br><span class="small">Last Activity: {{ heating_last_activity.date }} {{ heating_last_activity.time }} - {{ heating_last_activity.action }}</span>
+              {% endif %}
+            {% else %}
+              <strong>Not Selected</strong>
+            {% endif %}
+          </span>
+        </div>
+        
+        <!-- Cooling Status -->
+        <div class="form-row">
+          <label>Cooler:</label>
+          <span>
+            {% if temp_control.enable_cooling %}
+              <strong>Selected</strong>
+              {% if cooling_last_activity %}
+                <br><span class="small">Last Activity: {{ cooling_last_activity.date }} {{ cooling_last_activity.time }} - {{ cooling_last_activity.action }}</span>
+              {% endif %}
+            {% else %}
+              <strong>Not Selected</strong>
+            {% endif %}
+          </span>
+        </div>
+        
         <div class="form-row"><label>Last Notification:</label> <span>{{ temp_control.notification_last_sent|default('never') }}</span></div>
       </div>
 
