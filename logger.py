@@ -18,6 +18,39 @@ def log_error(msg):
     print(msg)  # Terminal output
     logging.error(msg)  # Log to kasa_errors.log
 
+def log_kasa_command(mode, url, action, success=None, error=None):
+    """
+    Log Kasa plug commands and responses to kasa_error_log.jsonl.
+    
+    Args:
+        mode: 'heating' or 'cooling'
+        url: IP address or hostname of the plug
+        action: 'on' or 'off'
+        success: True/False/None (None = command sent, not yet responded)
+        error: Error message if command failed
+    """
+    try:
+        ensure_log_dir()
+        log_file = os.path.join(LOG_DIR, 'kasa_error_log.jsonl')
+        
+        entry = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "mode": mode,
+            "url": url,
+            "action": action,
+        }
+        
+        if success is not None:
+            entry["success"] = success
+        
+        if error:
+            entry["error"] = error
+        
+        with open(log_file, 'a') as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception as e:
+        print(f"[LOG] Failed to log to kasa_error_log.jsonl: {e}")
+
 # --- General event logging and notifications ---
 LOG_DIR = "logs"
 BATCHES_DIR = "batches"

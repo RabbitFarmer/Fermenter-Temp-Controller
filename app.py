@@ -69,13 +69,16 @@ try:
 except Exception:
     psutil = None
 
-# Import log_error for kasa error logging
+# Import log_error and log_kasa_command for kasa logging
 try:
-    from logger import log_error
+    from logger import log_error, log_kasa_command
 except Exception:
     def log_error(msg):
         # Fallback if logger is not available
         print(f"[ERROR] {msg}")
+    def log_kasa_command(mode, url, action, success=None, error=None):
+        # Fallback if logger is not available
+        pass
 
 app = Flask(__name__)
 
@@ -2573,6 +2576,8 @@ def control_heating(state):
         print(f"[TEMP_CONTROL] Skipping heating {state} command (redundant or rate-limited)")
         return
     print(f"[TEMP_CONTROL] Sending heating {state.upper()} command to {url}")
+    # Log the command being sent
+    log_kasa_command('heating', url, state)
     kasa_queue.put({'mode': 'heating', 'url': url, 'action': state})
     # NOTE: _record_kasa_command is now called in kasa_result_listener only on success
     # This allows failed commands to be retried without rate limiting
@@ -2660,6 +2665,8 @@ def control_cooling(state):
         print(f"[TEMP_CONTROL] Skipping cooling {state} command (redundant or rate-limited)")
         return
     print(f"[TEMP_CONTROL] Sending cooling {state.upper()} command to {url}")
+    # Log the command being sent
+    log_kasa_command('cooling', url, state)
     kasa_queue.put({'mode': 'cooling', 'url': url, 'action': state})
     # NOTE: _record_kasa_command is now called in kasa_result_listener only on success
     # This allows failed commands to be retried without rate limiting
@@ -3088,6 +3095,9 @@ def kasa_result_listener():
             error = result.get('error', '')
             
             print(f"[KASA_RESULT] Received result: mode={mode}, action={action}, success={success}, url={url}, error={error}")
+            
+            # Log the response to kasa_error_log.jsonl
+            log_kasa_command(mode, url, action, success=success, error=error if not success else None)
             
             if mode == 'heating':
                 temp_cfg["heater_pending"] = False
