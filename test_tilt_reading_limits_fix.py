@@ -2,7 +2,7 @@
 """
 Test to verify that tilt reading SAMPLE events include temperature control limits.
 
-This test reproduces the issue from GitHub issue #275 where:
+This test reproduces the issue from GitHub issues #287/#289 (continuation of #275) where:
 - Temperature readings are logged with null low_limit and high_limit
 - This causes confusion when debugging temperature control issues
 - The fix ensures control tilt readings include the temperature limits
@@ -210,9 +210,9 @@ def test_non_control_tilt_no_limits():
     
     print("✓ TEST PASSED: Non-control tilt readings correctly exclude limits")
 
-def test_issue_275_scenario():
-    """Reproduce the exact scenario from issue #275"""
-    print("\n=== Test: Issue #275 scenario ===")
+def test_issue_287_289_scenario():
+    """Reproduce the exact scenario from issues #287 and #289"""
+    print("\n=== Test: Issues #287/#289 scenario ===")
     print("Scenario:")
     print("  - High limit: 75F")
     print("  - Low limit: 74F")
@@ -259,7 +259,7 @@ def test_issue_275_scenario():
     assert last_entry["low_limit"] == 74.0, "Low limit should be 74F"
     
     print("✓ All log entries have correct limits")
-    print("✓ TEST PASSED: Issue #275 scenario now logs limits correctly")
+    print("✓ TEST PASSED: Issues #287/#289 scenario now logs limits correctly")
     print("\nWith this fix, the temperature control logic will have access to:")
     print(f"  - temp={last_entry['temp_f']}F")
     print(f"  - high_limit={last_entry['high_limit']}F")
@@ -270,7 +270,7 @@ def test_issue_275_scenario():
 try:
     test_control_tilt_includes_limits()
     test_non_control_tilt_no_limits()
-    test_issue_275_scenario()
+    test_issue_287_289_scenario()
     
     print("\n" + "="*70)
     print("✓ ALL TESTS PASSED")
@@ -279,7 +279,7 @@ try:
     print("- Control tilt readings now include low_limit and high_limit in SAMPLE events")
     print("- This ensures the temp_control_log.jsonl has complete information")
     print("- Non-control tilts still exclude limits (as expected)")
-    print("- This fix resolves the confusion from issue #275")
+    print("- This fix resolves the confusion from issues #287 and #289")
     
 except AssertionError as e:
     print(f"\n✗ TEST FAILED: {e}")
