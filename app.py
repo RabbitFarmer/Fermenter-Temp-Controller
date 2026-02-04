@@ -3869,10 +3869,10 @@ def update_system_config():
 @app.route('/test_email', methods=['POST'])
 def test_email():
     """Test email notification with current settings"""
+    subject = "TEST - Fermenter Controller"
+    body = "*** TEST MESSAGE ***\n\nThis is a TEST email from your Fermenter Temperature Controller.\n\nIf you received this, your email settings are configured correctly!\n\n*** TEST MESSAGE ***"
+    
     try:
-        subject = "TEST - Fermenter Controller"
-        body = "*** TEST MESSAGE ***\n\nThis is a TEST email from your Fermenter Temperature Controller.\n\nIf you received this, your email settings are configured correctly!\n\n*** TEST MESSAGE ***"
-        
         success, error_msg = send_email(subject, body)
         
         # Log the test notification attempt
@@ -3911,14 +3911,14 @@ def test_email():
 @app.route('/test_push', methods=['POST'])
 def test_push():
     """Test push notification with current settings"""
+    # Determine which provider is configured
+    push_provider = system_cfg.get("push_provider", "pushover").lower()
+    provider_name = "Pushover" if push_provider == "pushover" else "ntfy"
+    
+    subject = "TEST - Fermenter Controller"
+    body = f"*** TEST MESSAGE *** This is a TEST push notification from your Fermenter Temperature Controller. If you received this, your {provider_name} settings are configured correctly! *** TEST MESSAGE ***"
+    
     try:
-        # Determine which provider is configured
-        push_provider = system_cfg.get("push_provider", "pushover").lower()
-        provider_name = "Pushover" if push_provider == "pushover" else "ntfy"
-        
-        subject = "TEST - Fermenter Controller"
-        body = f"*** TEST MESSAGE *** This is a TEST push notification from your Fermenter Temperature Controller. If you received this, your {provider_name} settings are configured correctly! *** TEST MESSAGE ***"
-        
         success, error_msg = send_push(body, subject=subject)
         
         # Log the test notification attempt
@@ -3944,8 +3944,8 @@ def test_push():
         # Log exception
         log_notification(
             notification_type='push',
-            subject=subject if 'subject' in locals() else 'TEST - Fermenter Controller',
-            body=body if 'body' in locals() else 'Test message',
+            subject=subject,
+            body=body,
             success=False,
             error=str(e)
         )
