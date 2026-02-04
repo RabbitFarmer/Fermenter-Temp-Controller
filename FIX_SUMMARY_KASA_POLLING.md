@@ -1,7 +1,7 @@
 # Fix Summary: Simplified Redundancy Check
 
 ## User Requirement
-"There is no need for a redundancy check if you are not sending Kasa a signal. Does it make sense to do it this way: (knowing you need to send Kasa a signal) 1. Turn on redundancy check 2. Send Kasa the signal 3. Remain in redundancy until "success" is returned. 4) Turn off redundancy check."
+"There is no need for a redundancy check if you are not sending Kasa a signal. Does it make sense to do it this way: (knowing you need to send Kasa a signal) 1. Turn on redundancy check 2. Send Kasa the signal 3. Remain in redundancy until "success" is returned 4. Turn off redundancy check."
 
 **Clarification:** The temperature (not user) triggers the signal based on control logic.
 
