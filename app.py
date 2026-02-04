@@ -105,7 +105,7 @@ MAX_ALL_LIMIT = 10000
 MAX_FILENAME_LENGTH = 50
 
 # In-memory buffer for temperature control readings
-# Stores recent readings at temp_logging_interval frequency without logging to file
+# Stores recent readings at update_interval frequency without logging to file
 # Max 1440 entries = 2 days at 2-minute intervals (prevents memory bloat)
 TEMP_READING_BUFFER_SIZE = 1440
 temp_reading_buffer = deque(maxlen=TEMP_READING_BUFFER_SIZE)
@@ -355,24 +355,24 @@ def append_control_log(event_type, payload):
 
 def log_periodic_temp_reading():
     """
-    Record a periodic temperature control reading in memory at temp_logging_interval frequency.
+    Record a periodic temperature control reading in memory at update_interval frequency.
     
     This function is called by periodic_temp_control() after each control loop
     iteration to record temperature readings for the temperature control chart.
     
     The readings are stored in memory (not logged to file) to avoid creating
-    excessive log entries (720/day at 2-min intervals). The in-memory buffer
-    is limited to TEMP_READING_BUFFER_SIZE entries (default 1440 = 2 days).
+    excessive log entries. The in-memory buffer is limited to TEMP_READING_BUFFER_SIZE 
+    entries (default 1440 = 2 days at 2-minute intervals, prevents memory bloat).
     
     The readings are used for:
     - Chart visualization (/chart_data/Fermenter endpoint)
     - Main display (via temp_cfg['current_temp'])
     - CSV export if users want granular detail
     
-    The readings are logged at the configured temp_logging_interval (default 10 minutes),
-    which is separate from:
-    - update_interval (default 2 min) - controls how often the control loop runs
-    - tilt_logging_interval_minutes (default 15 min) - controls fermentation monitoring
+    The readings are logged at the configured update_interval (default 2 minutes),
+    which is the same interval at which the temperature control loop runs.
+    This is separate from Tilt readings for fermentation monitoring which are 
+    logged at tilt_logging_interval_minutes (default 15 minutes).
     
     Unlike file-based event logging, this bypasses the enable_heating/enable_cooling
     gate to ensure readings are recorded whenever temperature control monitoring
@@ -385,38 +385,20 @@ def log_periodic_temp_reading():
     - Timestamp
     - Event type: "TEMP CONTROL READING"
     """
-    global last_periodic_temp_log_ts
-    
     # Only record if temp control monitoring is active
     if not temp_cfg.get("temp_control_active", False):
         return
     
-    # Rate limiting using temp_logging_interval
-    try:
-        interval_minutes = int(system_cfg.get('temp_logging_interval', 10))
-    except (ValueError, TypeError):
-        interval_minutes = 10  # Default to 10 minutes if not configured or invalid
-    
-    now = datetime.utcnow()
-    
-    # Check if enough time has passed since last log
-    if last_periodic_temp_log_ts:
-        elapsed = (now - last_periodic_temp_log_ts).total_seconds() / 60.0
-        if elapsed < interval_minutes:
-            return
-    
-    # Update last log timestamp
-    last_periodic_temp_log_ts = now
-    
     try:
         # Create timestamp
-        iso_ts = now.replace(microsecond=0).isoformat() + "Z"
+        ts = datetime.utcnow()
+        iso_ts = ts.replace(microsecond=0).isoformat() + "Z"
         
         # Create reading entry
         entry = {
             "timestamp": iso_ts,
-            "date": now.strftime("%Y-%m-%d"),
-            "time": now.strftime("%H:%M:%S"),
+            "date": ts.strftime("%Y-%m-%d"),
+            "time": ts.strftime("%H:%M:%S"),
             "tilt_color": temp_cfg.get("tilt_color", ""),
             "brewid": None,  # Temperature control readings don't have brewid
             "low_limit": temp_cfg.get("low_limit"),
@@ -602,7 +584,6 @@ live_tilts = {}
 tilt_status = {}
 
 last_tilt_log_ts = {}
-last_periodic_temp_log_ts = None  # Track last time periodic temperature reading was logged
 batch_notification_state = {}  # Track notification state per tilt/brewid
 
 # Notification timing constants
@@ -827,7 +808,7 @@ def log_tilt_reading(color, gravity, temp_f, rssi):
     
     This function handles:
     - Rate-limited logging based on tilt usage:
-      * Temperature control tilts: use system_cfg['temp_logging_interval'] (configurable, default 10 min)
+      * Temperature control tilts: use system_cfg['update_interval'] (configurable, default 2 min)
       * Fermentation tracking tilts: use system_cfg['tilt_logging_interval_minutes'] (configurable, default 15 min)
     - Recording readings to control log and batch-specific JSONL files
     - Forwarding to third-party services if configured
@@ -843,19 +824,19 @@ def log_tilt_reading(color, gravity, temp_f, rssi):
     brewid = cfg.get('brewid', '')
     
     # Rate limiting based on tilt usage:
-    # - If tilt is assigned to temperature control: use system_cfg['temp_logging_interval'] for logging
+    # - If tilt is assigned to temperature control: use system_cfg['update_interval'] for responsive control
     # - Otherwise: use system_cfg['tilt_logging_interval_minutes'] for fermentation tracking
     # Both intervals are configurable in System Settings page
     control_tilt_color = temp_cfg.get("tilt_color")
     is_control_tilt = (color == control_tilt_color)
     
     if is_control_tilt:
-        # Use system_cfg['temp_logging_interval'] for temperature control tilt
-        # This is the "Temperature Control Logging Interval" setting in System Settings
+        # Use system_cfg['update_interval'] for temperature control tilt
+        # This keeps control tilt logging synchronized with the temperature control loop
         try:
-            interval_minutes = int(system_cfg.get('temp_logging_interval', 10))
+            interval_minutes = int(system_cfg.get('update_interval', 2))
         except (ValueError, TypeError):
-            interval_minutes = 10  # Fallback to 10 minutes if not configured or invalid
+            interval_minutes = 2  # Fallback if not configured or invalid
     else:
         # Use system_cfg['tilt_logging_interval_minutes'] for fermentation tracking
         # This is the "Tilt Reading Logging Interval" setting in System Settings
@@ -3594,10 +3575,8 @@ def periodic_temp_control():
             # Check for swapped plugs after temperature control logic runs
             check_for_swapped_plugs()
             
-            # Log periodic temperature reading (rate-limited by temp_logging_interval)
-            # This is separate from:
-            #  - update_interval: controls how often this loop runs
-            #  - tilt_logging_interval_minutes: controls fermentation tilt logging
+            # Log periodic temperature reading at update_interval frequency
+            # This is separate from Tilt readings (logged at tilt_logging_interval_minutes)
             log_periodic_temp_reading()
         except Exception as e:
             append_control_log("temp_control_mode_changed", {"low_limit": temp_cfg.get("low_limit"), "current_temp": temp_cfg.get("current_temp"), "high_limit": temp_cfg.get("high_limit"), "tilt_color": temp_cfg.get("tilt_color", "")})
@@ -3819,7 +3798,6 @@ def update_system_config():
         "timestamp_format": data.get("timestamp_format", ""),
         "display_mode": data.get("display_mode", "4"),
         "update_interval": data.get("update_interval", "2"),
-        "temp_logging_interval": data.get("temp_logging_interval", system_cfg.get('temp_logging_interval', 10)),
         "external_refresh_rate": data.get("external_refresh_rate", system_cfg.get("external_refresh_rate", "15")),
         "external_urls": external_urls,  # New format
         "warning_mode": data.get("warning_mode", "NONE"),
