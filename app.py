@@ -4103,17 +4103,32 @@ def batch_settings():
                 "last_daily_report": None
             }
 
+        # Load existing batches
         try:
             with open(f'batches/batch_history_{color}.json', 'r') as f:
                 batches = json.load(f)
         except Exception:
             batches = []
-        batches.append(batch_entry)
+        
+        # UPSERT: Update existing batch entry or append new one
+        # This prevents duplicate entries when editing the same batch
+        batch_found = False
+        for i, batch in enumerate(batches):
+            if batch.get('brewid') == brew_id:
+                # Update existing batch entry instead of creating duplicate
+                batches[i] = batch_entry
+                batch_found = True
+                break
+        
+        if not batch_found:
+            # New batch - append it
+            batches.append(batch_entry)
+        
         try:
             with open(f'batches/batch_history_{color}.json', 'w') as f:
                 json.dump(batches, f, indent=2)
         except Exception as e:
-            print(f"[LOG] Could not append batch history for {color}: {e}")
+            print(f"[LOG] Could not save batch history for {color}: {e}")
         tilt_cfg[color] = batch_entry
         try:
             save_json(TILT_CONFIG_FILE, tilt_cfg)
@@ -5692,14 +5707,15 @@ def close_batch():
             except Exception as e:
                 return jsonify({'success': False, 'error': f'Error reading batch history: {e}'}), 500
         
-        # Find and update the batch
+        # Find and update all batches with this brewid
+        # (handles duplicates that may have been created before the fix)
         batch_found = False
         for batch in batches:
             if batch.get('brewid') == brewid:
                 batch['is_active'] = False
                 batch['closed_date'] = datetime.utcnow().strftime('%Y-%m-%d')
                 batch_found = True
-                break
+                # Continue to close ALL matching batches (don't break)
         
         if not batch_found:
             return jsonify({'success': False, 'error': 'Batch not found in history'}), 404
@@ -5770,14 +5786,15 @@ def reopen_batch():
             except Exception as e:
                 return jsonify({'success': False, 'error': f'Error reading batch history: {e}'}), 500
         
-        # Find and update the batch
+        # Find and update all batches with this brewid
+        # (handles duplicates that may have been created before the fix)
         batch_found = False
         for batch in batches:
             if batch.get('brewid') == brewid:
                 batch['is_active'] = True
                 batch['closed_date'] = None
                 batch_found = True
-                break
+                # Continue to reopen ALL matching batches (don't break)
         
         if not batch_found:
             return jsonify({'success': False, 'error': 'Batch not found in history'}), 404
@@ -5792,6 +5809,66 @@ def reopen_batch():
         return jsonify({'success': True, 'message': f'Batch {brewid} reopened successfully'})
     except Exception as e:
         print(f"[LOG] Error reopening batch: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/cleanup_batch_duplicates', methods=['POST'])
+def cleanup_batch_duplicates():
+    """
+    Remove duplicate batch entries from batch_history files.
+    Keeps only the most recent entry for each brewid.
+    This is a cleanup utility for batches that were duplicated before the fix.
+    """
+    try:
+        cleaned_colors = []
+        total_duplicates_removed = 0
+        
+        # Check each color for batch history
+        for color in TILT_UUIDS.values():
+            batch_history_file = f'batches/batch_history_{color}.json'
+            if not os.path.exists(batch_history_file):
+                continue
+            
+            try:
+                with open(batch_history_file, 'r') as f:
+                    batches = json.load(f)
+            except Exception as e:
+                print(f"[LOG] Error reading batch history for {color}: {e}")
+                continue
+            
+            if not batches:
+                continue
+            
+            # Group batches by brewid, keeping only the last occurrence
+            unique_batches = {}
+            for batch in batches:
+                brewid = batch.get('brewid')
+                if brewid:
+                    # Store the batch (later occurrences will overwrite earlier ones)
+                    unique_batches[brewid] = batch
+            
+            # Count duplicates removed
+            duplicates_count = len(batches) - len(unique_batches)
+            if duplicates_count > 0:
+                total_duplicates_removed += duplicates_count
+                cleaned_colors.append(f"{color} ({duplicates_count} duplicates)")
+                
+                # Save deduplicated batches
+                try:
+                    with open(batch_history_file, 'w') as f:
+                        json.dump(list(unique_batches.values()), f, indent=2)
+                    print(f"[LOG] Removed {duplicates_count} duplicate batches from {color}")
+                except Exception as e:
+                    print(f"[LOG] Error saving cleaned batch history for {color}: {e}")
+        
+        if total_duplicates_removed > 0:
+            message = f"Cleanup complete: Removed {total_duplicates_removed} duplicate batch entries from {', '.join(cleaned_colors)}"
+            return jsonify({'success': True, 'message': message, 'duplicates_removed': total_duplicates_removed})
+        else:
+            return jsonify({'success': True, 'message': 'No duplicate batch entries found', 'duplicates_removed': 0})
+    
+    except Exception as e:
+        print(f"[LOG] Error during batch cleanup: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

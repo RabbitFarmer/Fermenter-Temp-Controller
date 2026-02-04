@@ -37,6 +37,8 @@
     .sort-select:focus { outline:none; border-color:#45a049; }
     .archive-note { background:#f9f9f9; padding:12px; border-radius:6px; margin-top:20px; font-size:0.9em; color:#666; }
     .archive-note strong { color:#333; }
+    .btn-cleanup { padding:8px 16px; background-color:#f39c12; color:white; border:none; cursor:pointer; font-size:14px; font-weight:bold; border-radius:5px; text-decoration:none; display:inline-block; margin-left:10px; }
+    .btn-cleanup:hover { background-color:#e67e22; }
   </style>
   <script>
     function changeSortOrder() {
@@ -94,6 +96,33 @@
         alert('Error reopening batch: ' + error);
       });
     }
+    
+    function cleanupDuplicates() {
+      if (!confirm('This will remove duplicate batch entries from your history, keeping only the most recent version of each batch. Continue?')) {
+        return;
+      }
+      
+      fetch('/cleanup_batch_duplicates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert(data.message);
+          if (data.duplicates_removed > 0) {
+            window.location.reload();
+          }
+        } else {
+          alert('Error during cleanup: ' + (data.error || 'Unknown error'));
+        }
+      })
+      .catch(error => {
+        alert('Error during cleanup: ' + error);
+      });
+    }
   </script>
 </head>
 <body>
@@ -104,7 +133,10 @@
 
     <div class="history-container">
       <div class="controls">
-        <button type="button" onclick="window.location='/'" class="btn-action">Dashboard</button>
+        <div>
+          <button type="button" onclick="window.location='/'" class="btn-action">Dashboard</button>
+          <button type="button" onclick="cleanupDuplicates()" class="btn-cleanup" title="Remove duplicate batch entries">🧹 Cleanup Duplicates</button>
+        </div>
         <div class="sort-control">
           <label for="sortSelect" class="sort-label">📅 Sort by:</label>
           <select id="sortSelect" class="sort-select" onchange="changeSortOrder()">
