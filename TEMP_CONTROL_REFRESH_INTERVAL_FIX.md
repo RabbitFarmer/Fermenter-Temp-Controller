@@ -40,33 +40,50 @@ This meant:
 
 ## Solution
 
-Modified `log_tilt_reading()` to check if a tilt is assigned to temperature control and use different rate limiting intervals:
+Modified `log_tilt_reading()` to check if a tilt is assigned to temperature control and use different rate limiting intervals from **user-configurable system settings**:
 
-### After Fix
+- **Temperature control tilts**: Use `system_cfg['update_interval']`
+  - Configured in System Settings page → "Update Interval (minutes)" field
+  - User-configurable, defaults to 2 minutes if not set
+  
+- **Fermentation tracking tilts**: Use `system_cfg['tilt_logging_interval_minutes']`
+  - Configured in System Settings page → "Tilt Reading Logging Interval (minutes)" field
+  - User-configurable, defaults to 15 minutes if not set
+
+### Implementation Details
 
 ```python
 def log_tilt_reading(color, gravity, temp_f, rssi):
     # ...
     # Rate limiting based on tilt usage:
-    # - If tilt is assigned to temperature control: use update_interval (default 2 min) for responsive control
-    # - Otherwise: use tilt_logging_interval_minutes (default 15 min) for fermentation tracking
+    # - If tilt is assigned to temperature control: use system_cfg['update_interval'] for responsive control
+    # - Otherwise: use system_cfg['tilt_logging_interval_minutes'] for fermentation tracking
+    # Both intervals are configurable in System Settings page
     control_tilt_color = temp_cfg.get("tilt_color")
     is_control_tilt = (color == control_tilt_color)
     
     if is_control_tilt:
-        # Use update_interval for temperature control tilt
+        # Read from system_cfg['update_interval'] - user-configurable setting
+        # System Settings page → "Update Interval (minutes)" field
         try:
             interval_minutes = int(system_cfg.get('update_interval', 2))
         except (ValueError, TypeError):
-            interval_minutes = 2
+            interval_minutes = 2  # Fallback only if setting is invalid/missing
     else:
-        # Use tilt_logging_interval_minutes for fermentation tracking
+        # Read from system_cfg['tilt_logging_interval_minutes'] - user-configurable setting
+        # System Settings page → "Tilt Reading Logging Interval (minutes)" field
         try:
             interval_minutes = int(system_cfg.get('tilt_logging_interval_minutes', 15))
         except (ValueError, TypeError):
-            interval_minutes = 15
+            interval_minutes = 15  # Fallback only if setting is invalid/missing
     # ...
 ```
+
+**Key Points**:
+- ✅ **NOT hard-coded** - both intervals are read from `system_cfg` (user settings)
+- ✅ **User-configurable** via System Settings page in the web UI
+- ✅ Default values (2 min and 15 min) are only used as fallbacks if settings are not configured or invalid
+- ✅ Users can change these intervals at any time through the web interface
 
 ## Changes Made
 

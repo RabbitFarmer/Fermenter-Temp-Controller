@@ -781,8 +781,9 @@ def log_tilt_reading(color, gravity, temp_f, rssi):
     Log tilt readings with interval-based rate limiting and batch tracking.
     
     This function handles:
-    - Rate-limited logging based on tilt_logging_interval_minutes for fermentation tracking
-    - For tilts assigned to temperature control, uses update_interval instead for responsive control
+    - Rate-limited logging based on tilt usage:
+      * Temperature control tilts: use system_cfg['update_interval'] (configurable, default 2 min)
+      * Fermentation tracking tilts: use system_cfg['tilt_logging_interval_minutes'] (configurable, default 15 min)
     - Recording readings to control log and batch-specific JSONL files
     - Forwarding to third-party services if configured
     - Triggering batch notifications (signal loss, fermentation start, etc.)
@@ -797,23 +798,26 @@ def log_tilt_reading(color, gravity, temp_f, rssi):
     brewid = cfg.get('brewid', '')
     
     # Rate limiting based on tilt usage:
-    # - If tilt is assigned to temperature control: use update_interval (default 2 min) for responsive control
-    # - Otherwise: use tilt_logging_interval_minutes (default 15 min) for fermentation tracking
+    # - If tilt is assigned to temperature control: use system_cfg['update_interval'] for responsive control
+    # - Otherwise: use system_cfg['tilt_logging_interval_minutes'] for fermentation tracking
+    # Both intervals are configurable in System Settings page
     control_tilt_color = temp_cfg.get("tilt_color")
     is_control_tilt = (color == control_tilt_color)
     
     if is_control_tilt:
-        # Use update_interval for temperature control tilt
+        # Use system_cfg['update_interval'] for temperature control tilt
+        # This is the "Temperature Control Logging Interval" setting in System Settings
         try:
             interval_minutes = int(system_cfg.get('update_interval', 2))
         except (ValueError, TypeError):
-            interval_minutes = 2
+            interval_minutes = 2  # Fallback if not configured or invalid
     else:
-        # Use tilt_logging_interval_minutes for fermentation tracking
+        # Use system_cfg['tilt_logging_interval_minutes'] for fermentation tracking
+        # This is the "Tilt Reading Logging Interval" setting in System Settings
         try:
             interval_minutes = int(system_cfg.get('tilt_logging_interval_minutes', 15))
         except (ValueError, TypeError):
-            interval_minutes = 15
+            interval_minutes = 15  # Fallback if not configured or invalid
     
     now = datetime.utcnow()
     last_log = last_tilt_log_ts.get(color)
