@@ -4274,17 +4274,77 @@ def batch_settings():
         color_map=COLOR_MAP
     )
 
+def get_last_activity(activity_type):
+    """
+    Get the last heating or cooling activity from the temp_control_log.jsonl.
+    
+    Args:
+        activity_type: Either "heating" or "cooling"
+    
+    Returns:
+        Dictionary with 'timestamp', 'date', 'time', and 'action' (On/Off) or None if not found
+    """
+    if not os.path.exists(LOG_PATH):
+        return None
+    
+    # Events to look for based on activity type
+    if activity_type == "heating":
+        events = ["heating_on", "heating_off"]
+    elif activity_type == "cooling":
+        events = ["cooling_on", "cooling_off"]
+    else:
+        return None
+    
+    last_activity = None
+    try:
+        with open(LOG_PATH, 'r') as f:
+            for line in f:
+                try:
+                    entry = json.loads(line.strip())
+                    event_type = entry.get("event")
+                    
+                    # Check if this is a heating/cooling event
+                    if event_type in events:
+                        # Extract timestamp and determine action (On/Off)
+                        timestamp = entry.get("timestamp", "")
+                        date = entry.get("date", "")
+                        time_str = entry.get("time", "")
+                        
+                        # Determine if it was an On or Off action
+                        action = "On" if event_type.endswith("_on") else "Off"
+                        
+                        last_activity = {
+                            "timestamp": timestamp,
+                            "date": date,
+                            "time": time_str,
+                            "action": action
+                        }
+                except (json.JSONDecodeError, ValueError):
+                    continue
+    except Exception as e:
+        print(f"[LOG] Error reading last {activity_type} activity: {e}")
+        return None
+    
+    return last_activity
+
 @app.route('/temp_config')
 def temp_config():
     report_colors = list(tilt_cfg.keys())
     active_tilts = get_active_tilts()
+    
+    # Get last heating and cooling activity
+    heating_last_activity = get_last_activity("heating")
+    cooling_last_activity = get_last_activity("cooling")
+    
     return render_template('temp_control_config.html',
         temp_control=temp_cfg,
         tilt_cfg=tilt_cfg,
         system_settings=system_cfg,
         batch_cfg=tilt_cfg,
         report_colors=report_colors,
-        live_tilts=active_tilts
+        live_tilts=active_tilts,
+        heating_last_activity=heating_last_activity,
+        cooling_last_activity=cooling_last_activity
     )
 
 
