@@ -9,8 +9,9 @@ User scenario:
 - Expected: Heating OFF
 - Actual: Heating continues ON
 
-Root cause: When high_limit is None, the comparison `temp >= high` raises TypeError
-which is caught by exception handler, preventing control_heating("off") from being called.
+Root cause: When high_limit is None (either not configured or type conversion fails),
+the comparison `temp >= high` raises TypeError which is caught by exception handler,
+preventing control_heating("off") from being called.
 """
 
 def test_heating_with_none_limit():

@@ -151,9 +151,9 @@ def test_temperature_progression():
     test_cases = [
         (73.0, "on", "Below low limit → ON"),
         (74.0, "on", "At low limit → ON"),
-        (74.5, None, "Between limits → Maintain (ON)"),
+        (74.5, None, "Between limits → Maintain current state (ON)"),
         (75.0, "off", "At high limit → OFF (USER SCENARIO)"),
-        (74.5, None, "Between limits → Maintain (OFF)"),
+        (74.5, None, "Between limits → Maintain current state (OFF)"),
         (74.0, "on", "At low limit → ON"),
     ]
     
