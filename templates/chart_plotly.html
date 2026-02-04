@@ -539,6 +539,7 @@
         {% if tilt_color == "Fermenter" %}
         if (xAxisRange) {
           defaultXRange = xAxisRange;
+          currentXRange = xAxisRange;  // Initialize current range to default
         }
         {% endif %}
         
@@ -568,6 +569,7 @@
     
     // Store the default x-axis range for reset functionality
     let defaultXRange = null;
+    let currentXRange = null;  // Track current x-axis range to avoid reading from Plotly
     let currentViewMode = 'all';  // Track current view mode: 'all', '1day', '1week'
     
     // Function to update button active states
@@ -591,11 +593,9 @@
     
     // Zoom in function - centers on the last data point
     document.getElementById('zoom-in').addEventListener('click', () => {
-      const chart = document.getElementById('tempChart');
-      const currentRange = chart.layout.xaxis.range;
-      if (currentRange && currentRange.length === 2 && defaultXRange) {
-        const start = new Date(currentRange[0]);
-        const end = new Date(currentRange[1]);
+      if (currentXRange && currentXRange.length === 2 && defaultXRange) {
+        const start = new Date(currentXRange[0]);
+        const end = new Date(currentXRange[1]);
         const duration = end - start;
         const newDuration = duration * 0.5;  // Zoom in by 50%
         
@@ -603,6 +603,9 @@
         const lastDataPoint = new Date(defaultXRange[1]);
         const newStart = new Date(lastDataPoint.getTime() - newDuration);
         const newEnd = lastDataPoint;
+        
+        // Update current range
+        currentXRange = [newStart, newEnd];
         
         Plotly.relayout('tempChart', {
           'xaxis.range': [newStart, newEnd]
@@ -612,11 +615,9 @@
     
     // Zoom out function - centers on the last data point
     document.getElementById('zoom-out').addEventListener('click', () => {
-      const chart = document.getElementById('tempChart');
-      const currentRange = chart.layout.xaxis.range;
-      if (currentRange && currentRange.length === 2 && defaultXRange) {
-        const start = new Date(currentRange[0]);
-        const end = new Date(currentRange[1]);
+      if (currentXRange && currentXRange.length === 2 && defaultXRange) {
+        const start = new Date(currentXRange[0]);
+        const end = new Date(currentXRange[1]);
         const duration = end - start;
         const newDuration = duration * 2;  // Zoom out by 100%
         
@@ -634,6 +635,9 @@
           if (newEnd > defaultEnd) newEnd = defaultEnd;
         }
         
+        // Update current range
+        currentXRange = [newStart, newEnd];
+        
         Plotly.relayout('tempChart', {
           'xaxis.range': [newStart, newEnd]
         });
@@ -643,6 +647,9 @@
     // Reset zoom function
     document.getElementById('reset-zoom').addEventListener('click', () => {
       if (defaultXRange) {
+        // Reset current range to default
+        currentXRange = defaultXRange;
+        
         Plotly.relayout('tempChart', {
           'xaxis.range': defaultXRange
         });
@@ -652,14 +659,16 @@
     
     // 1 Day view function
     document.getElementById('view-1day').addEventListener('click', () => {
-      const chart = document.getElementById('tempChart');
       if (defaultXRange && defaultXRange.length === 2) {
         const end = new Date(defaultXRange[1]);
-        const start = new Date(end.getTime() - MS_PER_DAY);
+        let start = new Date(end.getTime() - MS_PER_DAY);
         
         // Don't go before the actual data start
         const defaultStart = new Date(defaultXRange[0]);
         if (start < defaultStart) start.setTime(defaultStart.getTime());
+        
+        // Update current range
+        currentXRange = [start, end];
         
         Plotly.relayout('tempChart', {
           'xaxis.range': [start, end]
@@ -670,14 +679,16 @@
     
     // 1 Week view function
     document.getElementById('view-1week').addEventListener('click', () => {
-      const chart = document.getElementById('tempChart');
       if (defaultXRange && defaultXRange.length === 2) {
         const end = new Date(defaultXRange[1]);
-        const start = new Date(end.getTime() - MS_PER_WEEK);
+        let start = new Date(end.getTime() - MS_PER_WEEK);
         
         // Don't go before the actual data start
         const defaultStart = new Date(defaultXRange[0]);
         if (start < defaultStart) start.setTime(defaultStart.getTime());
+        
+        // Update current range
+        currentXRange = [start, end];
         
         Plotly.relayout('tempChart', {
           'xaxis.range': [start, end]
@@ -689,6 +700,9 @@
     // All data view function
     document.getElementById('view-all').addEventListener('click', () => {
       if (defaultXRange) {
+        // Reset current range to default
+        currentXRange = defaultXRange;
+        
         Plotly.relayout('tempChart', {
           'xaxis.range': defaultXRange
         });

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Test Zoom Fix</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; background: #f6f6f6; }
+    #chart-container { max-width: 1200px; margin: auto; background: #ffffff; border-radius: 4px; padding: 16px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); }
+    #tempChart { height: 500px; }
+    .zoom-controls { text-align: center; margin: 12px 0; }
+    .zoom-controls button { padding: 6px 16px; margin: 0 4px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .zoom-controls button:hover { background-color: #0b7dda; }
+    .info { text-align: center; margin: 16px 0; padding: 12px; background: #e8f4f8; border-radius: 4px; font-size: 14px; }
+    .debug { text-align: center; margin: 16px 0; padding: 12px; background: #fff3cd; border-radius: 4px; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h2 style="text-align: center;">Test Zoom Fix - Temperature Control Chart</h2>
+  <div class="info">
+    <strong>Testing zoom behavior:</strong><br>
+    Click "Zoom In" and watch the debug info to see what's happening
+  </div>
+  <div class="debug" id="debug">Debug info will appear here</div>
+  <div class="zoom-controls">
+    <button id="zoom-in">Zoom In</button>
+    <button id="zoom-out">Zoom Out</button>
+    <button id="reset-zoom">Reset Zoom</button>
+  </div>
+  <div id="chart-container">
+    <div id="tempChart"></div>
+  </div>
+
+  <script>
+    // Create sample data - 10 days of temperature data
+    const now = new Date();
+    const baseTime = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000); // 10 days ago
+    
+    const dataPoints = [];
+    for (let i = 0; i < 480; i++) {
+      const timestamp = new Date(baseTime.getTime() + i * 30 * 60 * 1000);
+      let temp = 66 + 2 * Math.sin(i / 20) + (Math.random() - 0.5);
+      dataPoints.push({
+        timestamp: timestamp,
+        temp_f: temp,
+      });
+    }
+    
+    // Create temperature trace
+    const traces = [{
+      type: 'scatter',
+      x: dataPoints.map(p => p.timestamp),
+      y: dataPoints.map(p => p.temp_f),
+      mode: 'lines',
+      name: 'Temperature',
+      line: { color: 'blue', width: 1.5 },
+    }];
+    
+    // Calculate default range
+    const xAxisRange = [dataPoints[0].timestamp, dataPoints[dataPoints.length - 1].timestamp];
+    
+    // Layout
+    const layout = {
+      title: 'Temperature Control Test',
+      xaxis: {
+        title: 'Timestamp',
+        range: xAxisRange,
+        autorange: false,
+      },
+      yaxis: {
+        title: 'Temperature (°F)',
+        range: [62, 70],
+      },
+      showlegend: true,
+      margin: { l: 50, r: 50, t: 70, b: 80 },
+    };
+    
+    Plotly.newPlot('tempChart', traces, layout);
+    
+    // Store default range
+    let defaultXRange = xAxisRange;
+    
+    function updateDebug(message) {
+      const debugEl = document.getElementById('debug');
+      debugEl.innerHTML = message;
+    }
+    
+    // CURRENT IMPLEMENTATION (from chart_plotly.html)
+    document.getElementById('zoom-in').addEventListener('click', () => {
+      const chart = document.getElementById('tempChart');
+      const currentRange = chart.layout.xaxis.range;
+      
+      updateDebug(`<strong>ZOOM IN CLICKED</strong><br>
+        Current range type: ${typeof currentRange[0]}<br>
+        Current range: ${currentRange[0]} to ${currentRange[1]}<br>
+        Default range: ${defaultXRange[0]} to ${defaultXRange[1]}`);
+      
+      if (currentRange && currentRange.length === 2 && defaultXRange) {
+        const start = new Date(currentRange[0]);
+        const end = new Date(currentRange[1]);
+        const duration = end - start;
+        const newDuration = duration * 0.5;  // Zoom in by 50%
+        
+        // CENTER ON LAST DATA POINT (current implementation)
+        const lastDataPoint = new Date(defaultXRange[1]);
+        const newStart = new Date(lastDataPoint.getTime() - newDuration);
+        const newEnd = lastDataPoint;
+        
+        updateDebug(`<strong>ZOOM IN - Current Implementation</strong><br>
+          Current visible: ${start.toLocaleString()} to ${end.toLocaleString()}<br>
+          Current duration: ${(duration / (24 * 60 * 60 * 1000)).toFixed(2)} days<br>
+          Last data point: ${lastDataPoint.toLocaleString()}<br>
+          New range: ${newStart.toLocaleString()} to ${newEnd.toLocaleString()}<br>
+          New duration: ${(newDuration / (24 * 60 * 60 * 1000)).toFixed(2)} days<br>
+          <strong>Centering on: LAST DATA POINT</strong>`);
+        
+        Plotly.relayout('tempChart', {
+          'xaxis.range': [newStart, newEnd]
+        });
+      }
+    });
+    
+    document.getElementById('zoom-out').addEventListener('click', () => {
+      const chart = document.getElementById('tempChart');
+      const currentRange = chart.layout.xaxis.range;
+      
+      if (currentRange && currentRange.length === 2 && defaultXRange) {
+        const start = new Date(currentRange[0]);
+        const end = new Date(currentRange[1]);
+        const duration = end - start;
+        const newDuration = duration * 2;  // Zoom out by 100%
+        
+        // CENTER ON LAST DATA POINT (current implementation)
+        const lastDataPoint = new Date(defaultXRange[1]);
+        let newStart = new Date(lastDataPoint.getTime() - newDuration);
+        let newEnd = lastDataPoint;
+        
+        // Don't zoom out beyond the default range
+        const defaultStart = new Date(defaultXRange[0]);
+        const defaultEnd = new Date(defaultXRange[1]);
+        if (newStart < defaultStart) {
+          newStart = defaultStart;
+          if (newEnd > defaultEnd) newEnd = defaultEnd;
+        }
+        
+        updateDebug(`<strong>ZOOM OUT - Current Implementation</strong><br>
+          Current visible: ${start.toLocaleString()} to ${end.toLocaleString()}<br>
+          Current duration: ${(duration / (24 * 60 * 60 * 1000)).toFixed(2)} days<br>
+          Last data point: ${lastDataPoint.toLocaleString()}<br>
+          New range: ${newStart.toLocaleString()} to ${newEnd.toLocaleString()}<br>
+          New duration: ${((newEnd - newStart) / (24 * 60 * 60 * 1000)).toFixed(2)} days<br>
+          <strong>Centering on: LAST DATA POINT</strong>`);
+        
+        Plotly.relayout('tempChart', {
+          'xaxis.range': [newStart, newEnd]
+        });
+      }
+    });
+    
+    document.getElementById('reset-zoom').addEventListener('click', () => {
+      if (defaultXRange) {
+        updateDebug(`<strong>RESET ZOOM</strong><br>
+          Resetting to: ${defaultXRange[0]} to ${defaultXRange[1]}`);
+        
+        Plotly.relayout('tempChart', {
+          'xaxis.range': defaultXRange
+        });
+      }
+    });
+  </script>
+</body>
+</html>
