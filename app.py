@@ -456,8 +456,36 @@ system_cfg = load_json(SYSTEM_CFG_FILE, {})
 
 def ensure_temp_defaults():
     temp_cfg.setdefault("current_temp", None)
-    temp_cfg.setdefault("low_limit", 0.0)
-    temp_cfg.setdefault("high_limit", 0.0)
+    # CRITICAL FIX for issue #289: Handle None values from corrupted config files
+    # If limits are explicitly set to None in the config file, setdefault won't replace them
+    # because the key exists. We need to explicitly check for None and reset to defaults.
+    # ALSO validate that limits are numeric types - if strings, try to convert; if invalid, reset to 0.0
+    # This ensures temp_cfg always contains the ACTUAL values used by control logic
+    low_val = temp_cfg.get("low_limit")
+    if low_val is None:
+        temp_cfg["low_limit"] = 0.0
+    elif isinstance(low_val, (int, float)):
+        temp_cfg["low_limit"] = float(low_val)  # Ensure it's float, not int
+    else:
+        # Try to convert string to float
+        try:
+            temp_cfg["low_limit"] = float(low_val)
+        except (ValueError, TypeError):
+            print(f"[LOG] WARNING: low_limit cannot be converted to float (type={type(low_val).__name__}, value={low_val}), resetting to 0.0")
+            temp_cfg["low_limit"] = 0.0
+    
+    high_val = temp_cfg.get("high_limit")
+    if high_val is None:
+        temp_cfg["high_limit"] = 0.0
+    elif isinstance(high_val, (int, float)):
+        temp_cfg["high_limit"] = float(high_val)  # Ensure it's float, not int
+    else:
+        # Try to convert string to float
+        try:
+            temp_cfg["high_limit"] = float(high_val)
+        except (ValueError, TypeError):
+            print(f"[LOG] WARNING: high_limit cannot be converted to float (type={type(high_val).__name__}, value={high_val}), resetting to 0.0")
+            temp_cfg["high_limit"] = 0.0
     temp_cfg.setdefault("enable_heating", False)
     temp_cfg.setdefault("enable_cooling", False)
     temp_cfg.setdefault("heating_plug", "")
@@ -840,6 +868,12 @@ def log_tilt_reading(color, gravity, temp_f, rssi):
         "actual_og": cfg.get("actual_og"),
         "og_confirmed": cfg.get("og_confirmed", False)
     }
+    
+    # Include temperature control limits in the payload if this is the control tilt
+    # This ensures the control log has complete information for debugging and charting
+    if is_control_tilt:
+        payload["low_limit"] = temp_cfg.get("low_limit")
+        payload["high_limit"] = temp_cfg.get("high_limit")
     
     # Log to control log
     append_control_log("tilt_reading", payload)
@@ -2750,21 +2784,9 @@ def temperature_control_logic():
     low = temp_cfg.get("low_limit")
     high = temp_cfg.get("high_limit")
     
-    # CRITICAL FIX: Ensure limits are numeric types to prevent comparison failures
-    # If limits are None or non-numeric, comparisons will raise TypeError which gets
-    # caught by exception handler, preventing control commands from being sent.
-    # This caused heating to continue even when temp >= high_limit.
-    try:
-        if low is not None:
-            low = float(low)
-    except (ValueError, TypeError):
-        low = None
-    
-    try:
-        if high is not None:
-            high = float(high)
-    except (ValueError, TypeError):
-        high = None
+    # NOTE: Limits are guaranteed to be valid float values by ensure_temp_defaults()
+    # and periodic_temp_control() validation, so no additional validation needed here.
+    # This ensures SAMPLE events and control logic use the exact same values.
     
     # Check if temp control monitoring is active
     is_monitoring_active = bool(temp_cfg.get("temp_control_active"))
@@ -3478,6 +3500,37 @@ def periodic_temp_control():
                 file_cfg.pop(var, None)
             
             temp_cfg.update(file_cfg)
+            
+            # CRITICAL FIX for issue #289: Ensure temperature limits are never None
+            # AND always numeric. If corrupted, reset to 0.0 and log warning.
+            # This ensures SAMPLE events and control logic use the SAME validated values.
+            low_val = temp_cfg.get("low_limit")
+            if low_val is None:
+                print("[LOG] WARNING: low_limit is None after config reload, resetting to 0.0")
+                temp_cfg["low_limit"] = 0.0
+            elif isinstance(low_val, (int, float)):
+                temp_cfg["low_limit"] = float(low_val)  # Ensure float type
+            else:
+                # Try to convert string to float
+                try:
+                    temp_cfg["low_limit"] = float(low_val)
+                except (ValueError, TypeError):
+                    print(f"[LOG] WARNING: low_limit cannot be converted to float after reload (type={type(low_val).__name__}, value={low_val}), resetting to 0.0")
+                    temp_cfg["low_limit"] = 0.0
+            
+            high_val = temp_cfg.get("high_limit")
+            if high_val is None:
+                print("[LOG] WARNING: high_limit is None after config reload, resetting to 0.0")
+                temp_cfg["high_limit"] = 0.0
+            elif isinstance(high_val, (int, float)):
+                temp_cfg["high_limit"] = float(high_val)  # Ensure float type
+            else:
+                # Try to convert string to float
+                try:
+                    temp_cfg["high_limit"] = float(high_val)
+                except (ValueError, TypeError):
+                    print(f"[LOG] WARNING: high_limit cannot be converted to float after reload (type={type(high_val).__name__}, value={high_val}), resetting to 0.0")
+                    temp_cfg["high_limit"] = 0.0
             
             temperature_control_logic()
             
@@ -4198,6 +4251,13 @@ def update_temp_config():
                 print(f"[LOG] Invalid high_limit value '{high_limit_value}', keeping existing value {high_limit}")
         else:
             # Empty field - keep existing value
+            high_limit = temp_cfg.get("high_limit", 100.0)
+        
+        # Validate that high_limit > low_limit
+        if high_limit <= low_limit:
+            print(f"[LOG] ERROR: high_limit ({high_limit}) must be greater than low_limit ({low_limit})")
+            # Don't update - keep existing values
+            low_limit = temp_cfg.get("low_limit", 0.0)
             high_limit = temp_cfg.get("high_limit", 100.0)
         
         temp_cfg.update({
