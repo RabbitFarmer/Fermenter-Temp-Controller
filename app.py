@@ -71,7 +71,7 @@ except Exception:
 
 # Import log_error and log_kasa_command for kasa logging
 try:
-    from logger import log_error, log_kasa_command, log_notification, log_temp_control_tilt_reading
+    from logger import log_error, log_kasa_command, log_notification
 except Exception:
     def log_error(msg):
         # Fallback if logger is not available
@@ -80,9 +80,6 @@ except Exception:
         # Fallback if logger is not available
         pass
     def log_notification(notification_type, subject, body, success, tilt_color=None, error=None):
-        # Fallback if logger is not available
-        pass
-    def log_temp_control_tilt_reading(tilt_color, temperature, gravity, brewid=None, beer_name=None):
         # Fallback if logger is not available
         pass
 
@@ -2725,24 +2722,6 @@ def temperature_control_logic():
                 temp_cfg['current_temp'] = round(temp, 1)
                 # Update timestamp when temperature is read
                 temp_cfg['last_reading_time'] = datetime.utcnow().isoformat() + "Z"
-                
-                # Log temp control tilt reading - ONLY if explicitly assigned AND logging is enabled
-                # Don't log fallback tilts, only log when tilt_color is explicitly set
-                # Check log_temp_control_tilt setting (default True for backward compatibility)
-                tilt_logging_enabled = temp_cfg.get("log_temp_control_tilt", True)
-                assigned_tilt_color = temp_cfg.get("tilt_color")
-                if tilt_logging_enabled and assigned_tilt_color and assigned_tilt_color in live_tilts:
-                    tilt_data = live_tilts[assigned_tilt_color]
-                    gravity = tilt_data.get("gravity")
-                    brewid = tilt_cfg.get(assigned_tilt_color, {}).get("brewid")
-                    beer_name = tilt_cfg.get(assigned_tilt_color, {}).get("beer_name")
-                    log_temp_control_tilt_reading(
-                        tilt_color=assigned_tilt_color,
-                        temperature=temp,
-                        gravity=gravity,
-                        brewid=brewid,
-                        beer_name=beer_name
-                    )
             except Exception:
                 temp = None
 
@@ -4202,7 +4181,6 @@ def update_temp_config():
             "high_limit": high_limit,
             "enable_heating": 'enable_heating' in data,
             "enable_cooling": 'enable_cooling' in data,
-            "log_temp_control_tilt": 'log_temp_control_tilt' in data,
             "heating_plug": data.get("heating_plug", ""),
             "cooling_plug": data.get("cooling_plug", ""),
             "mode": data.get("mode", temp_cfg.get('mode','')),
@@ -5246,13 +5224,6 @@ def log_management():
             size_bytes = os.path.getsize(kasa_log_path)
             kasa_log_size = _format_file_size(size_bytes)
         
-        # Get temp control tilt log info
-        temp_control_tilt_log_size = "0 bytes"
-        temp_tilt_log_path = 'logs/temp_control_tilt.jsonl'
-        if os.path.exists(temp_tilt_log_path):
-            size_bytes = os.path.getsize(temp_tilt_log_path)
-            temp_control_tilt_log_size = _format_file_size(size_bytes)
-        
         # Get notifications log info
         notifications_log_size = "0 bytes"
         notifications_log_path = 'logs/notifications_log.jsonl'
@@ -5321,7 +5292,6 @@ def log_management():
         return render_template('log_management.html',
                              temp_log_size=temp_log_size,
                              kasa_log_size=kasa_log_size,
-                             temp_control_tilt_log_size=temp_control_tilt_log_size,
                              notifications_log_size=notifications_log_size,
                              app_logs=app_logs,
                              batches=batches,
@@ -5364,11 +5334,6 @@ def view_log():
             if log_file != 'kasa_activity_monitoring.jsonl':
                 return "Invalid log file", 400
             filepath = 'logs/kasa_activity_monitoring.jsonl'
-        elif log_type == 'temp_tilt':
-            # Temperature control tilt log
-            if log_file != 'temp_control_tilt.jsonl':
-                return "Invalid log file", 400
-            filepath = 'logs/temp_control_tilt.jsonl'
         elif log_type == 'notifications':
             # Notifications log
             if log_file != 'notifications_log.jsonl':
@@ -5534,26 +5499,6 @@ def archive_kasa_log():
         return redirect(url_for('log_management', error=f'Error archiving log: {str(e)}'))
 
 
-@app.route('/archive_temp_tilt_log', methods=['POST'])
-def archive_temp_tilt_log():
-    """Archive and reset the temperature control tilt log."""
-    try:
-        temp_tilt_log_path = 'logs/temp_control_tilt.jsonl'
-        if os.path.exists(temp_tilt_log_path):
-            # Create backup with timestamp
-            backup_name = f"{temp_tilt_log_path}.{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}.bak"
-            shutil.copy2(temp_tilt_log_path, backup_name)
-            print(f"[LOG] Archived temp control tilt log to: {backup_name}")
-            
-            # Reset the log file
-            open(temp_tilt_log_path, 'w').close()
-            
-            return redirect(url_for('log_management', success='Temperature control tilt log archived and reset'))
-        else:
-            return redirect(url_for('log_management', error='Temperature control tilt log not found'))
-    except Exception as e:
-        print(f"[LOG] Error archiving temp tilt log: {e}")
-        return redirect(url_for('log_management', error=f'Error archiving log: {str(e)}'))
 
 
 @app.route('/archive_notifications_log', methods=['POST'])
