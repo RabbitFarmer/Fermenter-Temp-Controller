@@ -22,6 +22,27 @@ class MockLogger:
         self.logged_entries.append(entry)
 
 
+def simulate_logging(temp_cfg, live_tilts, tilt_cfg, mock_logger):
+    """
+    Helper function to simulate the logging logic from app.py.
+    Reduces code duplication in tests.
+    """
+    tilt_logging_enabled = temp_cfg.get("log_temp_control_tilt", True)
+    assigned_tilt_color = temp_cfg.get("tilt_color")
+    if tilt_logging_enabled and assigned_tilt_color and assigned_tilt_color in live_tilts:
+        tilt_data = live_tilts[assigned_tilt_color]
+        gravity = tilt_data.get("gravity")
+        brewid = tilt_cfg.get(assigned_tilt_color, {}).get("brewid")
+        beer_name = tilt_cfg.get(assigned_tilt_color, {}).get("beer_name")
+        mock_logger.log_temp_control_tilt_reading(
+            tilt_color=assigned_tilt_color,
+            temperature=68.0,
+            gravity=gravity,
+            brewid=brewid,
+            beer_name=beer_name
+        )
+
+
 def test_logging_enabled():
     """
     Test that logging occurs when log_temp_control_tilt is True.
@@ -43,22 +64,7 @@ def test_logging_enabled():
     }
     
     mock_logger = MockLogger()
-    
-    # Simulate the logging logic
-    log_enabled = temp_cfg.get("log_temp_control_tilt", True)
-    assigned_tilt_color = temp_cfg.get("tilt_color")
-    if log_enabled and assigned_tilt_color and assigned_tilt_color in live_tilts:
-        tilt_data = live_tilts[assigned_tilt_color]
-        gravity = tilt_data.get("gravity")
-        brewid = tilt_cfg.get(assigned_tilt_color, {}).get("brewid")
-        beer_name = tilt_cfg.get(assigned_tilt_color, {}).get("beer_name")
-        mock_logger.log_temp_control_tilt_reading(
-            tilt_color=assigned_tilt_color,
-            temperature=68.0,
-            gravity=gravity,
-            brewid=brewid,
-            beer_name=beer_name
-        )
+    simulate_logging(temp_cfg, live_tilts, tilt_cfg, mock_logger)
     
     print(f"log_temp_control_tilt: {temp_cfg.get('log_temp_control_tilt')}")
     print(f"Entries logged: {len(mock_logger.logged_entries)}")
@@ -93,22 +99,7 @@ def test_logging_disabled():
     }
     
     mock_logger = MockLogger()
-    
-    # Simulate the logging logic
-    log_enabled = temp_cfg.get("log_temp_control_tilt", True)
-    assigned_tilt_color = temp_cfg.get("tilt_color")
-    if log_enabled and assigned_tilt_color and assigned_tilt_color in live_tilts:
-        tilt_data = live_tilts[assigned_tilt_color]
-        gravity = tilt_data.get("gravity")
-        brewid = tilt_cfg.get(assigned_tilt_color, {}).get("brewid")
-        beer_name = tilt_cfg.get(assigned_tilt_color, {}).get("beer_name")
-        mock_logger.log_temp_control_tilt_reading(
-            tilt_color=assigned_tilt_color,
-            temperature=68.0,
-            gravity=gravity,
-            brewid=brewid,
-            beer_name=beer_name
-        )
+    simulate_logging(temp_cfg, live_tilts, tilt_cfg, mock_logger)
     
     print(f"log_temp_control_tilt: {temp_cfg.get('log_temp_control_tilt')}")
     print(f"Entries logged: {len(mock_logger.logged_entries)}")
@@ -140,22 +131,7 @@ def test_logging_default_true():
     }
     
     mock_logger = MockLogger()
-    
-    # Simulate the logging logic with default
-    log_enabled = temp_cfg.get("log_temp_control_tilt", True)  # Defaults to True
-    assigned_tilt_color = temp_cfg.get("tilt_color")
-    if log_enabled and assigned_tilt_color and assigned_tilt_color in live_tilts:
-        tilt_data = live_tilts[assigned_tilt_color]
-        gravity = tilt_data.get("gravity")
-        brewid = tilt_cfg.get(assigned_tilt_color, {}).get("brewid")
-        beer_name = tilt_cfg.get(assigned_tilt_color, {}).get("beer_name")
-        mock_logger.log_temp_control_tilt_reading(
-            tilt_color=assigned_tilt_color,
-            temperature=68.0,
-            gravity=gravity,
-            brewid=brewid,
-            beer_name=beer_name
-        )
+    simulate_logging(temp_cfg, live_tilts, tilt_cfg, mock_logger)
     
     print(f"log_temp_control_tilt: {temp_cfg.get('log_temp_control_tilt', 'NOT SET (defaults to True)')}")
     print(f"Entries logged: {len(mock_logger.logged_entries)}")
@@ -179,3 +155,4 @@ if __name__ == "__main__":
     print("✓ Logging works when enabled (True)")
     print("✓ Logging is blocked when disabled (False)")
     print("✓ Logging defaults to enabled for backward compatibility")
+

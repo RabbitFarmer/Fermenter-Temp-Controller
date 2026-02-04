@@ -2747,9 +2747,9 @@ def temperature_control_logic():
                 # Log temp control tilt reading - ONLY if explicitly assigned AND logging is enabled
                 # Don't log fallback tilts, only log when tilt_color is explicitly set
                 # Check log_temp_control_tilt setting (default True for backward compatibility)
-                log_enabled = temp_cfg.get("log_temp_control_tilt", True)
+                tilt_logging_enabled = temp_cfg.get("log_temp_control_tilt", True)
                 assigned_tilt_color = temp_cfg.get("tilt_color")
-                if log_enabled and assigned_tilt_color and assigned_tilt_color in live_tilts:
+                if tilt_logging_enabled and assigned_tilt_color and assigned_tilt_color in live_tilts:
                     tilt_data = live_tilts[assigned_tilt_color]
                     gravity = tilt_data.get("gravity")
                     brewid = tilt_cfg.get(assigned_tilt_color, {}).get("brewid")
