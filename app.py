@@ -1538,9 +1538,9 @@ def attempt_send_notifications(subject, body):
         print(f"[LOG] Notification attempt exception: {e}")
         success_any = False
         error_msg = str(e)
-        # Log exception
+        # Log exception (use 'unknown' if mode is somehow not set)
         log_notification(
-            notification_type=mode.lower() if mode != 'NONE' else 'none',
+            notification_type=mode.lower() if mode and mode != 'NONE' else 'none',
             subject=subject,
             body=body,
             success=False,
