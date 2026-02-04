@@ -1,0 +1,3 @@
+{"timestamp": "2026-02-04T02:35:50.144912Z", "local_time": "2026-02-04 02:35:50", "mode": "heating", "url": "192.168.1.100", "action": "on"}
+{"timestamp": "2026-02-04T02:35:50.145047Z", "local_time": "2026-02-04 02:35:50", "mode": "heating", "url": "192.168.1.100", "action": "on", "success": true}
+{"timestamp": "2026-02-04T02:35:50.145116Z", "local_time": "2026-02-04 02:35:50", "mode": "cooling", "url": "192.168.1.101", "action": "off", "success": false, "error": "Connection timeout"}

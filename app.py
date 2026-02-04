@@ -71,12 +71,18 @@ except Exception:
 
 # Import log_error and log_kasa_command for kasa logging
 try:
-    from logger import log_error, log_kasa_command
+    from logger import log_error, log_kasa_command, log_notification, log_temp_control_tilt_reading
 except Exception:
     def log_error(msg):
         # Fallback if logger is not available
         print(f"[ERROR] {msg}")
     def log_kasa_command(mode, url, action, success=None, error=None):
+        # Fallback if logger is not available
+        pass
+    def log_notification(notification_type, subject, body, success, tilt_color=None, error=None):
+        # Fallback if logger is not available
+        pass
+    def log_temp_control_tilt_reading(tilt_color, temperature, gravity, brewid=None, beer_name=None):
         # Fallback if logger is not available
         pass
 
@@ -1406,12 +1412,6 @@ def _send_push_ntfy(body, subject="Fermenter Notification"):
         return False, error_msg
 
 def attempt_send_notifications(subject, body):
-    # Import log_notification from logger
-    try:
-        from logger import log_notification
-    except ImportError:
-        log_notification = None
-    
     # Use system_cfg for notification mode
     mode = (system_cfg.get('warning_mode') or 'NONE').upper()
     success_any = False
@@ -1449,14 +1449,13 @@ def attempt_send_notifications(subject, body):
         error_msg = str(e)
     
     # Log the notification attempt
-    if log_notification:
-        log_notification(
-            notification_type=mode.lower() if mode != 'NONE' else 'none',
-            subject=subject,
-            body=body,
-            success=success_any,
-            error=error_msg if not success_any else None
-        )
+    log_notification(
+        notification_type=mode.lower() if mode != 'NONE' else 'none',
+        subject=subject,
+        body=body,
+        success=success_any,
+        error=error_msg if not success_any else None
+    )
 
     temp_cfg['notifications_trigger'] = False
     if success_any:
@@ -2748,21 +2747,17 @@ def temperature_control_logic():
                 # Log temp control tilt reading
                 control_tilt_color = get_control_tilt_color()
                 if control_tilt_color and control_tilt_color in live_tilts:
-                    try:
-                        from logger import log_temp_control_tilt_reading
-                        tilt_data = live_tilts[control_tilt_color]
-                        gravity = tilt_data.get("gravity")
-                        brewid = tilt_cfg.get(control_tilt_color, {}).get("brewid")
-                        beer_name = tilt_cfg.get(control_tilt_color, {}).get("beer_name")
-                        log_temp_control_tilt_reading(
-                            tilt_color=control_tilt_color,
-                            temperature=temp,
-                            gravity=gravity,
-                            brewid=brewid,
-                            beer_name=beer_name
-                        )
-                    except Exception as e:
-                        print(f"[LOG] Failed to log temp control tilt reading: {e}")
+                    tilt_data = live_tilts[control_tilt_color]
+                    gravity = tilt_data.get("gravity")
+                    brewid = tilt_cfg.get(control_tilt_color, {}).get("brewid")
+                    beer_name = tilt_cfg.get(control_tilt_color, {}).get("beer_name")
+                    log_temp_control_tilt_reading(
+                        tilt_color=control_tilt_color,
+                        temperature=temp,
+                        gravity=gravity,
+                        brewid=brewid,
+                        beer_name=beer_name
+                    )
             except Exception:
                 temp = None
 
