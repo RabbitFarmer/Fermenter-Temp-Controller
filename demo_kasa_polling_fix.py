@@ -1,148 +1,130 @@
 #!/usr/bin/env python3
 """
-Integration test demonstrating the fix for redundant Kasa polling.
+Demonstration of the simplified redundancy check approach.
 
-This test simulates the temperature control loop behavior before and after the fix
-to show how the polling frequency is reduced.
+This shows how the pending flag mechanism provides natural deduplication
+without needing complex time-based logic.
 """
 
 import time
 
-# Simplified implementation of the functions for testing
-_last_kasa_command = {}
-
-def _record_kasa_command(url, action):
-    _last_kasa_command[url] = {"action": action, "ts": time.time()}
-
-def _is_redundant_command_OLD(url, action, current_state):
-    """OLD implementation with 30-second timeout."""
-    command_matches_state = (action == "on" and current_state) or (action == "off" and not current_state)
-    if not command_matches_state:
-        return False
+def simulate_simplified_approach():
+    """Simulate the new simplified redundancy checking."""
     
-    last = _last_kasa_command.get(url)
-    if not last:
-        return False
+    # State tracking
+    heater_on = False
+    heater_pending = False
+    heater_pending_action = None
     
-    if last.get("action") != action:
-        return False
+    def _is_redundant_command(action, current_state):
+        """Simplified - just check if command changes state."""
+        command_matches_state = (action == "on" and current_state) or (action == "off" and not current_state)
+        return command_matches_state
     
-    time_since_last = time.time() - last.get("ts", 0.0)
-    
-    # OLD: 30 seconds for state recovery
-    if time_since_last >= 30:
-        return False
-    
-    return True
-
-def _is_redundant_command_NEW(url, action, current_state):
-    """NEW implementation with 600-second (10 minute) timeout."""
-    command_matches_state = (action == "on" and current_state) or (action == "off" and not current_state)
-    if not command_matches_state:
-        return False
-    
-    last = _last_kasa_command.get(url)
-    if not last:
-        return False
-    
-    if last.get("action") != action:
-        return False
-    
-    time_since_last = time.time() - last.get("ts", 0.0)
-    
-    # NEW: 10 minutes (600 seconds) for state recovery
-    if time_since_last >= 600:
-        return False
-    
-    return True
-
-def simulate_control_loop(version="NEW", iterations=6, interval_seconds=120):
-    """Simulate temperature control loop iterations."""
-    url = "192.168.1.208"
-    heater_on = False  # Current heater state
-    target_state = "on"  # Temperature is below low limit, heater should be on
-    
-    # Choose implementation version
-    is_redundant = _is_redundant_command_NEW if version == "NEW" else _is_redundant_command_OLD
-    
-    print(f"\n{'='*70}")
-    print(f"Simulating {version} implementation")
-    print(f"Control loop interval: {interval_seconds} seconds ({interval_seconds/60:.1f} minutes)")
-    print(f"Scenario: Temperature below low limit, heater needs to stay ON")
-    print(f"{'='*70}\n")
-    
-    _last_kasa_command.clear()
-    commands_sent = 0
-    
-    for i in range(iterations):
-        elapsed_time = i * interval_seconds
-        elapsed_minutes = elapsed_time / 60
+    def should_send_command(action):
+        """Check if we should send the command."""
+        # Check 1: Is there already a pending command?
+        if heater_pending:
+            return False, "BLOCKED - command pending"
         
-        print(f"Loop {i+1} (at {elapsed_minutes:.1f} minutes):")
+        # Check 2: Would this command change the state?
+        if _is_redundant_command(action, heater_on):
+            return False, "BLOCKED - no state change needed"
         
-        # Simulate time passing
-        if i > 0:
-            # Adjust the timestamp to simulate time passing
-            if url in _last_kasa_command:
-                _last_kasa_command[url]["ts"] = time.time() - interval_seconds
-        
-        # Check if command is redundant
-        redundant = is_redundant(url, target_state, heater_on)
-        
-        if not redundant:
-            print(f"  ✓ Sending '{target_state}' command to Kasa plug")
-            _record_kasa_command(url, target_state)
-            heater_on = (target_state == "on")
-            commands_sent += 1
-        else:
-            print(f"  ✗ Blocking redundant '{target_state}' command (heater already {('ON' if heater_on else 'OFF')})")
-        
-        print()
+        return True, "ALLOWED - state change needed"
     
-    print(f"Summary:")
-    print(f"  Total loop iterations: {iterations}")
-    print(f"  Commands sent: {commands_sent}")
-    print(f"  Commands blocked: {iterations - commands_sent}")
-    print(f"  Reduction: {((iterations - commands_sent) / iterations * 100):.1f}%\n")
+    def send_command(action):
+        """Send command and set pending flag."""
+        nonlocal heater_pending, heater_pending_action
+        heater_pending = True
+        heater_pending_action = action
+        print(f"    → Command sent to Kasa: '{action}'")
+        print(f"    → Pending flag set: heater_pending=True")
     
-    return commands_sent
-
-def main():
+    def receive_success(action):
+        """Receive success response and clear pending flag."""
+        nonlocal heater_on, heater_pending, heater_pending_action
+        heater_on = (action == "on")
+        heater_pending = False
+        heater_pending_action = None
+        print(f"    ✓ Success received: heater_on={heater_on}")
+        print(f"    ✓ Pending flag cleared: heater_pending=False")
+    
     print("\n" + "="*70)
-    print("DEMONSTRATION: Before and After Fix for Redundant Kasa Polling")
+    print("SIMPLIFIED REDUNDANCY CHECK DEMONSTRATION")
     print("="*70)
+    print("\nScenario: Temperature below low limit, heater needs to turn ON\n")
     
-    print("\n📊 Simulating 12 minutes of operation (6 control loops at 2-minute intervals)")
-    print("   Temperature is below low limit, so heater should stay ON throughout.")
+    # Loop 1: Initial state, heater is OFF, need to turn ON
+    print("Loop 1 (t=0s): Temperature triggers heating ON")
+    print(f"  Current state: heater_on={heater_on}, pending={heater_pending}")
+    should_send, reason = should_send_command("on")
+    print(f"  Should send 'on' command? {should_send} - {reason}")
+    if should_send:
+        send_command("on")
+    print()
     
-    # Simulate OLD behavior
-    old_commands = simulate_control_loop(version="OLD", iterations=6, interval_seconds=120)
+    # Loop 2: Command pending, temperature still low
+    print("Loop 2 (t=120s): Temperature still triggers heating ON")
+    print(f"  Current state: heater_on={heater_on}, pending={heater_pending}")
+    should_send, reason = should_send_command("on")
+    print(f"  Should send 'on' command? {should_send} - {reason}")
+    print("  ← This is the 'redundancy check' - pending flag blocks duplicates!")
+    print()
     
-    # Simulate NEW behavior
-    new_commands = simulate_control_loop(version="NEW", iterations=6, interval_seconds=120)
+    # Success returns
+    print("Success Response (t=125s): Kasa confirms heating ON")
+    receive_success("on")
+    print()
     
-    # Show comparison
-    print("\n" + "="*70)
-    print("COMPARISON")
+    # Loop 3: After success, heater is ON, temperature still low
+    print("Loop 3 (t=240s): Temperature still triggers heating ON")
+    print(f"  Current state: heater_on={heater_on}, pending={heater_pending}")
+    should_send, reason = should_send_command("on")
+    print(f"  Should send 'on' command? {should_send} - {reason}")
+    print("  ← State check blocks it - heater already ON, no need to send")
+    print()
+    
+    # Loop 4: Temperature rises, need to turn OFF
+    print("Loop 4 (t=360s): Temperature rises, triggers heating OFF")
+    print(f"  Current state: heater_on={heater_on}, pending={heater_pending}")
+    should_send, reason = should_send_command("off")
+    print(f"  Should send 'off' command? {should_send} - {reason}")
+    if should_send:
+        send_command("off")
+    print()
+    
+    # Loop 5: OFF command pending
+    print("Loop 5 (t=480s): Temperature high, triggers heating OFF")
+    print(f"  Current state: heater_on={heater_on}, pending={heater_pending}")
+    should_send, reason = should_send_command("off")
+    print(f"  Should send 'off' command? {should_send} - {reason}")
+    print("  ← Pending flag blocks duplicate OFF command")
+    print()
+    
+    # Success returns
+    print("Success Response (t=485s): Kasa confirms heating OFF")
+    receive_success("off")
+    print()
+    
+    # Loop 6: After success, heater is OFF
+    print("Loop 6 (t=600s): Temperature high, triggers heating OFF")
+    print(f"  Current state: heater_on={heater_on}, pending={heater_pending}")
+    should_send, reason = should_send_command("off")
+    print(f"  Should send 'off' command? {should_send} - {reason}")
+    print("  ← State check blocks it - heater already OFF")
+    print()
+    
     print("="*70)
-    print(f"OLD implementation (30s timeout):  {old_commands} commands in 12 minutes")
-    print(f"NEW implementation (10m timeout):  {new_commands} commands in 12 minutes")
-    print(f"Reduction:                          {old_commands - new_commands} fewer commands")
-    print(f"Improvement:                        {((old_commands - new_commands) / old_commands * 100):.0f}% reduction in polling")
-    
-    print("\n📈 Expected behavior in real-world usage:")
-    print("   - First control loop: Command sent (heater turns ON)")
-    print("   - Next ~5 loops (10 minutes): Commands blocked (redundant)")
-    print("   - Every 6th loop: Command sent (state verification)")
-    print("   - Net result: ~83% reduction in Kasa polling")
-    
-    print("\n✅ Benefits:")
-    print("   - Reduced network traffic to Kasa plugs")
-    print("   - Less wear on smart plug relays")
-    print("   - Cleaner activity logs")
-    print("   - Still maintains state recovery (every 10 minutes)")
-    print("   - No impact on temperature control accuracy or safety")
+    print("SUMMARY")
+    print("="*70)
+    print("The pending flag mechanism provides natural deduplication:")
+    print("1. When temperature triggers a command → set pending=True")
+    print("2. While pending=True → block duplicate commands")
+    print("3. When success received → set pending=False")
+    print("4. State check prevents sending commands that don't change state")
+    print("\nNo time-based logic needed - simpler and more accurate!")
     print()
 
 if __name__ == "__main__":
-    main()
+    simulate_simplified_approach()

@@ -2345,37 +2345,17 @@ def _is_redundant_command(url, action, current_state):
     Check if sending this command would be redundant based on current state.
     
     Returns True if command is redundant (should be skipped).
-    Exception: Returns False if enough time has passed for state recovery.
     
-    SIMPLIFIED: Only block truly redundant commands. Always allow state changes.
+    SIMPLIFIED: Block commands that don't change state.
+    The pending flag mechanism handles deduplication while commands are in-flight,
+    so we don't need time-based logic here.
     """
     # If trying to send ON when already ON (or OFF when already OFF), it's redundant
     command_matches_state = (action == "on" and current_state) or (action == "off" and not current_state)
-    if not command_matches_state:
-        return False  # Not redundant - state needs to change
     
-    # Command matches current state - check if we recently sent this command
-    last = _last_kasa_command.get(url)
-    if not last:
-        # No recent command recorded - allow this one (for state recovery)
-        return False
-    
-    # If the last command was different, allow this one
-    if last.get("action") != action:
-        return False
-    
-    # Same command was sent recently - check timing
-    time_since_last = time.time() - last.get("ts", 0.0)
-    
-    # If enough time has passed, allow resending for state recovery/verification
-    # Set to 10 minutes (600 seconds) to prevent redundant commands while still
-    # allowing periodic state verification. This should be longer than the typical
-    # temperature control loop interval (default 2 minutes, configurable up to ~5 minutes)
-    if time_since_last >= 600:  # 10 minutes for state recovery
-        return False
-    
-    # Command was sent recently and state matches - it's redundant
-    return True
+    # Return True (redundant) if command matches current state
+    # Return False (not redundant) if state needs to change
+    return command_matches_state
 
 def _should_send_kasa_command(url, action):
     if not url:
