@@ -3872,40 +3872,32 @@ def test_email():
     subject = "TEST - Fermenter Controller"
     body = "*** TEST MESSAGE ***\n\nThis is a TEST email from your Fermenter Temperature Controller.\n\nIf you received this, your email settings are configured correctly!\n\n*** TEST MESSAGE ***"
     
+    success = False
+    error_msg = None
+    
     try:
         success, error_msg = send_email(subject, body)
-        
-        # Log the test notification attempt
-        log_notification(
-            notification_type='email',
-            subject=subject,
-            body=body,
-            success=success,
-            error=error_msg if not success else None
-        )
-        
-        if success:
-            return jsonify({
-                'success': True,
-                'message': 'Test email sent successfully! Check your inbox.'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': f'Failed to send test email: {error_msg}'
-            })
     except Exception as e:
-        # Log exception
-        log_notification(
-            notification_type='email',
-            subject=subject,
-            body=body,
-            success=False,
-            error=str(e)
-        )
+        error_msg = str(e)
+    
+    # Log the test notification attempt (success or failure)
+    log_notification(
+        notification_type='email',
+        subject=subject,
+        body=body,
+        success=success,
+        error=error_msg if not success else None
+    )
+    
+    if success:
+        return jsonify({
+            'success': True,
+            'message': 'Test email sent successfully! Check your inbox.'
+        })
+    else:
         return jsonify({
             'success': False,
-            'message': f'An error occurred while sending test email: {str(e)}'
+            'message': f'Failed to send test email: {error_msg}'
         })
 
 @app.route('/test_push', methods=['POST'])
@@ -3918,40 +3910,32 @@ def test_push():
     subject = "TEST - Fermenter Controller"
     body = f"*** TEST MESSAGE *** This is a TEST push notification from your Fermenter Temperature Controller. If you received this, your {provider_name} settings are configured correctly! *** TEST MESSAGE ***"
     
+    success = False
+    error_msg = None
+    
     try:
         success, error_msg = send_push(body, subject=subject)
-        
-        # Log the test notification attempt
-        log_notification(
-            notification_type='push',
-            subject=subject,
-            body=body,
-            success=success,
-            error=error_msg if not success else None
-        )
-        
-        if success:
-            return jsonify({
-                'success': True,
-                'message': f'Test push notification sent successfully via {provider_name}! Check your device.'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': f'Failed to send test push notification: {error_msg}'
-            })
     except Exception as e:
-        # Log exception
-        log_notification(
-            notification_type='push',
-            subject=subject,
-            body=body,
-            success=False,
-            error=str(e)
-        )
+        error_msg = str(e)
+    
+    # Log the test notification attempt (success or failure)
+    log_notification(
+        notification_type='push',
+        subject=subject,
+        body=body,
+        success=success,
+        error=error_msg if not success else None
+    )
+    
+    if success:
+        return jsonify({
+            'success': True,
+            'message': f'Test push notification sent successfully via {provider_name}! Check your device.'
+        })
+    else:
         return jsonify({
             'success': False,
-            'message': f'An error occurred while sending test push notification: {str(e)}'
+            'message': f'Failed to send test push notification: {error_msg}'
         })
 
 @app.route('/test_external_logging', methods=['POST'])
