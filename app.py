@@ -4253,6 +4253,13 @@ def update_temp_config():
             # Empty field - keep existing value
             high_limit = temp_cfg.get("high_limit", 100.0)
         
+        # Validate that high_limit > low_limit
+        if high_limit <= low_limit:
+            print(f"[LOG] ERROR: high_limit ({high_limit}) must be greater than low_limit ({low_limit})")
+            # Don't update - keep existing values
+            low_limit = temp_cfg.get("low_limit", 0.0)
+            high_limit = temp_cfg.get("high_limit", 100.0)
+        
         temp_cfg.update({
             "tilt_color": new_tilt_color,
             "low_limit": low_limit,

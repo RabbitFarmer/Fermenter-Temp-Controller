@@ -86,6 +86,36 @@
   </script>
   
   <script>
+    // Validate that high limit is greater than low limit before form submission
+    function validateLimits(event) {
+      const lowLimit = parseFloat(document.getElementById('low_limit').value);
+      const highLimit = parseFloat(document.getElementById('high_limit').value);
+      
+      if (isNaN(lowLimit) || isNaN(highLimit)) {
+        alert('Both Low Limit and High Limit must be valid numbers.');
+        event.preventDefault();
+        return false;
+      }
+      
+      if (highLimit <= lowLimit) {
+        alert('High Limit must be greater than Low Limit.\nCurrent: Low=' + lowLimit + '°F, High=' + highLimit + '°F');
+        event.preventDefault();
+        return false;
+      }
+      
+      return true;
+    }
+    
+    // Add validation to the form
+    window.addEventListener('DOMContentLoaded', function() {
+      const form = document.getElementById('tempConfigForm');
+      if (form) {
+        form.addEventListener('submit', validateLimits);
+      }
+    });
+  </script>
+  
+  <script>
     // On page load, check if there are any KASA URLs stored from scan results
     window.addEventListener('DOMContentLoaded', function() {
       const heatingUrl = localStorage.getItem('kasa_heating_url');
@@ -154,13 +184,21 @@
           </div>
 
           <div class="form-row">
-            <label for="low_limit">Low Limit (°F):</label>
-            <input id="low_limit" name="low_limit" type="number" step="0.1" value="{{ temp_control.low_limit|default('') }}">
+            <label for="low_limit">Low Limit (°F): <span style="color: red;">*</span></label>
+            <input id="low_limit" name="low_limit" type="number" step="0.1" 
+                   value="{{ temp_control.low_limit if temp_control.low_limit is not none else '' }}" 
+                   placeholder="e.g., 65.0"
+                   min="32" max="212" required>
+            <span class="small">Required. Heating turns ON when temp drops to or below this value (32-212°F).</span>
           </div>
 
           <div class="form-row">
-            <label for="high_limit">High Limit (°F):</label>
-            <input id="high_limit" name="high_limit" type="number" step="0.1" value="{{ temp_control.high_limit|default('') }}">
+            <label for="high_limit">High Limit (°F): <span style="color: red;">*</span></label>
+            <input id="high_limit" name="high_limit" type="number" step="0.1" 
+                   value="{{ temp_control.high_limit if temp_control.high_limit is not none else '' }}" 
+                   placeholder="e.g., 68.0"
+                   min="32" max="212" required>
+            <span class="small">Required. Heating turns OFF when temp rises to or above this value (32-212°F). Must be greater than Low Limit.</span>
           </div>
 
           <div class="form-row">
