@@ -9,7 +9,6 @@ The original issue identified several problems with the temperature control char
 2. The chart layout detracted from readability
 3. Users needed ability to zoom in and zoom out
 4. Users wanted time range filters (1 day, 1 week, all data)
-5. Curving lines were preferred over straight lines
 
 ## Solution
 
@@ -30,13 +29,7 @@ if (dataPoints.length > 0) {
 x: [limitLineStart, limitLineEnd]  // Instead of [xAxisRange[0], xAxisRange[1]]
 ```
 
-### 2. Curving Lines (Spline Shape)
-Changed line shape from 'linear' to 'spline' for smoother, more readable temperature curves:
-```javascript
-line: { color: displayColor, shape: 'spline', width: 1.5 }
-```
-
-### 3. Zoom Controls
+### 2. Zoom Controls
 Added three zoom control buttons that manipulate the x-axis range:
 
 **Zoom In**: Reduces visible time range by 50% centered on current view
@@ -58,7 +51,7 @@ const newDuration = duration * 2;
 Plotly.relayout('tempChart', { 'xaxis.range': defaultXRange });
 ```
 
-### 4. Time Range Filters
+### 3. Time Range Filters
 Added three time range filter buttons:
 
 **1 Day**: Shows last 24 hours from end of data
@@ -115,10 +108,10 @@ A test file was created to demonstrate the new features:
 
 ## Benefits
 1. **Better Readability**: Limit lines no longer extend from axis border
-2. **Smoother Visualization**: Spline curves show temperature trends more naturally
-3. **Flexible Navigation**: Users can zoom to desired detail level
-4. **Quick Access**: Time range filters provide fast navigation to recent data
-5. **Intuitive UI**: Clear button labels and active state indicators
+2. **Flexible Navigation**: Users can zoom to desired detail level
+3. **Quick Access**: Time range filters provide fast navigation to recent data
+4. **Intuitive UI**: Clear button labels and active state indicators
+5. **Preserved Style**: Kept existing linear line style as preferred by users
 
 ## Future Enhancements
 Potential improvements for future iterations:

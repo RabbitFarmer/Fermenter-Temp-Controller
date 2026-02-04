@@ -189,7 +189,7 @@
                 y: displayData.map(p => p.temp_f),
                 mode: 'lines',
                 name: displayLabel,
-                line: { color: displayColor, shape: 'spline', width: 1.5 },
+                line: { color: displayColor, shape: 'linear', width: 1.5 },
                 yaxis: 'y1',
                 connectgaps: false,
               });
@@ -206,7 +206,7 @@
             y: dataPoints.map((p) => p.temp_f),
             mode: 'lines',
             name: 'Temperature (°F)',
-            line: { color: 'blue', shape: 'spline', width: 1.5 },
+            line: { color: 'blue', shape: 'linear', width: 1.5 },
             yaxis: 'y1',
             connectgaps: false,
           };
