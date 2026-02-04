@@ -7,8 +7,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
     /* small spacing tweaks to match your UI */
-    .config-table input[type="text"], .config-table input[type="email"], .config-table input[type="number"], .config-table input[type="password"], .config-table select, .config-table textarea {
+    .config-table input[type="text"], .config-table input[type="email"], .config-table input[type="password"], .config-table select, .config-table textarea {
       width: 100%;
+      box-sizing: border-box;
+      padding: 6px;
+    }
+    .config-table input[type="number"] {
+      width: 100px;  /* Smaller width for number fields */
       box-sizing: border-box;
       padding: 6px;
     }
