@@ -18,6 +18,57 @@ def log_error(msg):
     print(msg)  # Terminal output
     logging.error(msg)  # Log to kasa_errors.log
 
+def log_kasa_command(mode, url, action, success=None, error=None):
+    """
+    Log Kasa plug commands and responses to kasa_activity_monitoring.jsonl.
+    
+    Args:
+        mode (str): Mode of operation. Expected values: 'heating' or 'cooling'
+        url (str): IP address or hostname of the plug (e.g., '192.168.1.100')
+        action (str): Action being performed. Expected values: 'on' or 'off'
+        success (bool|None): Command success status:
+            - None: Command sent, response not yet received
+            - True: Command succeeded
+            - False: Command failed
+        error (str|None): Error message if command failed. Only set when success=False
+    
+    Log Entry Format:
+        Command sent: {"timestamp": "...", "mode": "...", "url": "...", "action": "..."}
+        Success: {"timestamp": "...", "mode": "...", "url": "...", "action": "...", "success": true}
+        Failure: {"timestamp": "...", "mode": "...", "url": "...", "action": "...", "success": false, "error": "..."}
+    
+    Example:
+        # Log command being sent
+        log_kasa_command('heating', '192.168.1.100', 'on')
+        
+        # Log successful response
+        log_kasa_command('heating', '192.168.1.100', 'on', success=True)
+        
+        # Log failed response
+        log_kasa_command('cooling', '192.168.1.101', 'off', success=False, error='Connection timeout')
+    """
+    try:
+        ensure_log_dir()
+        log_file = os.path.join(LOG_DIR, 'kasa_activity_monitoring.jsonl')
+        
+        entry = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "mode": mode,
+            "url": url,
+            "action": action,
+        }
+        
+        if success is not None:
+            entry["success"] = success
+        
+        if error:
+            entry["error"] = error
+        
+        with open(log_file, 'a') as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception as e:
+        print(f"[LOG] Failed to log to kasa_activity_monitoring.jsonl: {e}")
+
 # --- General event logging and notifications ---
 LOG_DIR = "logs"
 BATCHES_DIR = "batches"

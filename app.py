@@ -69,13 +69,16 @@ try:
 except Exception:
     psutil = None
 
-# Import log_error for kasa error logging
+# Import log_error and log_kasa_command for kasa logging
 try:
-    from logger import log_error
+    from logger import log_error, log_kasa_command
 except Exception:
     def log_error(msg):
         # Fallback if logger is not available
         print(f"[ERROR] {msg}")
+    def log_kasa_command(mode, url, action, success=None, error=None):
+        # Fallback if logger is not available
+        pass
 
 app = Flask(__name__)
 
@@ -2315,7 +2318,8 @@ Change since yesterday: {change_since_yesterday:.3f}"""
 # --- Kasa command dedupe & rate limit -------------------------------------
 _last_kasa_command = {}
 _KASA_RATE_LIMIT_SECONDS = int(system_cfg.get("kasa_rate_limit_seconds", 10) or 10)
-_KASA_PENDING_TIMEOUT_SECONDS = int(system_cfg.get("kasa_pending_timeout_seconds", 30) or 30)
+# Reduced pending timeout from 30s to 10s for faster recovery from stuck states
+_KASA_PENDING_TIMEOUT_SECONDS = int(system_cfg.get("kasa_pending_timeout_seconds", 10) or 10)
 
 def _is_redundant_command(url, action, current_state):
     """
@@ -2323,27 +2327,41 @@ def _is_redundant_command(url, action, current_state):
     
     Returns True if command is redundant (should be skipped).
     Exception: Returns False if enough time has passed for state recovery.
+    
+    SIMPLIFIED: Only block truly redundant commands. Always allow state changes.
     """
     # If trying to send ON when already ON (or OFF when already OFF), it's redundant
     command_matches_state = (action == "on" and current_state) or (action == "off" and not current_state)
     if not command_matches_state:
         return False  # Not redundant - state needs to change
     
-    # Command matches current state, but allow recovery after timeout
+    # Command matches current state - check if we recently sent this command
     last = _last_kasa_command.get(url)
-    if last and last.get("action") == action:
-        time_since_last = time.time() - last.get("ts", 0.0)
-        if time_since_last >= _KASA_RATE_LIMIT_SECONDS:
-            # Enough time has passed - allow resending for state recovery
-            return False
+    if not last:
+        # No recent command recorded - allow this one (for state recovery)
+        return False
     
-    # Command is redundant - skip it
+    # If the last command was different, allow this one
+    if last.get("action") != action:
+        return False
+    
+    # Same command was sent recently - check timing
+    time_since_last = time.time() - last.get("ts", 0.0)
+    
+    # If enough time has passed, allow resending for state recovery/verification
+    # Reduced from rate limit timeout to allow faster recovery
+    if time_since_last >= 30:  # 30 seconds for state recovery
+        return False
+    
+    # Command was sent recently and state matches - it's redundant
     return True
 
 def _should_send_kasa_command(url, action):
     if not url:
+        print(f"[TEMP_CONTROL] Blocking command (no URL configured)")
         return False
     if not kasa_worker:
+        print(f"[TEMP_CONTROL] Blocking command (kasa_worker not available)")
         return False
     
     # Check for timed-out pending flags and clear them
@@ -2395,6 +2413,8 @@ def _should_send_kasa_command(url, action):
             })
         elif temp_cfg.get("heater_pending"):
             # Still pending and within timeout - block command
+            elapsed = time.time() - pending_since if pending_since else 0
+            print(f"[TEMP_CONTROL] Blocking heating {action} command (still pending {pending_action} for {elapsed:.1f}s)")
             return False
     
     if url == temp_cfg.get("cooling_plug") and temp_cfg.get("cooler_pending"):
@@ -2444,6 +2464,8 @@ def _should_send_kasa_command(url, action):
             })
         elif temp_cfg.get("cooler_pending"):
             # Still pending and within timeout - block command
+            elapsed = time.time() - pending_since if pending_since else 0
+            print(f"[TEMP_CONTROL] Blocking cooling {action} command (still pending {pending_action} for {elapsed:.1f}s)")
             return False
     
     # Check for redundant commands based on current state
@@ -2452,17 +2474,21 @@ def _should_send_kasa_command(url, action):
     if url == temp_cfg.get("heating_plug"):
         heater_on = temp_cfg.get("heater_on", False)
         if _is_redundant_command(url, action, heater_on):
+            print(f"[TEMP_CONTROL] Blocking heating {action} command (redundant - heater already {('ON' if heater_on else 'OFF')})")
             return False
     
     if url == temp_cfg.get("cooling_plug"):
         cooler_on = temp_cfg.get("cooler_on", False)
         if _is_redundant_command(url, action, cooler_on):
+            print(f"[TEMP_CONTROL] Blocking cooling {action} command (redundant - cooler already {('ON' if cooler_on else 'OFF')})")
             return False
     
     # Rate limiting: prevent the same command from being sent too frequently
     last = _last_kasa_command.get(url)
     if last and last.get("action") == action:
-        if (time.time() - last.get("ts", 0.0)) < _KASA_RATE_LIMIT_SECONDS:
+        time_since_last = time.time() - last.get("ts", 0.0)
+        if time_since_last < _KASA_RATE_LIMIT_SECONDS:
+            print(f"[TEMP_CONTROL] Blocking {action} command (rate limited - last sent {time_since_last:.1f}s ago)")
             return False
     return True
 
@@ -2550,6 +2576,8 @@ def control_heating(state):
         print(f"[TEMP_CONTROL] Skipping heating {state} command (redundant or rate-limited)")
         return
     print(f"[TEMP_CONTROL] Sending heating {state.upper()} command to {url}")
+    # Log the command being sent
+    log_kasa_command('heating', url, state)
     kasa_queue.put({'mode': 'heating', 'url': url, 'action': state})
     # NOTE: _record_kasa_command is now called in kasa_result_listener only on success
     # This allows failed commands to be retried without rate limiting
@@ -2637,6 +2665,8 @@ def control_cooling(state):
         print(f"[TEMP_CONTROL] Skipping cooling {state} command (redundant or rate-limited)")
         return
     print(f"[TEMP_CONTROL] Sending cooling {state.upper()} command to {url}")
+    # Log the command being sent
+    log_kasa_command('cooling', url, state)
     kasa_queue.put({'mode': 'cooling', 'url': url, 'action': state})
     # NOTE: _record_kasa_command is now called in kasa_result_listener only on success
     # This allows failed commands to be retried without rate limiting
@@ -3065,6 +3095,9 @@ def kasa_result_listener():
             error = result.get('error', '')
             
             print(f"[KASA_RESULT] Received result: mode={mode}, action={action}, success={success}, url={url}, error={error}")
+            
+            # Log the response to kasa_activity_monitoring.jsonl
+            log_kasa_command(mode, url, action, success=success, error=error if not success else None)
             
             if mode == 'heating':
                 temp_cfg["heater_pending"] = False
