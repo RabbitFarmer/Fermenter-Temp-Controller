@@ -2368,8 +2368,10 @@ def _is_redundant_command(url, action, current_state):
     time_since_last = time.time() - last.get("ts", 0.0)
     
     # If enough time has passed, allow resending for state recovery/verification
-    # Reduced from rate limit timeout to allow faster recovery
-    if time_since_last >= 30:  # 30 seconds for state recovery
+    # Set to 10 minutes (600 seconds) to prevent redundant commands while still
+    # allowing periodic state verification. This should be longer than the typical
+    # temperature control loop interval (default 2 minutes, configurable up to ~5 minutes)
+    if time_since_last >= 600:  # 10 minutes for state recovery
         return False
     
     # Command was sent recently and state matches - it's redundant
