@@ -105,8 +105,9 @@ MAX_ALL_LIMIT = 10000
 MAX_FILENAME_LENGTH = 50
 
 # In-memory buffer for temperature control readings
-# Stores recent readings at update_interval frequency without logging to file
+# Stores recent readings in memory (not immediately written to file)
 # Max 1440 entries = 2 days at 2-minute intervals (prevents memory bloat)
+# Readings can be exported to CSV if needed
 TEMP_READING_BUFFER_SIZE = 1440
 temp_reading_buffer = deque(maxlen=TEMP_READING_BUFFER_SIZE)
 
