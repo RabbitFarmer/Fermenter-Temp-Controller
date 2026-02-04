@@ -799,18 +799,21 @@ def log_tilt_reading(color, gravity, temp_f, rssi):
     # Rate limiting based on tilt usage:
     # - If tilt is assigned to temperature control: use update_interval (default 2 min) for responsive control
     # - Otherwise: use tilt_logging_interval_minutes (default 15 min) for fermentation tracking
-    control_tilt_color = temp_cfg.get("tilt_color") if 'temp_cfg' in globals() else None
+    control_tilt_color = temp_cfg.get("tilt_color")
     is_control_tilt = (color == control_tilt_color)
     
     if is_control_tilt:
         # Use update_interval for temperature control tilt
         try:
             interval_minutes = int(system_cfg.get('update_interval', 2))
-        except Exception:
+        except (ValueError, TypeError):
             interval_minutes = 2
     else:
         # Use tilt_logging_interval_minutes for fermentation tracking
-        interval_minutes = int(system_cfg.get('tilt_logging_interval_minutes', 15))
+        try:
+            interval_minutes = int(system_cfg.get('tilt_logging_interval_minutes', 15))
+        except (ValueError, TypeError):
+            interval_minutes = 15
     
     now = datetime.utcnow()
     last_log = last_tilt_log_ts.get(color)
