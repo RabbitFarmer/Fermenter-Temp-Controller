@@ -1480,10 +1480,26 @@ def attempt_send_notifications(subject, body):
             success_any, error_msg = send_email(subject, body)
             if not success_any:
                 print(f"[LOG] Email notification failed: {error_msg}")
+            # Log email notification attempt
+            log_notification(
+                notification_type='email',
+                subject=subject,
+                body=body,
+                success=success_any,
+                error=error_msg if not success_any else None
+            )
         elif mode == 'PUSH':
             success_any, error_msg = send_push(body, subject)
             if not success_any:
                 print(f"[LOG] Push notification failed: {error_msg}")
+            # Log push notification attempt
+            log_notification(
+                notification_type='push',
+                subject=subject,
+                body=body,
+                success=success_any,
+                error=error_msg if not success_any else None
+            )
         elif mode == 'BOTH':
             e, email_error = send_email(subject, body)
             p, push_error = send_push(body, subject)
@@ -1492,23 +1508,44 @@ def attempt_send_notifications(subject, body):
             if not p:
                 print(f"[LOG] Push notification failed: {push_error}")
             success_any = e or p
-            error_msg = f"Email: {email_error}, Push: {push_error}" if not success_any else None
+            # Log individual email and push attempts separately
+            log_notification(
+                notification_type='email',
+                subject=subject,
+                body=body,
+                success=e,
+                error=email_error if not e else None
+            )
+            log_notification(
+                notification_type='push',
+                subject=subject,
+                body=body,
+                success=p,
+                error=push_error if not p else None
+            )
         else:
             success_any = False
             error_msg = f"Invalid notification mode: {mode}"
+            # Log invalid mode
+            log_notification(
+                notification_type='none',
+                subject=subject,
+                body=body,
+                success=False,
+                error=error_msg
+            )
     except Exception as e:
         print(f"[LOG] Notification attempt exception: {e}")
         success_any = False
         error_msg = str(e)
-    
-    # Log the notification attempt
-    log_notification(
-        notification_type=mode.lower() if mode != 'NONE' else 'none',
-        subject=subject,
-        body=body,
-        success=success_any,
-        error=error_msg if not success_any else None
-    )
+        # Log exception
+        log_notification(
+            notification_type=mode.lower() if mode != 'NONE' else 'none',
+            subject=subject,
+            body=body,
+            success=False,
+            error=error_msg
+        )
 
     temp_cfg['notifications_trigger'] = False
     if success_any:
@@ -3838,6 +3875,15 @@ def test_email():
         
         success, error_msg = send_email(subject, body)
         
+        # Log the test notification attempt
+        log_notification(
+            notification_type='email',
+            subject=subject,
+            body=body,
+            success=success,
+            error=error_msg if not success else None
+        )
+        
         if success:
             return jsonify({
                 'success': True,
@@ -3849,6 +3895,14 @@ def test_email():
                 'message': f'Failed to send test email: {error_msg}'
             })
     except Exception as e:
+        # Log exception
+        log_notification(
+            notification_type='email',
+            subject=subject,
+            body=body,
+            success=False,
+            error=str(e)
+        )
         return jsonify({
             'success': False,
             'message': f'An error occurred while sending test email: {str(e)}'
@@ -3862,9 +3916,19 @@ def test_push():
         push_provider = system_cfg.get("push_provider", "pushover").lower()
         provider_name = "Pushover" if push_provider == "pushover" else "ntfy"
         
+        subject = "TEST - Fermenter Controller"
         body = f"*** TEST MESSAGE *** This is a TEST push notification from your Fermenter Temperature Controller. If you received this, your {provider_name} settings are configured correctly! *** TEST MESSAGE ***"
         
-        success, error_msg = send_push(body, subject="TEST - Fermenter Controller")
+        success, error_msg = send_push(body, subject=subject)
+        
+        # Log the test notification attempt
+        log_notification(
+            notification_type='push',
+            subject=subject,
+            body=body,
+            success=success,
+            error=error_msg if not success else None
+        )
         
         if success:
             return jsonify({
@@ -3877,6 +3941,14 @@ def test_push():
                 'message': f'Failed to send test push notification: {error_msg}'
             })
     except Exception as e:
+        # Log exception
+        log_notification(
+            notification_type='push',
+            subject=subject if 'subject' in locals() else 'TEST - Fermenter Controller',
+            body=body if 'body' in locals() else 'Test message',
+            success=False,
+            error=str(e)
+        )
         return jsonify({
             'success': False,
             'message': f'An error occurred while sending test push notification: {str(e)}'
