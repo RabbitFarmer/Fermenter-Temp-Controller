@@ -13,6 +13,7 @@ batches/*.json
 temp_control/*.jsonl
 temp_control/*.bak
 temp_control_log.jsonl
+logs/temp_control_tilt.jsonl
 
 # Backup restore files
 *.backup_before_restore
