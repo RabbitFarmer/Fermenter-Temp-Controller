@@ -17,7 +17,7 @@ This project is a Raspberry Pi-based fermentation monitor and temperature contro
 - Reads Tilt hydrometer data via Bluetooth (BLE)
 - Web dashboard for monitoring and configuration (Flask)
   - Accessible from anywhere on your home network
-  - Currently working on secure remote access via Tailscale VPN
+  - Tailscale VPN integration under development for secure remote access
 - Batch history and temperature logging to JSONL/CSV
 - **Email/Push notifications for fermentation status and temperature alerts**
   - Temperature control alerts (temp out of range, heating/cooling events, Kasa plug failures)
@@ -159,7 +159,7 @@ If you encounter errors during installation, see [INSTALLATION.md](INSTALLATION.
 
 Access your Fermenter Temperature Controller from anywhere using VPN. This allows secure remote monitoring of your fermentation from your phone or computer while away from home.
 
-> **Note**: We are currently working on adding Tailscale as an easier alternative for secure remote access from the public internet. In the meantime, WireGuard VPN provides a robust solution.
+> **Note**: Tailscale integration is under development to provide an easier alternative for secure remote access from the public internet. In the meantime, WireGuard VPN provides a robust solution.
 
 ### Quick Start
 
