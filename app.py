@@ -3643,7 +3643,14 @@ def periodic_batch_monitoring():
                     # Convert both times to minutes since midnight for accurate comparison
                     current_minutes = current_hour * 60 + current_min
                     report_minutes = report_hour * 60 + report_min
-                    time_match = abs(current_minutes - report_minutes) < DAILY_REPORT_WINDOW_MINUTES
+                    
+                    # Handle midnight boundary (e.g., report at 23:58, current 00:01)
+                    minute_diff = abs(current_minutes - report_minutes)
+                    # If difference is greater than 12 hours, we crossed midnight
+                    if minute_diff > 720:  # 720 = 12 hours in minutes
+                        minute_diff = 1440 - minute_diff  # 1440 = 24 hours in minutes
+                    
+                    time_match = minute_diff < DAILY_REPORT_WINDOW_MINUTES
                     
                     # Only send once per day
                     if time_match:
