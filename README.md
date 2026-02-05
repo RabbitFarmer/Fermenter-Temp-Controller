@@ -4,9 +4,20 @@ This project is a Raspberry Pi-based fermentation monitor and temperature contro
 
 ## Features
 
+- **Multi-Device Tilt Support**: Track multiple Tilt hydrometers simultaneously for fermentation monitoring
+  - Supports all 8 colors of the standard Tilt Hydrometer (Black, Blue, Green, Orange, Pink, Purple, Red, Yellow)
+  - Can track multiple Tilt devices for fermentation and assign one for temperature control
+  - The same Tilt device can be used for both fermentation tracking and temperature control simultaneously
+- **Temperature Control**: Manages 2 Kasa smart plugs (15 amp rated) - one for heating device and one for cooling device
+- **Interactive Charting**: Real-time charts for both Tilt-tracked fermentation data and temperature control monitoring
+  - Fermentation charts display gravity and temperature trends over time
+  - Temperature control charts show heating/cooling events and temperature readings
+  - Powered by Plotly for interactive zooming, panning, and data exploration
+- **CSV Data Export**: Export fermentation batch data and temperature control logs to CSV format for external analysis
 - Reads Tilt hydrometer data via Bluetooth (BLE)
-- Controls heating/cooling with Kasa smart plugs
 - Web dashboard for monitoring and configuration (Flask)
+  - Accessible from anywhere on your home network
+  - Tailscale VPN integration under development for secure remote access
 - Batch history and temperature logging to JSONL/CSV
 - **Email/Push notifications for fermentation status and temperature alerts**
   - Temperature control alerts (temp out of range, heating/cooling events, Kasa plug failures)
@@ -146,7 +157,9 @@ If you encounter errors during installation, see [INSTALLATION.md](INSTALLATION.
 
 ## Remote Access via VPN
 
-Access your Fermenter Temperature Controller from anywhere using WireGuard VPN. This allows secure remote monitoring of your fermentation from your phone or computer while away from home.
+Access your Fermenter Temperature Controller from anywhere using VPN. This allows secure remote monitoring of your fermentation from your phone or computer while away from home.
+
+> **Note**: Tailscale integration is under development to provide an easier alternative for secure remote access from the public internet. In the meantime, WireGuard VPN provides a robust solution.
 
 ### Quick Start
 
