@@ -3629,7 +3629,7 @@ def periodic_batch_monitoring():
             notif_cfg = system_cfg.get('batch_notifications', {})
             daily_report_time = notif_cfg.get('daily_report_time', '09:00')  # Default 9 AM
             
-            now = datetime.utcnow()
+            now = datetime.now()  # Use local time to match user's configured time
             current_time_str = now.strftime('%H:%M')
             
             # Check if we should send daily report (within 5 minute window)
@@ -3640,8 +3640,17 @@ def periodic_batch_monitoring():
                     current_min = now.minute
                     
                     # Check if current time is within DAILY_REPORT_WINDOW_MINUTES of report time
-                    time_match = (current_hour == report_hour and 
-                                 abs(current_min - report_min) < DAILY_REPORT_WINDOW_MINUTES)
+                    # Convert both times to minutes since midnight for accurate comparison
+                    current_minutes = current_hour * 60 + current_min
+                    report_minutes = report_hour * 60 + report_min
+                    
+                    # Handle midnight boundary (e.g., report at 23:58, current 00:01)
+                    minute_diff = abs(current_minutes - report_minutes)
+                    # If difference is greater than 12 hours, we crossed midnight
+                    if minute_diff > 720:  # 720 = 12 hours in minutes
+                        minute_diff = 1440 - minute_diff  # 1440 = 24 hours in minutes
+                    
+                    time_match = minute_diff < DAILY_REPORT_WINDOW_MINUTES
                     
                     # Only send once per day
                     if time_match:
