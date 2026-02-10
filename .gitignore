@@ -4,10 +4,15 @@ venv/
 .venv/
 app.log
 logs/*.log
+logs/*.jsonl
 
 # Batch data files
 batches/*.jsonl
 batches/*.json
+batches/*.backup
+
+# Export directory - CSV files contain user data
+export/*.csv
 
 # Temperature control logs
 temp_control/*.jsonl

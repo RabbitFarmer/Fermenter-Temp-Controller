@@ -2,6 +2,8 @@
 
 This project is a Raspberry Pi-based fermentation monitor and temperature controller for homebrewing. It uses Tilt hydrometers and TP-Link Kasa smart plugs to manage and log fermentation temperature with a web dashboard.
 
+> **Privacy Note for New Users:** This repository does not contain any personal data. Your configuration files, batch data, and logs are automatically created on your system and remain private - they are not tracked by git.
+
 ## Features
 
 - **Multi-Device Tilt Support**: Track multiple Tilt hydrometers simultaneously for fermentation monitoring
@@ -88,6 +90,16 @@ If you prefer to install manually or encounter issues:
    python3 app.py
    ```
    Then visit `http://<raspberry-pi-ip>:5000` in your browser.
+
+### First Run Configuration
+
+**On first run, the application automatically creates configuration files from templates.**
+
+- Configuration files are created in the `config/` directory
+- Use the web interface to configure your settings (brewery name, Kasa plug IPs, Tilt assignments, etc.)
+- Your personal configuration and data files are **not tracked in git** - they remain private on your system
+
+For more details, see [config/README.md](config/README.md).
 
 ### Running on System Startup
 
