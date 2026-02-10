@@ -1,3 +1,0 @@
-{"timestamp": "2026-02-04T02:35:50.145194Z", "local_time": "2026-02-04 02:35:50", "notification_type": "email", "subject": "Test Subject", "body": "Test body message", "success": true}
-{"timestamp": "2026-02-04T02:35:50.145293Z", "local_time": "2026-02-04 02:35:50", "notification_type": "push", "subject": "Test Alert", "body": "Alert message", "success": false, "error": "Push service unavailable"}
-{"timestamp": "2026-02-04T02:35:50.145360Z", "local_time": "2026-02-04 02:35:50", "notification_type": "both", "subject": "Test Both", "body": "Combined notification", "success": true, "tilt_color": "Red"}
