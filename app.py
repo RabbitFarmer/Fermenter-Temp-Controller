@@ -610,10 +610,10 @@ def generate_brewid(beer_name, batch_name, date_str):
     id_str = f"{beer_name}-{batch_name}-{date_str}"
     return hashlib.sha256(id_str.encode('utf-8')).hexdigest()[:8]
 
-def update_live_tilt(color, gravity, temp_f, rssi):
+def update_live_tilt(color, gravity, temp_f, rssi, mac=None, tilt_pro=False):
     cfg = tilt_cfg.get(color, {})
     live_tilts[color] = {
-        "gravity": round(gravity, 3) if gravity is not None else None,
+        "gravity": round(gravity, 4 if tilt_pro else 3) if gravity is not None else None,
         "temp_f": temp_f,
         "rssi": rssi,
         "timestamp": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
@@ -627,6 +627,8 @@ def update_live_tilt(color, gravity, temp_f, rssi):
         "actual_og": cfg.get("actual_og", ""),
         "og_confirmed": cfg.get("og_confirmed", False),
         "original_gravity": cfg.get("actual_og", 0),
+        "mac": mac,
+        "tilt_pro": tilt_pro,
     }
 
 def get_active_tilts():
@@ -908,12 +910,24 @@ def detection_callback(device, advertisement_data):
         if not color:
             return
         try:
-            temp_f = int.from_bytes(raw[18:20], byteorder='big')
-            gravity = int.from_bytes(raw[20:22], byteorder='big') / 1000.0
+            raw_temp = int.from_bytes(raw[18:20], byteorder='big')
+            raw_gravity = int.from_bytes(raw[20:22], byteorder='big')
         except Exception:
             return
+        # temp=999 is a firmware-version beacon (not a real reading) — skip it
+        if raw_temp == 999:
+            return
+        # Tilt Pro sends gravity ≥ 5000 (scaled ×10000) and temperature ×10
+        tilt_pro = raw_gravity >= 5000
+        if tilt_pro:
+            temp_f = raw_temp / 10.0
+            gravity = raw_gravity / 10000.0
+        else:
+            temp_f = float(raw_temp)
+            gravity = raw_gravity / 1000.0
+        mac = getattr(device, 'address', None)
         rssi = advertisement_data.rssi
-        update_live_tilt(color, gravity, temp_f, rssi)
+        update_live_tilt(color, gravity, temp_f, rssi, mac=mac, tilt_pro=tilt_pro)
         try:
             log_tilt_reading(color, gravity, temp_f, rssi)
         except Exception as log_err:
@@ -4765,7 +4779,9 @@ def calculate_batch_statistics(batch_data, batch_info):
         return stats
     
     # Calculate temperature statistics from ALL samples
-    temps = [s.get('temp_f') for s in all_samples if s.get('temp_f') is not None]
+    # Filter out Tilt sentinel values (999 = no reading) and physically impossible readings
+    temps = [s.get('temp_f') for s in all_samples
+             if s.get('temp_f') is not None and 0 < s.get('temp_f') <= 212]
     if temps:
         stats['avg_temp'] = round(sum(temps) / len(temps), 1)
         stats['min_temp'] = min(temps)
@@ -4776,9 +4792,17 @@ def calculate_batch_statistics(batch_data, batch_info):
     # Calculate gravity statistics from ALL samples
     gravities = [s.get('gravity') for s in all_samples if s.get('gravity') is not None]
     if gravities:
-        stats['start_gravity'] = gravities[0]
+        # Use actual_og as starting gravity when available (user-measured, more accurate)
+        actual_og = batch_info.get('actual_og')
+        if actual_og:
+            try:
+                stats['start_gravity'] = float(actual_og)
+            except (ValueError, TypeError):
+                stats['start_gravity'] = gravities[0]
+        else:
+            stats['start_gravity'] = gravities[0]
         stats['end_gravity'] = gravities[-1]
-        stats['gravity_change'] = round(gravities[0] - gravities[-1], 3)
+        stats['gravity_change'] = round(stats['start_gravity'] - gravities[-1], 3)
     
     # Calculate ABV if we have actual_og
     actual_og = batch_info.get('actual_og')
@@ -5173,12 +5197,59 @@ def live_snapshot():
             "actual_og": info.get("actual_og"),
             "og_confirmed": info.get("og_confirmed", False),
             "original_gravity": info.get("original_gravity"),
-            "color_code": info.get("color_code")
+            "color_code": info.get("color_code"),
+            "mac": info.get("mac"),
+            "tilt_pro": info.get("tilt_pro", False),
         }
     return jsonify(snapshot)
 
 
 # --- Chart routes and data endpoint ---------------------------------------
+@app.route('/tilt_detail/<color>')
+def tilt_detail(color):
+    """Display batch statistics and live chart for a specific tilt (banner click page)."""
+    if color not in tilt_cfg:
+        abort(404)
+    cfg = tilt_cfg[color]
+    brewid = cfg.get('brewid', '')
+
+    batch_info = {
+        'beer_name': cfg.get('beer_name', ''),
+        'batch_name': cfg.get('batch_name', ''),
+        'brewid': brewid,
+        'ferm_start_date': cfg.get('ferm_start_date', ''),
+        'recipe_og': cfg.get('recipe_og', ''),
+        'recipe_fg': cfg.get('recipe_fg', ''),
+        'recipe_abv': cfg.get('recipe_abv', ''),
+        'actual_og': cfg.get('actual_og', ''),
+    }
+
+    batch_data = []
+    if brewid:
+        if re.match(r'^[a-zA-Z0-9\-_]+$', brewid):
+            batch_files = glob_func(f'batches/*{brewid}*.jsonl')
+            if batch_files:
+                try:
+                    with open(batch_files[0], 'r', encoding='utf-8') as f:
+                        for line in f:
+                            if line.strip():
+                                try:
+                                    batch_data.append(json.loads(line))
+                                except Exception:
+                                    pass
+                except Exception:
+                    pass
+
+    stats = calculate_batch_statistics(batch_data, batch_info)
+    color_code = COLOR_MAP.get(color, '#333333')
+    return render_template('tilt_detail.html',
+                           color=color,
+                           color_code=color_code,
+                           batch=batch_info,
+                           stats=stats)
+
+
+
 @app.route('/chart_plotly')
 def chart_plotly_index():
     colors = list(tilt_cfg.keys())
@@ -5192,11 +5263,13 @@ def chart_plotly_for(tilt_color):
     # Allow "Fermenter" as a special identifier for temperature control
     if tilt_color and tilt_color != "Fermenter" and tilt_color not in tilt_cfg:
         abort(404)
+    embed = request.args.get('embed', '0') == '1'
     return render_template(
         'chart_plotly.html',
         tilt_color=tilt_color,
         tilt_cfg=tilt_cfg,
-        system_settings=system_cfg
+        system_settings=system_cfg,
+        embed=embed
     )
 
 @app.route('/chart_data/<tilt_color>')
