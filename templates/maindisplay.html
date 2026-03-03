@@ -375,7 +375,8 @@
           {% set safe_color = color.replace(' ', '_') %}
           <article class="tilt-card" data-tilt="{{ color }}">
             <div class="tilt-banner"
-                 style="background-color: {{ tilt.color_code }}; color: {% if tilt.color_code in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %};">
+                 style="background-color: {{ tilt.color_code }}; color: {% if tilt.color_code in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %}; cursor: {% if tilt.brewid and tilt.brewid != '--' %}pointer{% else %}default{% endif %};"
+                 {% if tilt.brewid and tilt.brewid != '--' %}onclick="window.location='/batch_review/{{ tilt.brewid }}'"{% endif %}>
               <div class="beer-name">{{ tilt.beer_name or 'Unnamed Beer' }}</div>
               <div class="tilt-batch-name">Batch: {{ tilt.batch_name or 'Unnamed Batch' }}</div>
             </div>
