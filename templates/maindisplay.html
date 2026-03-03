@@ -378,7 +378,7 @@
                  style="background-color: {{ tilt.color_code }}; color: {% if tilt.color_code in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %}; cursor: pointer;"
                  onclick="window.location='/tilt_detail/{{ color }}'">
               <div class="beer-name">{{ tilt.beer_name or 'Unnamed Beer' }}</div>
-              <div class="tilt-batch-name">Batch: {{ tilt.batch_name or 'Unnamed Batch' }}</div>
+              <div class="tilt-batch-name">Batch: {{ tilt.batch_name or 'Unnamed Batch' }}{% if tilt.tilt_pro %} &nbsp;·&nbsp; Tilt Pro{% endif %}</div>
             </div>
 
             <div class="tilt-body">

@@ -610,10 +610,10 @@ def generate_brewid(beer_name, batch_name, date_str):
     id_str = f"{beer_name}-{batch_name}-{date_str}"
     return hashlib.sha256(id_str.encode('utf-8')).hexdigest()[:8]
 
-def update_live_tilt(color, gravity, temp_f, rssi):
+def update_live_tilt(color, gravity, temp_f, rssi, mac=None, tilt_pro=False):
     cfg = tilt_cfg.get(color, {})
     live_tilts[color] = {
-        "gravity": round(gravity, 3) if gravity is not None else None,
+        "gravity": round(gravity, 4 if tilt_pro else 3) if gravity is not None else None,
         "temp_f": temp_f,
         "rssi": rssi,
         "timestamp": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
@@ -627,6 +627,8 @@ def update_live_tilt(color, gravity, temp_f, rssi):
         "actual_og": cfg.get("actual_og", ""),
         "og_confirmed": cfg.get("og_confirmed", False),
         "original_gravity": cfg.get("actual_og", 0),
+        "mac": mac,
+        "tilt_pro": tilt_pro,
     }
 
 def get_active_tilts():
@@ -908,12 +910,24 @@ def detection_callback(device, advertisement_data):
         if not color:
             return
         try:
-            temp_f = int.from_bytes(raw[18:20], byteorder='big')
-            gravity = int.from_bytes(raw[20:22], byteorder='big') / 1000.0
+            raw_temp = int.from_bytes(raw[18:20], byteorder='big')
+            raw_gravity = int.from_bytes(raw[20:22], byteorder='big')
         except Exception:
             return
+        # temp=999 is a firmware-version beacon (not a real reading) — skip it
+        if raw_temp == 999:
+            return
+        # Tilt Pro sends gravity ≥ 5000 (scaled ×10000) and temperature ×10
+        tilt_pro = raw_gravity >= 5000
+        if tilt_pro:
+            temp_f = raw_temp / 10.0
+            gravity = raw_gravity / 10000.0
+        else:
+            temp_f = float(raw_temp)
+            gravity = raw_gravity / 1000.0
+        mac = getattr(device, 'address', None)
         rssi = advertisement_data.rssi
-        update_live_tilt(color, gravity, temp_f, rssi)
+        update_live_tilt(color, gravity, temp_f, rssi, mac=mac, tilt_pro=tilt_pro)
         try:
             log_tilt_reading(color, gravity, temp_f, rssi)
         except Exception as log_err:
@@ -5183,7 +5197,9 @@ def live_snapshot():
             "actual_og": info.get("actual_og"),
             "og_confirmed": info.get("og_confirmed", False),
             "original_gravity": info.get("original_gravity"),
-            "color_code": info.get("color_code")
+            "color_code": info.get("color_code"),
+            "mac": info.get("mac"),
+            "tilt_pro": info.get("tilt_pro", False),
         }
     return jsonify(snapshot)
 

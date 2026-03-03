@@ -281,7 +281,7 @@
             <tbody>
               {% for color, info in live_tilts.items() %}
                 <tr>
-                  <td>{{ color }}</td>
+                  <td>{{ color }}{% if info.tilt_pro %} <span style="font-size:0.8em; color:#666;">(Pro)</span>{% endif %}</td>
                   <td>{% if info.temp_f is not none %}{{ info.temp_f }}°F{% else %}&mdash;{% endif %}</td>
                   <td>{% if info.gravity is not none %}{{ info.gravity }}{% else %}&mdash;{% endif %}</td>
                   <td>{{ info.rssi if info.rssi is not none else '&mdash;' }}</td>
