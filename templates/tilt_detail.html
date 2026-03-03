@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ color }} Tilt – {{ batch.beer_name or 'Batch Detail' }}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    .detail-container { max-width:1200px; margin:18px auto; padding:18px; background:#fff; border-radius:8px; box-shadow:0 1px 6px rgba(0,0,0,0.04); }
+    .tilt-header { padding:18px; text-align:center; font-weight:900; border-radius:6px; margin-bottom:20px; }
+    .tilt-header .beer-name { font-size:1.6em; }
+    .tilt-header .batch-name { font-size:1.1em; margin-top:4px; font-weight:700; }
+    .subheading { font-weight:700; margin-top:20px; margin-bottom:8px; font-size:1.3em; color:#333; }
+    .info-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-bottom:16px; }
+    .info-card { padding:12px; background:#f9f9f9; border-radius:6px; border-left:4px solid #1a6; }
+    .info-label { font-weight:700; color:#666; font-size:0.9em; }
+    .info-value { font-size:1.1em; margin-top:4px; }
+    .stats-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:20px; }
+    .stat-card { padding:12px; background:#fff; border:1px solid #ddd; border-radius:6px; text-align:center; }
+    .stat-value { font-size:1.8em; font-weight:700; color:#1a6; }
+    .stat-label { font-size:0.9em; color:#666; margin-top:4px; }
+    .btn-action { padding:10px 20px; background-color:#8B4513; color:white; border:none; cursor:pointer; font-size:16px; font-weight:bold; border-radius:5px; text-decoration:none; display:inline-block; margin-right:10px; }
+    .chart-section { margin-top:28px; }
+    .chart-frame { width:100%; height:580px; border:1px solid #e0e0e0; border-radius:6px; background:#f6f6f6; display:block; }
+  </style>
+</head>
+<body>
+  <div class="page-container">
+    <div class="detail-container">
+
+      <!-- Top navigation -->
+      <div style="margin-bottom:18px;">
+        <button type="button" onclick="window.location='/'" class="btn-action">Dashboard</button>
+      </div>
+
+      <!-- Tilt colour banner -->
+      <div class="tilt-header"
+           style="background-color: {{ color_code }};
+                  color: {% if color_code in ['#ffff00','#ffc0cb','#00ff00'] %}black{% else %}white{% endif %};">
+        <div class="beer-name">{{ batch.beer_name or 'Unnamed Beer' }}</div>
+        <div class="batch-name">Batch: {{ batch.batch_name or 'Unnamed Batch' }}</div>
+      </div>
+
+      <!-- Batch information -->
+      <div class="subheading">Batch Information</div>
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="info-label">Tilt Color</div>
+          <div class="info-value" style="color: {{ color_code }}; font-weight:700;">{{ color }}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">Brew ID</div>
+          <div class="info-value">{{ batch.brewid[:16] if batch.brewid else 'N/A' }}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">Fermentation Start</div>
+          <div class="info-value">{{ batch.ferm_start_date or 'N/A' }}</div>
+        </div>
+      </div>
+
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="info-label">Measured Original Gravity (actual_og)</div>
+          <div class="info-value">{{ batch.actual_og if batch.actual_og else 'N/A' }}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">Recipe OG / FG</div>
+          <div class="info-value">{{ batch.recipe_og or 'N/A' }} / {{ batch.recipe_fg or 'N/A' }}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">Recipe ABV</div>
+          <div class="info-value">{{ batch.recipe_abv if batch.recipe_abv else 'N/A' }}{% if batch.recipe_abv %}%{% endif %}</div>
+        </div>
+      </div>
+
+      <!-- Fermentation statistics -->
+      {% if stats.total_readings > 0 %}
+      <div class="subheading">Fermentation Statistics</div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">{{ stats.total_readings }}</div>
+          <div class="stat-label">Total Readings</div>
+        </div>
+        {% if stats.duration_days is not none %}
+        <div class="stat-card">
+          <div class="stat-value">{{ stats.duration_days }}</div>
+          <div class="stat-label">Duration (days)</div>
+        </div>
+        {% endif %}
+        {% if stats.start_gravity is not none %}
+        <div class="stat-card">
+          <div class="stat-value">{{ "%.3f"|format(stats.start_gravity) }}</div>
+          <div class="stat-label">Starting Gravity</div>
+        </div>
+        {% endif %}
+        {% if stats.end_gravity is not none %}
+        <div class="stat-card">
+          <div class="stat-value">{{ "%.3f"|format(stats.end_gravity) }}</div>
+          <div class="stat-label">Current / Final Gravity</div>
+        </div>
+        {% endif %}
+        {% if stats.gravity_change is not none %}
+        <div class="stat-card">
+          <div class="stat-value">{{ "%.3f"|format(stats.gravity_change) }}</div>
+          <div class="stat-label">Gravity Drop</div>
+        </div>
+        {% endif %}
+        {% if stats.estimated_abv is not none %}
+        <div class="stat-card">
+          <div class="stat-value">{{ "%.2f"|format(stats.estimated_abv) }}%</div>
+          <div class="stat-label">Estimated ABV</div>
+        </div>
+        {% endif %}
+        {% if stats.avg_temp is not none %}
+        <div class="stat-card">
+          <div class="stat-value">{{ "%.1f"|format(stats.avg_temp) }}°F</div>
+          <div class="stat-label">Average Temperature</div>
+        </div>
+        {% endif %}
+        {% if stats.min_temp is not none and stats.max_temp is not none %}
+        <div class="stat-card">
+          <div class="stat-value">{{ stats.min_temp }}°F – {{ stats.max_temp }}°F</div>
+          <div class="stat-label">Temperature Range</div>
+        </div>
+        {% endif %}
+      </div>
+      {% else %}
+      <div style="color:#999; font-style:italic; margin:20px 0;">No fermentation data recorded yet for this batch.</div>
+      {% endif %}
+
+      <!-- Embedded chart -->
+      <div class="chart-section">
+        <div class="subheading">Fermentation Chart</div>
+        <iframe class="chart-frame"
+                src="/chart_plotly/{{ color }}?brew={{ (batch.brewid or '')|urlencode }}&embed=1"
+                title="{{ color }} Tilt Chart">
+        </iframe>
+      </div>
+
+      <!-- Bottom navigation -->
+      <div style="margin-top:20px;">
+        <button type="button" onclick="window.location='/'" class="btn-action">Dashboard</button>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

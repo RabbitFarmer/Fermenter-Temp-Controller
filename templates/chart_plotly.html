@@ -22,6 +22,7 @@
   </style>
 </head>
 <body>
+  {% if not embed %}
   <h2 style="text-align: center;">Fermenter Temperature & Gravity</h2>
   <div class="controls">
     <button id="print">Print</button>
@@ -31,6 +32,9 @@
     <button id="dashboard">Dashboard</button>
     <span id="status"></span>
   </div>
+  {% else %}
+  <span id="status" style="display:none;"></span>
+  {% endif %}
 
   <div id="chart-container">
     <div id="tempChart"></div>
@@ -536,6 +540,7 @@
     }
 
     // Add print button functionality
+    {% if not embed %}
     document.getElementById('print').addEventListener('click', () => {
       window.print();
     });
@@ -566,6 +571,7 @@
         document.getElementById('status').textContent = 'Export failed';
       }
     });
+    {% endif %}
     {% endif %}
 
     loadData();
